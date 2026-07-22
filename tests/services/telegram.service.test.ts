@@ -21,6 +21,46 @@ describe('TelegramService', () => {
     expect(http.defaults?.httpsAgent).toBe(redditHttpsAgent);
   });
 
+  it('sends one separator before each non-empty message batch', async () => {
+    const sendMessage = vi.fn().mockResolvedValue({});
+    const service = new TelegramService(
+      { telegram: { sendMessage } },
+      'chat-id',
+      3900,
+      '',
+    );
+    const messages = [
+      { text: 'first', url: 'https://example.com/1', article, topic: 'ai' as const },
+      { text: 'second', url: 'https://example.com/2', article, topic: 'ai' as const },
+    ];
+
+    await service.sendMessages(messages);
+
+    expect(sendMessage).toHaveBeenCalledTimes(3);
+    expect(sendMessage.mock.calls.map((call) => call[1])).toEqual([
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      'first',
+      'second',
+    ]);
+  });
+
+  it('does not send a separator for an empty message batch', async () => {
+    const sendMessage = vi.fn().mockResolvedValue({});
+    const service = new TelegramService(
+      { telegram: { sendMessage } },
+      'chat-id',
+      3900,
+      '',
+    );
+
+    await service.sendMessages([]);
+    await service.sendMessages([
+      { text: '   ', url: 'https://example.com/a', article, topic: 'ai' },
+    ]);
+
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it('sends digest message to configured chat as HTML', async () => {
     const sendMessage = vi.fn().mockResolvedValue({});
     const service = new TelegramService(
@@ -153,7 +193,11 @@ describe('TelegramService', () => {
         inline_keyboard: [[{ text: '🔎 Xem bài gốc', url: 'https://example.com/a' }]],
       },
     });
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledOnce();
+    expect(sendMessage).toHaveBeenCalledWith('chat-id', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━', {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    });
   });
 
   it('falls back to text when sending a photo fails', async () => {
@@ -244,7 +288,11 @@ describe('TelegramService', () => {
     ]);
 
     expect(sendPhoto).toHaveBeenCalledWith('chat-id', { source: imageBuffer, filename: 'image.png' }, {});
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage).toHaveBeenNthCalledWith(1, 'chat-id', '━━━━━━━━━━━━━━━━━━━━━━━━━━━━', {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    });
     expect(sendMessage).toHaveBeenCalledWith('chat-id', message, {
       parse_mode: 'HTML',
       disable_web_page_preview: true,

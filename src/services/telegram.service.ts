@@ -4,6 +4,8 @@ import { env } from '../config/env';
 import { redditHttpsAgent } from '../utils/reddit-dns';
 import type { DigestMessage } from './digest.service';
 
+const triggerSeparator = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+
 interface InlineKeyboardButton {
   text: string;
   url: string;
@@ -82,11 +84,18 @@ export class TelegramService {
   }
 
   async sendMessages(messages: DigestMessage[]): Promise<void> {
-    for (const message of messages) {
-      if (!message.text.trim()) {
-        continue;
-      }
+    const validMessages = messages.filter((message) => message.text.trim());
 
+    if (validMessages.length === 0) {
+      return;
+    }
+
+    await this.bot.telegram.sendMessage(this.chatId, triggerSeparator, {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    });
+
+    for (const message of validMessages) {
       await this.sendDigest(message.text, message.url, message.imageUrl);
     }
   }

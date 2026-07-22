@@ -38,8 +38,16 @@ export class GoogleTranslationService implements DigestTranslator {
       },
     });
 
-    if (Array.isArray(response.data) && Array.isArray(response.data[0])) {
-      return response.data[0].map((segment: any[]) => segment[0]).join('');
+    const data: unknown = response.data;
+
+    if (Array.isArray(data) && Array.isArray(data[0])) {
+      const translated = data[0]
+        .map((segment: unknown) =>
+          Array.isArray(segment) && typeof segment[0] === 'string' ? segment[0] : '',
+        )
+        .join('');
+
+      return translated || text;
     }
 
     return text;
