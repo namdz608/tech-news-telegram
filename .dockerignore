@@ -1,0 +1,23 @@
+# Secrets and local environment files
+.env
+.env.*
+!.env.example
+
+# Installed and generated files
+node_modules/
+dist/
+coverage/
+*.log
+.cache/
+.tmp/
+
+# Development-only content
+tests/
+docs/
+.git/
+.codegraph/
+.cursor/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

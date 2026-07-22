@@ -1,0 +1,42 @@
+{
+  "name": "tech-news-telegram",
+  "version": "1.0.0",
+  "description": "Collect technology news from RSS/HTML sources, translate digests to Vietnamese, and send them to Telegram.",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "CHOKIDAR_USEPOLLING=1 tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src tests --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.9.5",
+    "@types/supertest": "^7.2.1",
+    "eslint": "^10.7.0",
+    "prettier": "^3.9.5",
+    "supertest": "^7.2.2",
+    "tsx": "^4.23.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.65.0",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "axios": "^1.18.1",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "openai": "^6.48.0",
+    "rss-parser": "^3.13.0",
+    "telegraf": "^4.16.3",
+    "zod": "^4.4.3"
+  }
+}
