@@ -25,9 +25,15 @@ import type { ArticleEditorial } from './article-editorial.types';
  * Interface `DigestMessage` mô tả contract dữ liệu/dependency tại bước này.
  *
  * Được sử dụng tại:
- * - `src/services/digest-message-editorial.service.ts`
- * - `src/services/digest.service.ts`
- * - `src/services/telegram.service.ts`
+ * - `src/services/digest-message-editorial.service.ts:2`
+ * - `src/services/digest-message-editorial.service.ts:7`
+ * - `src/services/digest-message-editorial.service.ts:8`
+ * - `src/services/digest-message-editorial.service.ts:13`
+ * - `src/services/digest-message-editorial.service.ts:15`
+ * - `src/services/digest.service.ts:97`
+ * - `src/services/digest.service.ts:105`
+ * - `src/services/telegram.service.ts:5`
+ * - `src/services/telegram.service.ts:86`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 export interface DigestMessage {
@@ -47,7 +53,11 @@ export interface DigestMessage {
  * Interface `DigestEntry` mô tả contract dữ liệu/dependency tại bước này.
  *
  * Được sử dụng tại:
- * - `src/services/digest.service.ts`
+ * - `src/services/digest.service.ts:23`
+ * - `src/services/digest.service.ts:126`
+ * - `src/services/digest.service.ts:128`
+ * - `src/services/digest.service.ts:332`
+ * - `src/services/digest.service.ts:333`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 interface DigestEntry {
@@ -61,7 +71,8 @@ interface DigestEntry {
  * Interface `RankedDigestEntry` mô tả contract dữ liệu/dependency tại bước này.
  *
  * Được sử dụng tại:
- * - `src/services/digest.service.ts`
+ * - `src/services/digest.service.ts:153`
+ * - `src/services/digest.service.ts:154`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 interface RankedDigestEntry extends DigestEntry {
@@ -113,11 +124,32 @@ const summaryMaxLength = 1000;
  * Class `DigestService` đóng gói trách nhiệm chính của module.
  *
  * Được sử dụng tại:
- * - `src/controllers/news.controller.ts`
- * - `src/controllers/telegram.controller.ts`
- * - `src/services/article-editorial.types.ts`
- * - `tests/services/digest-message-editorial.service.test.ts`
- * - `tests/services/digest.service.test.ts`
+ * - `src/controllers/news.controller.ts:10`
+ * - `src/controllers/news.controller.ts:18`
+ * - `src/controllers/telegram.controller.ts:9`
+ * - `src/controllers/telegram.controller.ts:17`
+ * - `src/services/article-editorial.types.ts:12`
+ * - `tests/services/digest-message-editorial.service.test.ts:3`
+ * - `tests/services/digest-message-editorial.service.test.ts:7`
+ * - `tests/services/digest.service.test.ts:2`
+ * - `tests/services/digest.service.test.ts:4`
+ * - `tests/services/digest.service.test.ts:6`
+ * - `tests/services/digest.service.test.ts:31`
+ * - `tests/services/digest.service.test.ts:56`
+ * - `tests/services/digest.service.test.ts:87`
+ * - `tests/services/digest.service.test.ts:114`
+ * - `tests/services/digest.service.test.ts:141`
+ * - `tests/services/digest.service.test.ts:169`
+ * - `tests/services/digest.service.test.ts:206`
+ * - `tests/services/digest.service.test.ts:240`
+ * - `tests/services/digest.service.test.ts:258`
+ * - `tests/services/digest.service.test.ts:290`
+ * - `tests/services/digest.service.test.ts:318`
+ * - `tests/services/digest.service.test.ts:335`
+ * - `tests/services/digest.service.test.ts:352`
+ * - `tests/services/digest.service.test.ts:370`
+ * - `tests/services/digest.service.test.ts:387`
+ * - `tests/services/digest.service.test.ts:391`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 export class DigestService {
@@ -125,18 +157,18 @@ export class DigestService {
    * Hàm `constructor` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/crawlers/github-repos.crawler.ts`
-   * - `src/crawlers/html.crawler.ts`
-   * - `src/crawlers/rss.crawler.ts`
-   * - `src/crawlers/x-search.crawler.ts`
-   * - `src/services/article-editorial.service.ts`
-   * - `src/services/codex-article-editorial.generator.ts`
-   * - `src/services/google-article-editorial.generator.ts`
-   * - `src/services/google-translation.service.ts`
-   * - `src/services/openai-article-editorial.generator.ts`
-   * - `src/services/source.service.ts`
-   * - `src/services/telegram.service.ts`
-   * - `src/services/translation.service.ts`
+   * - `src/crawlers/github-repos.crawler.ts:121`
+   * - `src/crawlers/html.crawler.ts:110`
+   * - `src/crawlers/rss.crawler.ts:194`
+   * - `src/crawlers/x-search.crawler.ts:166`
+   * - `src/services/article-editorial.service.ts:23`
+   * - `src/services/codex-article-editorial.generator.ts:10`
+   * - `src/services/google-article-editorial.generator.ts:12`
+   * - `src/services/google-translation.service.ts:6`
+   * - `src/services/openai-article-editorial.generator.ts:16`
+   * - `src/services/source.service.ts:61`
+   * - `src/services/telegram.service.ts:52`
+   * - `src/services/translation.service.ts:9`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   constructor(private readonly maxArticlesPerTopic = env.MAX_ARTICLES_PER_TOPIC) {}
@@ -145,8 +177,13 @@ export class DigestService {
    * Hàm `buildDigest` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/controllers/news.controller.ts`
-   * - `tests/services/digest.service.test.ts`
+   * - `src/controllers/news.controller.ts:59`
+   * - `tests/services/digest.service.test.ts:6`
+   * - `tests/services/digest.service.test.ts:31`
+   * - `tests/services/digest.service.test.ts:56`
+   * - `tests/services/digest.service.test.ts:87`
+   * - `tests/services/digest.service.test.ts:114`
+   * - `tests/services/digest.service.test.ts:391`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   buildDigest(articles: Article[]): string {
@@ -229,10 +266,20 @@ export class DigestService {
    * Hàm `buildDigestMessages` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/controllers/news.controller.ts`
-   * - `src/controllers/telegram.controller.ts`
-   * - `tests/services/digest-message-editorial.service.test.ts`
-   * - `tests/services/digest.service.test.ts`
+   * - `src/controllers/news.controller.ts:61`
+   * - `src/controllers/telegram.controller.ts:33`
+   * - `tests/services/digest-message-editorial.service.test.ts:7`
+   * - `tests/services/digest.service.test.ts:141`
+   * - `tests/services/digest.service.test.ts:169`
+   * - `tests/services/digest.service.test.ts:206`
+   * - `tests/services/digest.service.test.ts:240`
+   * - `tests/services/digest.service.test.ts:258`
+   * - `tests/services/digest.service.test.ts:290`
+   * - `tests/services/digest.service.test.ts:318`
+   * - `tests/services/digest.service.test.ts:335`
+   * - `tests/services/digest.service.test.ts:352`
+   * - `tests/services/digest.service.test.ts:370`
+   * - `tests/services/digest.service.test.ts:387`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   buildDigestMessages(articles: Article[]): DigestMessage[] {
@@ -284,7 +331,8 @@ export class DigestService {
  * Hàm `selectBalancedEntries` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/digest.service.ts`
+ * - `src/services/digest.service.ts:52`
+ * - `src/services/digest.service.ts:98`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function selectBalancedEntries(articles: Article[], maxArticlesPerTopic: number): DigestEntry[] {
@@ -335,7 +383,7 @@ function selectBalancedEntries(articles: Article[], maxArticlesPerTopic: number)
  * Hàm `pickDiverseSources` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/digest.service.ts`
+ * - `src/services/digest.service.ts:142`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function pickDiverseSources(candidates: RankedDigestEntry[], maxArticlesPerTopic: number): RankedDigestEntry[] {
@@ -396,7 +444,7 @@ function pickDiverseSources(candidates: RankedDigestEntry[], maxArticlesPerTopic
  * Hàm `scoreArticleForTopic` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/digest.service.ts`
+ * - `src/services/digest.service.ts:138`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function scoreArticleForTopic(article: Article, topic: TopicKey): number {
@@ -464,8 +512,9 @@ function scoreArticleForTopic(article: Article, topic: TopicKey): number {
  * Hàm `renderArticleMessage` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/digest-message-editorial.service.ts`
- * - `src/services/digest.service.ts`
+ * - `src/services/digest-message-editorial.service.ts:3`
+ * - `src/services/digest-message-editorial.service.ts:19`
+ * - `src/services/digest.service.ts:113`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 export function renderArticleMessage(
@@ -512,8 +561,13 @@ export function renderArticleMessage(
      * Hàm `escapeHtml` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
      *
      * Được sử dụng tại:
-     * - `src/services/digest.service.ts`
-     * - `src/utils/text.ts`
+     * - `src/services/digest.service.ts:6`
+     * - `src/services/digest.service.ts:241`
+     * - `src/services/digest.service.ts:244`
+     * - `src/services/digest.service.ts:252`
+     * - `src/services/digest.service.ts:255`
+     * - `src/services/digest.service.ts:257`
+     * - `src/utils/text.ts:5`
      */
     // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
     escapeHtml(summary),
@@ -525,8 +579,13 @@ export function renderArticleMessage(
      * Hàm `escapeHtml` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
      *
      * Được sử dụng tại:
-     * - `src/services/digest.service.ts`
-     * - `src/utils/text.ts`
+     * - `src/services/digest.service.ts:6`
+     * - `src/services/digest.service.ts:241`
+     * - `src/services/digest.service.ts:244`
+     * - `src/services/digest.service.ts:249`
+     * - `src/services/digest.service.ts:255`
+     * - `src/services/digest.service.ts:257`
+     * - `src/utils/text.ts:5`
      */
     // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
     escapeHtml(whyImportant),
@@ -561,7 +620,7 @@ const actionPresentation = {
  * Hàm `formatArticleDate` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/digest.service.ts`
+ * - `src/services/digest.service.ts:246`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function formatArticleDate(article: Article): string {
@@ -603,7 +662,7 @@ function formatArticleDate(article: Article): string {
  * Hàm `getMessageImageUrl` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/digest.service.ts`
+ * - `src/services/digest.service.ts:115`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function getMessageImageUrl(article: Article, topic: TopicKey): string | undefined {
@@ -615,10 +674,14 @@ function getMessageImageUrl(article: Article, topic: TopicKey): string | undefin
  * Hàm `normalizeImageUrl` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/crawlers/github-repos.crawler.ts`
- * - `src/crawlers/html.crawler.ts`
- * - `src/crawlers/rss.crawler.ts`
- * - `src/services/digest.service.ts`
+ * - `src/crawlers/github-repos.crawler.ts:381`
+ * - `src/crawlers/github-repos.crawler.ts:477`
+ * - `src/crawlers/html.crawler.ts:219`
+ * - `src/crawlers/html.crawler.ts:307`
+ * - `src/crawlers/rss.crawler.ts:410`
+ * - `src/crawlers/rss.crawler.ts:480`
+ * - `src/crawlers/rss.crawler.ts:613`
+ * - `src/services/digest.service.ts:292`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function normalizeImageUrl(imageUrl?: string): string | undefined {
@@ -648,9 +711,11 @@ function normalizeImageUrl(imageUrl?: string): string | undefined {
  * Hàm `formatSummary` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/crawlers/github-repos.crawler.ts`
- * - `src/crawlers/x-search.crawler.ts`
- * - `src/services/digest.service.ts`
+ * - `src/crawlers/github-repos.crawler.ts:379`
+ * - `src/crawlers/github-repos.crawler.ts:404`
+ * - `src/crawlers/x-search.crawler.ts:465`
+ * - `src/crawlers/x-search.crawler.ts:510`
+ * - `src/services/digest.service.ts:84`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function formatSummary(summary?: string): string {
@@ -677,8 +742,12 @@ function formatSummary(summary?: string): string {
  * Hàm `truncateText` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/crawlers/x-search.crawler.ts`
- * - `src/services/digest.service.ts`
+ * - `src/crawlers/x-search.crawler.ts:461`
+ * - `src/crawlers/x-search.crawler.ts:542`
+ * - `src/services/digest.service.ts:235`
+ * - `src/services/digest.service.ts:236`
+ * - `src/services/digest.service.ts:237`
+ * - `src/services/digest.service.ts:321`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function truncateText(value: string, maxLength: number): string {
@@ -696,7 +765,8 @@ function truncateText(value: string, maxLength: number): string {
  * Hàm `groupEntriesByAssignedTopic` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/digest.service.ts`
+ * - `src/services/digest.service.ts:66`
+ * - `src/services/digest.service.ts:104`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function groupEntriesByAssignedTopic(entries: DigestEntry[]): Map<TopicKey, DigestEntry[]> {
@@ -721,7 +791,7 @@ function groupEntriesByAssignedTopic(entries: DigestEntry[]): Map<TopicKey, Dige
  * Hàm `formatVietnamTime` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/digest.service.ts`
+ * - `src/services/digest.service.ts:62`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function formatVietnamTime(date: Date): string {
@@ -749,7 +819,8 @@ function formatVietnamTime(date: Date): string {
  * Hàm `topicIcon` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/digest.service.ts`
+ * - `src/services/digest.service.ts:77`
+ * - `src/services/digest.service.ts:241`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function topicIcon(topic: TopicKey): string {

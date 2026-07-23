@@ -15,7 +15,7 @@ import { renderArticleMessage } from './digest.service';
  * Interface `ArticleEditor` mô tả contract dữ liệu/dependency tại bước này.
  *
  * Được sử dụng tại:
- * - `src/services/digest-message-editorial.service.ts`
+ * - `src/services/digest-message-editorial.service.ts:14`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 interface ArticleEditor {
@@ -33,9 +33,13 @@ interface ArticleEditor {
  * Hàm `editDigestMessages` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/controllers/news.controller.ts`
- * - `src/controllers/telegram.controller.ts`
- * - `tests/services/digest-message-editorial.service.test.ts`
+ * - `src/controllers/news.controller.ts:11`
+ * - `src/controllers/news.controller.ts:65`
+ * - `src/controllers/telegram.controller.ts:10`
+ * - `src/controllers/telegram.controller.ts:35`
+ * - `tests/services/digest-message-editorial.service.test.ts:2`
+ * - `tests/services/digest-message-editorial.service.test.ts:5`
+ * - `tests/services/digest-message-editorial.service.test.ts:38`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 export async function editDigestMessages(

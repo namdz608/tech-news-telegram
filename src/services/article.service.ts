@@ -17,7 +17,7 @@ import { includesKeyword } from '../utils/text';
  * Interface `MatchTopicsInput` mô tả contract dữ liệu/dependency tại bước này.
  *
  * Được sử dụng tại:
- * - `src/services/article.service.ts`
+ * - `src/services/article.service.ts:11`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 interface MatchTopicsInput {
@@ -31,10 +31,15 @@ interface MatchTopicsInput {
  * Hàm `matchTopics` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/crawlers/html.crawler.ts`
- * - `src/crawlers/rss.crawler.ts`
- * - `src/crawlers/x-search.crawler.ts`
- * - `tests/services/article.service.test.ts`
+ * - `src/crawlers/html.crawler.ts:14`
+ * - `src/crawlers/html.crawler.ts:255`
+ * - `src/crawlers/rss.crawler.ts:16`
+ * - `src/crawlers/rss.crawler.ts:297`
+ * - `src/crawlers/x-search.crawler.ts:12`
+ * - `src/crawlers/x-search.crawler.ts:444`
+ * - `tests/services/article.service.test.ts:2`
+ * - `tests/services/article.service.test.ts:7`
+ * - `tests/services/article.service.test.ts:16`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 export function matchTopics(input: MatchTopicsInput): TopicKey[] {
@@ -53,7 +58,8 @@ export function matchTopics(input: MatchTopicsInput): TopicKey[] {
  * Hàm `dedupeArticles` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/source.service.ts`
+ * - `src/services/source.service.ts:7`
+ * - `src/services/source.service.ts:55`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 export function dedupeArticles(articles: Article[]): Article[] {
@@ -112,7 +118,8 @@ const suspiciousTerms = [
  * Hàm `isAllowedArticle` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/source.service.ts`
+ * - `src/services/source.service.ts:7`
+ * - `src/services/source.service.ts:55`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 export function isAllowedArticle(article: Article): boolean {
@@ -142,7 +149,7 @@ export function isAllowedArticle(article: Article): boolean {
  * Hàm `getHostname` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/article.service.ts`
+ * - `src/services/article.service.ts:51`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function getHostname(url: string): string {

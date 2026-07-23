@@ -13,8 +13,9 @@ import type { DigestTranslator } from './translation.types';
  * Hàm `createDefaultTranslator` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/translation.service.ts`
- * - `tests/services/translation.service.test.ts`
+ * - `src/services/translation.service.ts:9`
+ * - `tests/services/translation.service.test.ts:3`
+ * - `tests/services/translation.service.test.ts:7`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 export function createDefaultTranslator(): DigestTranslator {
@@ -26,8 +27,13 @@ export function createDefaultTranslator(): DigestTranslator {
  * Class `TranslationService` đóng gói trách nhiệm chính của module.
  *
  * Được sử dụng tại:
- * - `src/controllers/news.controller.ts`
- * - `tests/services/translation.service.test.ts`
+ * - `src/controllers/news.controller.ts:13`
+ * - `src/controllers/news.controller.ts:20`
+ * - `tests/services/translation.service.test.ts:3`
+ * - `tests/services/translation.service.test.ts:5`
+ * - `tests/services/translation.service.test.ts:15`
+ * - `tests/services/translation.service.test.ts:30`
+ * - `tests/services/translation.service.test.ts:44`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 export class TranslationService {
@@ -35,18 +41,18 @@ export class TranslationService {
    * Hàm `constructor` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/crawlers/github-repos.crawler.ts`
-   * - `src/crawlers/html.crawler.ts`
-   * - `src/crawlers/rss.crawler.ts`
-   * - `src/crawlers/x-search.crawler.ts`
-   * - `src/services/article-editorial.service.ts`
-   * - `src/services/codex-article-editorial.generator.ts`
-   * - `src/services/digest.service.ts`
-   * - `src/services/google-article-editorial.generator.ts`
-   * - `src/services/google-translation.service.ts`
-   * - `src/services/openai-article-editorial.generator.ts`
-   * - `src/services/source.service.ts`
-   * - `src/services/telegram.service.ts`
+   * - `src/crawlers/github-repos.crawler.ts:121`
+   * - `src/crawlers/html.crawler.ts:110`
+   * - `src/crawlers/rss.crawler.ts:194`
+   * - `src/crawlers/x-search.crawler.ts:166`
+   * - `src/services/article-editorial.service.ts:80`
+   * - `src/services/codex-article-editorial.generator.ts:35`
+   * - `src/services/digest.service.ts:174`
+   * - `src/services/google-article-editorial.generator.ts:85`
+   * - `src/services/google-translation.service.ts:32`
+   * - `src/services/openai-article-editorial.generator.ts:66`
+   * - `src/services/source.service.ts:61`
+   * - `src/services/telegram.service.ts:52`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   constructor(private readonly translator: DigestTranslator = createDefaultTranslator()) {}
@@ -55,14 +61,26 @@ export class TranslationService {
    * Hàm `translateDigest` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/controllers/news.controller.ts`
-   * - `src/services/google-article-editorial.generator.ts`
-   * - `src/services/google-translation.service.ts`
-   * - `src/services/translation.service.ts`
-   * - `src/services/translation.types.ts`
-   * - `tests/services/google-article-editorial.generator.test.ts`
-   * - `tests/services/google-translation.service.test.ts`
-   * - `tests/services/translation.service.test.ts`
+   * - `src/controllers/news.controller.ts:63`
+   * - `src/services/google-article-editorial.generator.ts:52`
+   * - `src/services/google-article-editorial.generator.ts:107`
+   * - `src/services/google-article-editorial.generator.ts:109`
+   * - `src/services/google-translation.service.ts:66`
+   * - `src/services/translation.service.ts:19`
+   * - `src/services/translation.types.ts:9`
+   * - `tests/services/google-article-editorial.generator.test.ts:17`
+   * - `tests/services/google-article-editorial.generator.test.ts:30`
+   * - `tests/services/google-article-editorial.generator.test.ts:31`
+   * - `tests/services/google-translation.service.test.ts:13`
+   * - `tests/services/google-translation.service.test.ts:24`
+   * - `tests/services/translation.service.test.ts:12`
+   * - `tests/services/translation.service.test.ts:15`
+   * - `tests/services/translation.service.test.ts:18`
+   * - `tests/services/translation.service.test.ts:25`
+   * - `tests/services/translation.service.test.ts:30`
+   * - `tests/services/translation.service.test.ts:31`
+   * - `tests/services/translation.service.test.ts:41`
+   * - `tests/services/translation.service.test.ts:44`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   async translateDigest(digest: string): Promise<string> {
@@ -95,7 +113,7 @@ export class TranslationService {
  * Interface `ProtectedText` mô tả contract dữ liệu/dependency tại bước này.
  *
  * Được sử dụng tại:
- * - `src/services/translation.service.ts`
+ * - `src/services/translation.service.ts:39`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 interface ProtectedText {
@@ -119,7 +137,7 @@ const protectPatterns: { name: string; regex: RegExp }[] = [
  * Hàm `protectMarkup` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/translation.service.ts`
+ * - `src/services/translation.service.ts:16`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function protectMarkup(text: string): ProtectedText {
@@ -154,7 +172,7 @@ function protectMarkup(text: string): ProtectedText {
  * Hàm `restoreMarkup` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/translation.service.ts`
+ * - `src/services/translation.service.ts:20`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function restoreMarkup(text: string, tokens: string[]): string {

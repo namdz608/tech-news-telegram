@@ -21,11 +21,15 @@ import type { NewsCrawler } from './crawler.types';
  * Interface `HttpClientLike` mô tả contract dữ liệu/dependency tại bước này.
  *
  * Được sử dụng tại:
- * - `src/crawlers/github-repos.crawler.ts`
- * - `src/crawlers/html.crawler.ts`
- * - `src/crawlers/rss.crawler.ts`
- * - `src/crawlers/x-search.crawler.ts`
- * - `src/services/telegram.service.ts`
+ * - `src/crawlers/github-repos.crawler.ts:41`
+ * - `src/crawlers/html.crawler.ts:41`
+ * - `src/crawlers/html.crawler.ts:112`
+ * - `src/crawlers/rss.crawler.ts:117`
+ * - `src/crawlers/rss.crawler.ts:213`
+ * - `src/crawlers/x-search.crawler.ts:37`
+ * - `src/crawlers/x-search.crawler.ts:168`
+ * - `src/services/telegram.service.ts:44`
+ * - `src/services/telegram.service.ts:57`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 interface HttpClientLike {
@@ -48,7 +52,7 @@ interface HttpClientLike {
  * Interface `GitHubSearchResponse` mô tả contract dữ liệu/dependency tại bước này.
  *
  * Được sử dụng tại:
- * - `src/crawlers/github-repos.crawler.ts`
+ * - `src/crawlers/github-repos.crawler.ts:15`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 interface GitHubSearchResponse {
@@ -60,7 +64,13 @@ interface GitHubSearchResponse {
  * Interface `GitHubRepository` mô tả contract dữ liệu/dependency tại bước này.
  *
  * Được sử dụng tại:
- * - `src/crawlers/github-repos.crawler.ts`
+ * - `src/crawlers/github-repos.crawler.ts:54`
+ * - `src/crawlers/github-repos.crawler.ts:62`
+ * - `src/crawlers/github-repos.crawler.ts:80`
+ * - `src/crawlers/github-repos.crawler.ts:118`
+ * - `src/crawlers/github-repos.crawler.ts:120`
+ * - `src/crawlers/github-repos.crawler.ts:134`
+ * - `src/crawlers/github-repos.crawler.ts:154`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 interface GitHubRepository {
@@ -96,8 +106,14 @@ const defaultAiTopics = ['llm', 'generative-ai', 'ai-agent', 'rag', 'machine-lea
  * Class `GitHubReposCrawler` đóng gói trách nhiệm chính của module.
  *
  * Được sử dụng tại:
- * - `src/crawlers/index.ts`
- * - `tests/crawlers/github-repos.crawler.test.ts`
+ * - `src/crawlers/index.ts:8`
+ * - `src/crawlers/index.ts:34`
+ * - `tests/crawlers/github-repos.crawler.test.ts:2`
+ * - `tests/crawlers/github-repos.crawler.test.ts:20`
+ * - `tests/crawlers/github-repos.crawler.test.ts:90`
+ * - `tests/crawlers/github-repos.crawler.test.ts:145`
+ * - `tests/crawlers/github-repos.crawler.test.ts:181`
+ * - `tests/crawlers/github-repos.crawler.test.ts:182`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 export class GitHubReposCrawler implements NewsCrawler<GitHubReposSourceConfig> {
@@ -120,17 +136,53 @@ export class GitHubReposCrawler implements NewsCrawler<GitHubReposSourceConfig> 
    * Hàm `crawl` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/crawlers/crawler.types.ts`
-   * - `src/crawlers/github-repos.crawler.ts`
-   * - `src/crawlers/html.crawler.ts`
-   * - `src/crawlers/rss.crawler.ts`
-   * - `src/crawlers/x-search.crawler.ts`
-   * - `src/services/source.service.ts`
-   * - `tests/crawlers/github-repos.crawler.test.ts`
-   * - `tests/crawlers/html.crawler.test.ts`
-   * - `tests/crawlers/rss.crawler.test.ts`
-   * - `tests/crawlers/x-search.crawler.test.ts`
-   * - `tests/services/source.service.test.ts`
+   * - `src/crawlers/crawler.types.ts:85`
+   * - `src/crawlers/github-repos.crawler.ts:57`
+   * - `src/crawlers/html.crawler.ts:177`
+   * - `src/crawlers/rss.crawler.ts:280`
+   * - `src/crawlers/x-search.crawler.ts:233`
+   * - `src/services/source.service.ts:29`
+   * - `src/services/source.service.ts:33`
+   * - `src/services/source.service.ts:37`
+   * - `src/services/source.service.ts:40`
+   * - `src/services/source.service.ts:42`
+   * - `tests/crawlers/github-repos.crawler.test.ts:90`
+   * - `tests/crawlers/github-repos.crawler.test.ts:145`
+   * - `tests/crawlers/github-repos.crawler.test.ts:181`
+   * - `tests/crawlers/github-repos.crawler.test.ts:182`
+   * - `tests/crawlers/github-repos.crawler.test.ts:183`
+   * - `tests/crawlers/html.crawler.test.ts:35`
+   * - `tests/crawlers/html.crawler.test.ts:60`
+   * - `tests/crawlers/rss.crawler.test.ts:57`
+   * - `tests/crawlers/rss.crawler.test.ts:94`
+   * - `tests/crawlers/rss.crawler.test.ts:123`
+   * - `tests/crawlers/rss.crawler.test.ts:150`
+   * - `tests/crawlers/rss.crawler.test.ts:190`
+   * - `tests/crawlers/rss.crawler.test.ts:241`
+   * - `tests/crawlers/rss.crawler.test.ts:300`
+   * - `tests/crawlers/rss.crawler.test.ts:346`
+   * - `tests/crawlers/rss.crawler.test.ts:390`
+   * - `tests/crawlers/x-search.crawler.test.ts:51`
+   * - `tests/crawlers/x-search.crawler.test.ts:94`
+   * - `tests/services/source.service.test.ts:38`
+   * - `tests/services/source.service.test.ts:39`
+   * - `tests/services/source.service.test.ts:40`
+   * - `tests/services/source.service.test.ts:85`
+   * - `tests/services/source.service.test.ts:86`
+   * - `tests/services/source.service.test.ts:87`
+   * - `tests/services/source.service.test.ts:124`
+   * - `tests/services/source.service.test.ts:125`
+   * - `tests/services/source.service.test.ts:126`
+   * - `tests/services/source.service.test.ts:171`
+   * - `tests/services/source.service.test.ts:172`
+   * - `tests/services/source.service.test.ts:173`
+   * - `tests/services/source.service.test.ts:209`
+   * - `tests/services/source.service.test.ts:210`
+   * - `tests/services/source.service.test.ts:211`
+   * - `tests/services/source.service.test.ts:243`
+   * - `tests/services/source.service.test.ts:244`
+   * - `tests/services/source.service.test.ts:245`
+   * - `tests/services/source.service.test.ts:246`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   async crawl(source: GitHubReposSourceConfig): Promise<Article[]> {
@@ -158,7 +210,7 @@ export class GitHubReposCrawler implements NewsCrawler<GitHubReposSourceConfig> 
    * Hàm `fetchRepositories` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/crawlers/github-repos.crawler.ts`
+   * - `src/crawlers/github-repos.crawler.ts:51`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   private async fetchRepositories(source: GitHubReposSourceConfig): Promise<GitHubRepository[]> {
@@ -209,7 +261,7 @@ export class GitHubReposCrawler implements NewsCrawler<GitHubReposSourceConfig> 
  * Hàm `buildHeaders` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/crawlers/github-repos.crawler.ts`
+ * - `src/crawlers/github-repos.crawler.ts:67`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function buildHeaders(token: string): Record<string, string> {
@@ -235,7 +287,7 @@ function buildHeaders(token: string): Record<string, string> {
  * Hàm `buildQueries` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/crawlers/github-repos.crawler.ts`
+ * - `src/crawlers/github-repos.crawler.ts:63`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function buildQueries(source: GitHubReposSourceConfig): string[] {
@@ -256,7 +308,7 @@ function buildQueries(source: GitHubReposSourceConfig): string[] {
  * Hàm `buildDefaultQueries` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/crawlers/github-repos.crawler.ts`
+ * - `src/crawlers/github-repos.crawler.ts:110`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function buildDefaultQueries(lookbackDays: number): string[] {
@@ -270,7 +322,7 @@ function buildDefaultQueries(lookbackDays: number): string[] {
  * Hàm `dedupeRepositories` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/crawlers/github-repos.crawler.ts`
+ * - `src/crawlers/github-repos.crawler.ts:84`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function dedupeRepositories(repositories: GitHubRepository[]): GitHubRepository[] {
@@ -301,7 +353,7 @@ function dedupeRepositories(repositories: GitHubRepository[]): GitHubRepository[
  * Hàm `mapRepositoryToArticle` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/crawlers/github-repos.crawler.ts`
+ * - `src/crawlers/github-repos.crawler.ts:54`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function mapRepositoryToArticle(repo: GitHubRepository, source: GitHubReposSourceConfig): Article | undefined {
@@ -342,9 +394,11 @@ function mapRepositoryToArticle(repo: GitHubRepository, source: GitHubReposSourc
  * Hàm `formatSummary` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/crawlers/github-repos.crawler.ts`
- * - `src/crawlers/x-search.crawler.ts`
- * - `src/services/digest.service.ts`
+ * - `src/crawlers/github-repos.crawler.ts:145`
+ * - `src/crawlers/x-search.crawler.ts:465`
+ * - `src/crawlers/x-search.crawler.ts:510`
+ * - `src/services/digest.service.ts:84`
+ * - `src/services/digest.service.ts:310`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function formatSummary(repo: GitHubRepository): string {
@@ -354,13 +408,25 @@ function formatSummary(repo: GitHubRepository): string {
      * Hàm `compactText` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
      *
      * Được sử dụng tại:
-     * - `src/crawlers/github-repos.crawler.ts`
-     * - `src/crawlers/html.crawler.ts`
-     * - `src/crawlers/rss.crawler.ts`
-     * - `src/crawlers/x-search.crawler.ts`
-     * - `src/services/article-editorial.service.ts`
-     * - `src/services/digest.service.ts`
-     * - `src/utils/text.ts`
+     * - `src/crawlers/github-repos.crawler.ts:5`
+     * - `src/crawlers/html.crawler.ts:22`
+     * - `src/crawlers/html.crawler.ts:196`
+     * - `src/crawlers/html.crawler.ts:213`
+     * - `src/crawlers/html.crawler.ts:251`
+     * - `src/crawlers/rss.crawler.ts:26`
+     * - `src/crawlers/rss.crawler.ts:291`
+     * - `src/crawlers/rss.crawler.ts:293`
+     * - `src/crawlers/x-search.crawler.ts:18`
+     * - `src/crawlers/x-search.crawler.ts:442`
+     * - `src/services/article-editorial.service.ts:4`
+     * - `src/services/article-editorial.service.ts:75`
+     * - `src/services/article-editorial.service.ts:96`
+     * - `src/services/digest.service.ts:6`
+     * - `src/services/digest.service.ts:235`
+     * - `src/services/digest.service.ts:236`
+     * - `src/services/digest.service.ts:237`
+     * - `src/services/digest.service.ts:315`
+     * - `src/utils/text.ts:1`
      */
     // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
     compactText(repo.description ?? ''),
@@ -384,7 +450,9 @@ function formatSummary(repo: GitHubRepository): string {
  * Hàm `formatDate` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/crawlers/github-repos.crawler.ts`
+ * - `src/crawlers/github-repos.crawler.ts:159`
+ * - `src/crawlers/github-repos.crawler.ts:160`
+ * - `src/crawlers/github-repos.crawler.ts:161`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function formatDate(value: string): string {
@@ -396,10 +464,14 @@ function formatDate(value: string): string {
  * Hàm `normalizeImageUrl` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/crawlers/github-repos.crawler.ts`
- * - `src/crawlers/html.crawler.ts`
- * - `src/crawlers/rss.crawler.ts`
- * - `src/services/digest.service.ts`
+ * - `src/crawlers/github-repos.crawler.ts:146`
+ * - `src/crawlers/html.crawler.ts:219`
+ * - `src/crawlers/html.crawler.ts:307`
+ * - `src/crawlers/rss.crawler.ts:410`
+ * - `src/crawlers/rss.crawler.ts:480`
+ * - `src/crawlers/rss.crawler.ts:613`
+ * - `src/services/digest.service.ts:292`
+ * - `src/services/digest.service.ts:295`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function normalizeImageUrl(imageUrl?: string): string | undefined {
@@ -429,8 +501,10 @@ function normalizeImageUrl(imageUrl?: string): string | undefined {
  * Hàm `formatErrorMessage` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/crawlers/github-repos.crawler.ts`
- * - `src/services/telegram.service.ts`
+ * - `src/crawlers/github-repos.crawler.ts:57`
+ * - `src/services/telegram.service.ts:112`
+ * - `src/services/telegram.service.ts:138`
+ * - `src/services/telegram.service.ts:207`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function formatErrorMessage(error: unknown): string {
