@@ -16,6 +16,7 @@ yarn-error.log*
 pnpm-debug.log*
 .cache/
 .tmp/
+.worktrees/
 
 # Editor and operating-system files
 .vscode/
