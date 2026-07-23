@@ -76,7 +76,6 @@ interface RssItemLike {
  */
 // Mở khai báo `interface RssParserLike` để compiler kiểm tra contract cho mọi consumer.
 interface RssParserLike {
-  // Gán field `parseURL(url` từ `string): Promise<{ items: RssItemLike[] }>;` để object khớp contract.
   parseURL(url: string): Promise<{ items: RssItemLike[] }>;
 }
 
@@ -88,7 +87,6 @@ interface RssParserLike {
  */
 // Mở khai báo `interface HttpClientLike` để compiler kiểm tra contract cho mọi consumer.
 interface HttpClientLike {
-  // Gán field `get(url` từ `string): Promise<{ data: string }>;` để object khớp contract.
   get(url: string): Promise<{ data: string }>;
 }
 
@@ -102,7 +100,6 @@ interface HttpClientLike {
 // Mở khai báo `export class RssCrawler implements NewsCrawler<RssSourceConfig>` để compiler kiểm tra contract cho mọi consumer.
 export class RssCrawler implements NewsCrawler<RssSourceConfig> {
   constructor(
-    // Gán field `private readonly parser` từ `RssParserLike = new Parser({` để object khớp contract.
     private readonly parser: RssParserLike = new Parser({
       // Gán field `headers` từ `{` để object khớp contract.
       headers: {
@@ -119,7 +116,6 @@ export class RssCrawler implements NewsCrawler<RssSourceConfig> {
       // Gán field `timeout` từ `env.REQUEST_TIMEOUT_MS,` để object khớp contract.
       timeout: env.REQUEST_TIMEOUT_MS,
     }),
-    // Gán field `private readonly http` từ `HttpClientLike = axios.create({` để object khớp contract.
     private readonly http: HttpClientLike = axios.create({
       // Gán field `timeout` từ `env.REQUEST_TIMEOUT_MS,` để object khớp contract.
       timeout: env.REQUEST_TIMEOUT_MS,
@@ -253,11 +249,9 @@ export class RssCrawler implements NewsCrawler<RssSourceConfig> {
 function extractImageUrl(item: RssItemLike): string | undefined {
   // Tính `candidates` từ `[` và giữ bất biến trong phạm vi hiện tại.
   const candidates = [
-    // Gán field `item.enclosure?.type?.startsWith(image/) ? item.enclosure.url ` từ `undefined,` để object khớp contract.
     item.enclosure?.type?.startsWith('image/') ? item.enclosure.url : undefined,
     // Tạo callback nhận `...(item.mediaContent ?? []).map((media)` để xử lý từng kết quả trong collection/promise.
     ...(item.mediaContent ?? []).map((media) =>
-      // Gán field `media.$?.medium === image || media.$?.type?.startsWith(image/) ? media.$.url ` từ `undefined,` để object khớp contract.
       media.$?.medium === 'image' || media.$?.type?.startsWith('image/') ? media.$.url : undefined,
     ),
     extractFirstImageFromHtml(item.content),
@@ -297,9 +291,7 @@ function extractImageUrlFromHtml(html: string, baseUrl: string): string | undefi
   const $ = cheerio.load(html);
   // Tính `candidates` từ `[` và giữ bất biến trong phạm vi hiện tại.
   const candidates = [
-    // Gán field `$(meta[property=og` từ `image"]').attr('content'),` để object khớp contract.
     $('meta[property="og:image"]').attr('content'),
-    // Gán field `$(meta[name=twitter` từ `image"]').attr('content'),` để object khớp contract.
     $('meta[name="twitter:image"]').attr('content'),
     $('article img').first().attr('src'),
     $('main img').first().attr('src'),
@@ -342,7 +334,7 @@ function extractExternalRedditLink(html?: string): string | undefined {
   }
 
   const $ = cheerio.load(html);
-  // Gán field `const candidates` từ `string[] = [];` để object khớp contract.
+  // Khởi tạo biến cục bộ `candidates` kiểu `string[]` từ `[];`.
   const candidates: string[] = [];
 
   // Tạo callback nhận `$('a[href]').each((_index, element)` để xử lý từng kết quả trong collection/promise.
@@ -418,7 +410,7 @@ function isRedditHostname(hostname: string): boolean {
 }
 
 /**
- * Hàm `normalizeImageUrl` chuẩn hóa giá trị theo rule của hàm; input sai được giữ nguyên, bỏ qua hoặc throw đúng như implementation; kết quả được trả cho caller theo kiểu khai báo.
+ * Hàm `normalizeImageUrl` chỉ chấp nhận URL ảnh HTTPS hợp lệ; input rỗng, sai cú pháp hoặc protocol khác trả `undefined`; kết quả được trả cho caller theo kiểu khai báo.
  *
  * Được sử dụng tại:
  * - `src/crawlers/rss.crawler.ts`

@@ -31,7 +31,6 @@ import type { NewsCrawler } from './crawler.types';
  */
 // Mở khai báo `interface HttpClientLike` để compiler kiểm tra contract cho mọi consumer.
 interface HttpClientLike {
-  // Gán field `get(url` từ `string): Promise<{ data: string }>;` để object khớp contract.
   get(url: string): Promise<{ data: string }>;
 }
 
@@ -45,7 +44,6 @@ interface HttpClientLike {
 // Mở khai báo `export class HtmlCrawler implements NewsCrawler<HtmlSourceConfig>` để compiler kiểm tra contract cho mọi consumer.
 export class HtmlCrawler implements NewsCrawler<HtmlSourceConfig> {
   constructor(
-    // Gán field `private readonly http` từ `HttpClientLike = axios.create({` để object khớp contract.
     private readonly http: HttpClientLike = axios.create({
       // Gán field `timeout` từ `env.REQUEST_TIMEOUT_MS,` để object khớp contract.
       timeout: env.REQUEST_TIMEOUT_MS,
@@ -69,7 +67,7 @@ export class HtmlCrawler implements NewsCrawler<HtmlSourceConfig> {
     // Tính `response` từ `await this.http.get(source.listUrl);` và giữ bất biến trong phạm vi hiện tại.
     const response = await this.http.get(source.listUrl);
     const $ = cheerio.load(response.data);
-    // Gán field `const articles` từ `Article[] = [];` để object khớp contract.
+    // Khởi tạo biến cục bộ `articles` kiểu `Article[]` từ `[];`.
     const articles: Article[] = [];
 
     // Tạo callback nhận `$(source.selectors.item).each((_index, element)` để xử lý từng kết quả trong collection/promise.
@@ -144,7 +142,7 @@ export class HtmlCrawler implements NewsCrawler<HtmlSourceConfig> {
 }
 
 /**
- * Hàm `normalizeImageUrl` chuẩn hóa giá trị theo rule của hàm; input sai được giữ nguyên, bỏ qua hoặc throw đúng như implementation; kết quả được trả cho caller theo kiểu khai báo.
+ * Hàm `normalizeImageUrl` chỉ chấp nhận URL ảnh HTTPS hợp lệ; input rỗng, sai cú pháp hoặc protocol khác trả `undefined`; kết quả được trả cho caller theo kiểu khai báo.
  *
  * Được sử dụng tại:
  * - `src/crawlers/html.crawler.ts`

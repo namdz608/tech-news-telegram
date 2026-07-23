@@ -21,6 +21,5 @@ import type { SourceConfig } from '../types/source';
  */
 // Mở khai báo `export interface NewsCrawler<TSource extends SourceConfig` để compiler kiểm tra contract cho mọi consumer.
 export interface NewsCrawler<TSource extends SourceConfig = SourceConfig> {
-  // Gán field `crawl(source` từ `TSource): Promise<Article[]>;` để object khớp contract.
   crawl(source: TSource): Promise<Article[]>;
 }

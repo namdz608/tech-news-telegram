@@ -98,9 +98,7 @@ interface TelegramPhotoUpload {
 interface TelegramClientLike {
   // Gán field `telegram` từ `{` để object khớp contract.
   telegram: {
-    // Gán field `sendMessage(chatId` từ `string, message: string, options: SendMessageOptions): Promise<unknown>;` để object khớp contract.
     sendMessage(chatId: string, message: string, options: SendMessageOptions): Promise<unknown>;
-    // Gán field `sendPhoto?(chatId` từ `string, photo: string | TelegramPhotoUpload, options: SendPhotoOptions): Promise<unknown>;` để object khớp contract.
     sendPhoto?(chatId: string, photo: string | TelegramPhotoUpload, options: SendPhotoOptions): Promise<unknown>;
   };
 }
@@ -113,7 +111,6 @@ interface TelegramClientLike {
  */
 // Mở khai báo `interface HttpClientLike` để compiler kiểm tra contract cho mọi consumer.
 interface HttpClientLike {
-  // Gán field `get(url` từ `string, options: { responseType: 'arraybuffer' }): Promise<{ data: ArrayBuffer | Buffer…` để object khớp contract.
   get(url: string, options: { responseType: 'arraybuffer' }): Promise<{ data: ArrayBuffer | Buffer }>;
 }
 
@@ -126,17 +123,14 @@ interface HttpClientLike {
  */
 // Mở khai báo `export class TelegramService` để compiler kiểm tra contract cho mọi consumer.
 export class TelegramService {
-  // Gán field `private effectSupported` từ `boolean;` để object khớp contract.
   private effectSupported: boolean;
   private readonly photoCaptionMaxLength = 1000;
 
   constructor(
-    // Gán field `private readonly bot` từ `TelegramClientLike = new Telegraf(env.TELEGRAM_BOT_TOKEN) as unknown as TelegramClientL…` để object khớp contract.
     private readonly bot: TelegramClientLike = new Telegraf(env.TELEGRAM_BOT_TOKEN) as unknown as TelegramClientLike,
     private readonly chatId = env.TELEGRAM_CHAT_ID,
     private readonly maxMessageLength = 3900,
     private readonly messageEffectId = env.TELEGRAM_MESSAGE_EFFECT_ID,
-    // Gán field `private readonly http` từ `HttpClientLike = axios.create({` để object khớp contract.
     private readonly http: HttpClientLike = axios.create({
       // Gán field `timeout` từ `env.REQUEST_TIMEOUT_MS,` để object khớp contract.
       timeout: env.REQUEST_TIMEOUT_MS,
@@ -176,7 +170,6 @@ export class TelegramService {
     const chunks = splitTelegramMessage(
       // Đưa giá trị `message` vào field cùng tên của object đang tạo.
       message,
-      // Gán field `imageUrl ? Math.min(this.maxMessageLength, this.photoCaptionMaxLength) ` từ `this.maxMessageLength,` để object khớp contract.
       imageUrl ? Math.min(this.maxMessageLength, this.photoCaptionMaxLength) : this.maxMessageLength,
     );
 
@@ -257,7 +250,7 @@ export class TelegramService {
    */
   // Mở method `sendChunk` để gửi dữ liệu ra Telegram theo đúng thứ tự.
   private async sendChunk(chunk: string, url?: string, imageUrl?: string): Promise<void> {
-    // Gán field `const baseOptions` từ `SendMessageOptions = {` để object khớp contract.
+    // Khởi tạo biến cục bộ `baseOptions` kiểu `SendMessageOptions` từ `{`.
     const baseOptions: SendMessageOptions = {
       // Gán field `parse_mode` từ `'HTML',` để object khớp contract.
       parse_mode: 'HTML',
@@ -278,7 +271,6 @@ export class TelegramService {
     if (imageUrl && this.bot.telegram.sendPhoto) {
       // Cô lập thao tác có thể lỗi để module còn cơ hội log và trả fallback an toàn.
       try {
-        // Gán field `const { disable_web_page_preview` từ `_disablePreview, ...photoOptions } = baseOptions;` để object khớp contract.
         const { disable_web_page_preview: _disablePreview, ...photoOptions } = baseOptions;
         // Tính `photo` từ `await this.downloadPhoto(imageUrl);` và giữ bất biến trong phạm vi hiện tại.
         const photo = await this.downloadPhoto(imageUrl);
@@ -359,7 +351,7 @@ function splitTelegramMessage(message: string, maxLength: number): string[] {
     return [message];
   }
 
-  // Gán field `const chunks` từ `string[] = [];` để object khớp contract.
+  // Khởi tạo biến cục bộ `chunks` kiểu `string[]` từ `[];`.
   const chunks: string[] = [];
   // Khởi tạo trạng thái `current`; các nhánh bên dưới sẽ cập nhật nó có kiểm soát.
   let current = '';

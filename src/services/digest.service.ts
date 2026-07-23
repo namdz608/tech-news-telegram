@@ -71,7 +71,7 @@ interface RankedDigestEntry extends DigestEntry {
   score: number;
 }
 
-// Gán field `const sourceTopicAffinity` từ `Record<string, TopicKey[]> = {` để object khớp contract.
+// Khởi tạo biến cục bộ `sourceTopicAffinity` kiểu `Record<string, TopicKey[]>` từ `{`.
 const sourceTopicAffinity: Record<string, TopicKey[]> = {
   // Gán field `hn-rss` từ `['ai'],` để object khớp contract.
   'hn-rss': ['ai'],
@@ -144,7 +144,7 @@ export class DigestService {
 
     // Tính `sourceNames` từ `[...new Set(selectedArticles.map((article) => article.sourceName))].join(', ');` và giữ bất biến trong phạm vi hiện tại.
     const sourceNames = [...new Set(selectedArticles.map((article) => article.sourceName))].join(', ');
-    // Gán field `const lines` từ `string[] = [` để object khớp contract.
+    // Khởi tạo biến cục bộ `lines` kiểu `string[]` từ `[`.
     const lines: string[] = [
       // Thêm giá trị `'🧠 BẢN TIN CÔNG NGHỆ',` vào cấu hình hoặc nội dung đầu ra đang xây dựng.
       '🧠 BẢN TIN CÔNG NGHỆ',
@@ -226,7 +226,7 @@ export class DigestService {
 
     // Tính `grouped` từ `groupEntriesByAssignedTopic(selectedEntries);` và giữ bất biến trong phạm vi hiện tại.
     const grouped = groupEntriesByAssignedTopic(selectedEntries);
-    // Gán field `const messages` từ `DigestMessage[] = [];` để object khớp contract.
+    // Khởi tạo biến cục bộ `messages` kiểu `DigestMessage[]` từ `[];`.
     const messages: DigestMessage[] = [];
 
     // Lặp theo `const topic of topics` để xử lý đủ từng phần tử/trạng thái.
@@ -268,7 +268,7 @@ export class DigestService {
 function selectBalancedEntries(articles: Article[], maxArticlesPerTopic: number): DigestEntry[] {
   // Tính `selectedByUrl` từ `new Set<string>();` và giữ bất biến trong phạm vi hiện tại.
   const selectedByUrl = new Set<string>();
-  // Gán field `const result` từ `DigestEntry[] = [];` để object khớp contract.
+  // Khởi tạo biến cục bộ `result` kiểu `DigestEntry[]` từ `[];`.
   const result: DigestEntry[] = [];
 
   // Lặp theo `const topic of topics` để xử lý đủ từng phần tử/trạng thái.
@@ -300,7 +300,7 @@ function selectBalancedEntries(articles: Article[], maxArticlesPerTopic: number)
     for (const entry of selectedForTopic) {
       // Gọi `selectedByUrl.add` với `entry.article.url` để hoàn tất side effect/bước xử lý hiện tại.
       selectedByUrl.add(entry.article.url);
-      // Gán field `result.push({ article` từ `entry.article, topic: entry.topic });` để object khớp contract.
+      // Gọi `result.push` với `{ article: entry.article, topic: entry.topic }` để hoàn tất side effect/bước xử lý hiện tại.
       result.push({ article: entry.article, topic: entry.topic });
     }
   }
@@ -317,7 +317,7 @@ function selectBalancedEntries(articles: Article[], maxArticlesPerTopic: number)
  */
 // Mở thân hàm `pickDiverseSources` với input/output được TypeScript kiểm tra.
 function pickDiverseSources(candidates: RankedDigestEntry[], maxArticlesPerTopic: number): RankedDigestEntry[] {
-  // Gán field `const picked` từ `RankedDigestEntry[] = [];` để object khớp contract.
+  // Khởi tạo biến cục bộ `picked` kiểu `RankedDigestEntry[]` từ `[];`.
   const picked: RankedDigestEntry[] = [];
   // Tính `pickedUrls` từ `new Set<string>();` và giữ bất biến trong phạm vi hiện tại.
   const pickedUrls = new Set<string>();
@@ -466,7 +466,7 @@ export function renderArticleMessage(
   // Tính `action` từ `actionPresentation[editorial.actionLevel];` và giữ bất biến trong phạm vi hiện tại.
   const action = actionPresentation[editorial.actionLevel];
 
-  // Gán field `const lines` từ `string[] = [` để object khớp contract.
+  // Khởi tạo biến cục bộ `lines` kiểu `string[]` từ `[`.
   const lines: string[] = [
     // Thêm giá trị ``${topicIcon(topic)} <b>${escapeHtml(`${topicLabel} UPDATE`)}</b>`,` vào cấu hình hoặc nội dung đầu ra đang xây dựng.
     `${topicIcon(topic)}  <b>${escapeHtml(`${topicLabel} UPDATE`)}</b>`,
@@ -570,7 +570,7 @@ function getMessageImageUrl(article: Article, topic: TopicKey): string | undefin
 }
 
 /**
- * Hàm `normalizeImageUrl` chuẩn hóa giá trị theo rule của hàm; input sai được giữ nguyên, bỏ qua hoặc throw đúng như implementation; kết quả được trả cho caller theo kiểu khai báo.
+ * Hàm `normalizeImageUrl` chỉ chấp nhận URL ảnh HTTPS hợp lệ; input rỗng, sai cú pháp hoặc protocol khác trả `undefined`; kết quả được trả cho caller theo kiểu khai báo.
  *
  * Được sử dụng tại:
  * - `src/services/digest.service.ts`
@@ -704,7 +704,7 @@ function formatVietnamTime(date: Date): string {
  */
 // Mở thân hàm `topicIcon` với input/output được TypeScript kiểm tra.
 function topicIcon(topic: TopicKey): string {
-  // Gán field `const icons` từ `Record<TopicKey, string> = {` để object khớp contract.
+  // Khởi tạo biến cục bộ `icons` kiểu `Record<TopicKey, string>` từ `{`.
   const icons: Record<TopicKey, string> = {
     // Gán field `ai` từ `'🤖',` để object khớp contract.
     ai: '🤖',

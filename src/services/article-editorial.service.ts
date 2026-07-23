@@ -27,7 +27,7 @@ import { GoogleArticleEditorialGenerator } from './google-article-editorial.gene
 // Nạp { OpenAIArticleEditorialGenerator } từ `./openai-article-editorial.generator` để dùng đúng dependency/type thay vì tự triển khai lại.
 import { OpenAIArticleEditorialGenerator } from './openai-article-editorial.generator';
 
-// Gán field `const fallbackWhyImportant` từ `Record<TopicKey, string> = {` để object khớp contract.
+// Khởi tạo biến cục bộ `fallbackWhyImportant` kiểu `Record<TopicKey, string>` từ `{`.
 const fallbackWhyImportant: Record<TopicKey, string> = {
   // Gán field `ai` từ `'Thay đổi này có thể ảnh hưởng đến cách các nhóm đánh giá, tích hợp hoặc vận hành hệ th…` để object khớp contract.
   ai: 'Thay đổi này có thể ảnh hưởng đến cách các nhóm đánh giá, tích hợp hoặc vận hành hệ thống AI hiện có.',
@@ -178,7 +178,7 @@ export function createFallbackEditorial(article: Article, topic: TopicKey): Arti
 function parseJsonObject(raw: string): Record<string, unknown> {
   // Tính `normalized` từ `raw.trim().replace(/^```(?:json)?\s*|\s*```$/g, '');` và giữ bất biến trong phạm vi hiện tại.
   const normalized = raw.trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
-  // Gán field `const parsed` từ `unknown = JSON.parse(normalized);` để object khớp contract.
+  // Khởi tạo biến cục bộ `parsed` kiểu `unknown` từ `JSON.parse(normalized);`.
   const parsed: unknown = JSON.parse(normalized);
 
   // Nếu `!parsed || typeof parsed !== 'object' || Array.isArray(parsed)` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.

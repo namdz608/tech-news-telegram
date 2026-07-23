@@ -59,7 +59,7 @@ export function matchTopics(input: MatchTopicsInput): TopicKey[] {
 export function dedupeArticles(articles: Article[]): Article[] {
   // Tính `seen` từ `new Set<string>();` và giữ bất biến trong phạm vi hiện tại.
   const seen = new Set<string>();
-  // Gán field `const result` từ `Article[] = [];` để object khớp contract.
+  // Khởi tạo biến cục bộ `result` kiểu `Article[]` từ `[];`.
   const result: Article[] = [];
 
   // Lặp theo `const article of articles` để xử lý đủ từng phần tử/trạng thái.

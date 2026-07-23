@@ -31,7 +31,6 @@ export function createDefaultTranslator(): DigestTranslator {
  */
 // Mở khai báo `export class TranslationService` để compiler kiểm tra contract cho mọi consumer.
 export class TranslationService {
-  // Gán field `constructor(private readonly translator` từ `DigestTranslator = createDefaultTranslator()) {}` để object khớp contract.
   constructor(private readonly translator: DigestTranslator = createDefaultTranslator()) {}
 
   /**
@@ -83,7 +82,7 @@ interface ProtectedText {
   tokens: string[];
 }
 
-// Gán field `const protectPatterns` từ `{ name: string; regex: RegExp }[] = [` để object khớp contract.
+// Khởi tạo biến cục bộ `protectPatterns` kiểu `{ name: string; regex: RegExp }[]` từ `[`.
 const protectPatterns: { name: string; regex: RegExp }[] = [
   { name: 'TAG', regex: /<[^>]+>/g },
   { name: 'ENT', regex: /&[a-zA-Z]+;|&#\d+;/g },
@@ -98,7 +97,7 @@ const protectPatterns: { name: string; regex: RegExp }[] = [
  */
 // Mở thân hàm `protectMarkup` với input/output được TypeScript kiểm tra.
 function protectMarkup(text: string): ProtectedText {
-  // Gán field `const tokens` từ `string[] = [];` để object khớp contract.
+  // Khởi tạo biến cục bộ `tokens` kiểu `string[]` từ `[];`.
   const tokens: string[] = [];
   // Khởi tạo trạng thái `protectedText`; các nhánh bên dưới sẽ cập nhật nó có kiểm soát.
   let protectedText = text;

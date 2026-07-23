@@ -27,7 +27,6 @@ import type { NewsCrawler } from './crawler.types';
  */
 // Mở khai báo `interface HttpClientLike` để compiler kiểm tra contract cho mọi consumer.
 interface HttpClientLike {
-  // Gán field `get(url` từ `string, config: { headers: Record<string, string>; params: Record<string, string | numb…` để object khớp contract.
   get(url: string, config: { headers: Record<string, string>; params: Record<string, string | number> }): Promise<{ data: XSearchResponse }>;
 }
 
@@ -99,7 +98,6 @@ interface XUser {
 // Mở khai báo `export class XSearchCrawler implements NewsCrawler<XSearchSourceConfig>` để compiler kiểm tra contract cho mọi consumer.
 export class XSearchCrawler implements NewsCrawler<XSearchSourceConfig> {
   constructor(
-    // Gán field `private readonly http` từ `HttpClientLike = axios.create({` để object khớp contract.
     private readonly http: HttpClientLike = axios.create({
       // Gán field `timeout` từ `env.REQUEST_TIMEOUT_MS,` để object khớp contract.
       timeout: env.REQUEST_TIMEOUT_MS,
@@ -225,13 +223,13 @@ function formatSummary(text: string, author?: string, metrics?: XPost['public_me
 
   // Nếu `typeof metrics?.like_count === 'number'` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
   if (typeof metrics?.like_count === 'number') {
-    // Gán field `parts.push(`Likes` từ `${metrics.like_count}`);` để object khớp contract.
+    // Gọi `parts.push` với ``Likes: ${metrics.like_count}`` để hoàn tất side effect/bước xử lý hiện tại.
     parts.push(`Likes: ${metrics.like_count}`);
   }
 
   // Nếu `typeof metrics?.retweet_count === 'number'` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
   if (typeof metrics?.retweet_count === 'number') {
-    // Gán field `parts.push(`Reposts` từ `${metrics.retweet_count}`);` để object khớp contract.
+    // Gọi `parts.push` với ``Reposts: ${metrics.retweet_count}`` để hoàn tất side effect/bước xử lý hiện tại.
     parts.push(`Reposts: ${metrics.retweet_count}`);
   }
 

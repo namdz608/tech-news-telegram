@@ -96,7 +96,6 @@ const defaultAiTopics = ['llm', 'generative-ai', 'ai-agent', 'rag', 'machine-lea
 // Mở khai báo `export class GitHubReposCrawler implements NewsCrawler<GitHubReposSourceConfig>` để compiler kiểm tra contract cho mọi consumer.
 export class GitHubReposCrawler implements NewsCrawler<GitHubReposSourceConfig> {
   constructor(
-    // Gán field `private readonly http` từ `HttpClientLike = axios.create({` để object khớp contract.
     private readonly http: HttpClientLike = axios.create({
       // Gán field `timeout` từ `env.REQUEST_TIMEOUT_MS,` để object khớp contract.
       timeout: env.REQUEST_TIMEOUT_MS,
@@ -197,7 +196,7 @@ export class GitHubReposCrawler implements NewsCrawler<GitHubReposSourceConfig> 
  */
 // Mở thân hàm `buildHeaders` với input/output được TypeScript kiểm tra.
 function buildHeaders(token: string): Record<string, string> {
-  // Gán field `const headers` từ `Record<string, string> = {` để object khớp contract.
+  // Khởi tạo biến cục bộ `headers` kiểu `Record<string, string>` từ `{`.
   const headers: Record<string, string> = {
     // Gán field `Accept` từ `'application/vnd.github+json',` để object khớp contract.
     Accept: 'application/vnd.github+json',
@@ -260,7 +259,7 @@ function buildDefaultQueries(lookbackDays: number): string[] {
 function dedupeRepositories(repositories: GitHubRepository[]): GitHubRepository[] {
   // Tính `seenUrls` từ `new Set<string>();` và giữ bất biến trong phạm vi hiện tại.
   const seenUrls = new Set<string>();
-  // Gán field `const result` từ `GitHubRepository[] = [];` để object khớp contract.
+  // Khởi tạo biến cục bộ `result` kiểu `GitHubRepository[]` từ `[];`.
   const result: GitHubRepository[] = [];
 
   // Lặp theo `const repository of repositories` để xử lý đủ từng phần tử/trạng thái.
@@ -333,15 +332,10 @@ function formatSummary(repo: GitHubRepository): string {
   // Tính `parts` từ `[` và giữ bất biến trong phạm vi hiện tại.
   const parts = [
     compactText(repo.description ?? ''),
-    // Gán field `typeof repo.stargazers_count === number ? `Stars` từ `${repo.stargazers_count}` : '',` để object khớp contract.
     typeof repo.stargazers_count === 'number' ? `Stars: ${repo.stargazers_count}` : '',
-    // Gán field `repo.language ? `Language` từ `${repo.language}` : '',` để object khớp contract.
     repo.language ? `Language: ${repo.language}` : '',
-    // Gán field `repo.created_at ? `Created` từ `${formatDate(repo.created_at)}` : '',` để object khớp contract.
     repo.created_at ? `Created: ${formatDate(repo.created_at)}` : '',
-    // Gán field `repo.updated_at ? `Updated` từ `${formatDate(repo.updated_at)}` : '',` để object khớp contract.
     repo.updated_at ? `Updated: ${formatDate(repo.updated_at)}` : '',
-    // Gán field `repo.pushed_at ? `Pushed` từ `${formatDate(repo.pushed_at)}` : '',` để object khớp contract.
     repo.pushed_at ? `Pushed: ${formatDate(repo.pushed_at)}` : '',
   ];
 
@@ -362,7 +356,7 @@ function formatDate(value: string): string {
 }
 
 /**
- * Hàm `normalizeImageUrl` chuẩn hóa giá trị theo rule của hàm; input sai được giữ nguyên, bỏ qua hoặc throw đúng như implementation; kết quả được trả cho caller theo kiểu khai báo.
+ * Hàm `normalizeImageUrl` chỉ chấp nhận URL ảnh HTTPS hợp lệ; input rỗng, sai cú pháp hoặc protocol khác trả `undefined`; kết quả được trả cho caller theo kiểu khai báo.
  *
  * Được sử dụng tại:
  * - `src/crawlers/github-repos.crawler.ts`

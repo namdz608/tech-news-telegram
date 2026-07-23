@@ -21,7 +21,6 @@ import { GoogleTranslationService } from './google-translation.service';
  */
 // Mở khai báo `interface TextTranslator` để compiler kiểm tra contract cho mọi consumer.
 interface TextTranslator {
-  // Gán field `translateDigest(text` từ `string): Promise<string>;` để object khớp contract.
   translateDigest(text: string): Promise<string>;
 }
 
@@ -34,7 +33,6 @@ interface TextTranslator {
  */
 // Mở khai báo `export class GoogleArticleEditorialGenerator implements ArticleEditorialGenerator` để compiler kiểm tra contract cho mọi consumer.
 export class GoogleArticleEditorialGenerator implements ArticleEditorialGenerator {
-  // Gán field `constructor(private readonly translator` từ `TextTranslator = new GoogleTranslationService()) {}` để object khớp contract.
   constructor(private readonly translator: TextTranslator = new GoogleTranslationService()) {}
 
   /**
@@ -48,7 +46,6 @@ export class GoogleArticleEditorialGenerator implements ArticleEditorialGenerato
   async generate(input: ArticleEditorialInput): Promise<string> {
     const [title, summary] = await Promise.all([
       this.translator.translateDigest(input.title),
-      // Gán field `input.summary ? this.translator.translateDigest(input.summary) ` từ `Promise.resolve(''),` để object khớp contract.
       input.summary ? this.translator.translateDigest(input.summary) : Promise.resolve(''),
     ]);
 

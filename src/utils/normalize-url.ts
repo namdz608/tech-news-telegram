@@ -5,7 +5,7 @@
  * và nơi các class/hàm hiện được tham chiếu trong `src/` cùng `tests/`.
  */
 /**
- * Hàm `normalizeUrl` chuẩn hóa giá trị theo rule của hàm; input sai được giữ nguyên, bỏ qua hoặc throw đúng như implementation; kết quả được trả cho caller theo kiểu khai báo.
+ * Hàm `normalizeUrl` xóa fragment/tracking parameters và trả URL canonical; `new URL` sẽ throw nếu input sai; kết quả được trả cho caller theo kiểu khai báo.
  *
  * Được sử dụng tại:
  * - `src/crawlers/html.crawler.ts`

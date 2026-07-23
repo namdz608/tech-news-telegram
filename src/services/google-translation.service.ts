@@ -24,7 +24,6 @@ import type { DigestTranslator } from './translation.types';
 export class GoogleTranslationService implements DigestTranslator {
   constructor(
     private readonly targetLanguage = env.TRANSLATION_TARGET_LANGUAGE,
-    // Gán field `private readonly http = axios.create({ timeout` từ `env.REQUEST_TIMEOUT_MS })` để object khớp contract.
     private readonly http = axios.create({ timeout: env.REQUEST_TIMEOUT_MS })
   ) {}
 
@@ -33,8 +32,8 @@ export class GoogleTranslationService implements DigestTranslator {
    *
    * Được sử dụng tại:
    * - `tests/services/google-translation.service.test.ts`
-   * - `src/controllers/news.controller.ts`
    * - `src/services/translation.service.ts`
+   * - `src/services/google-article-editorial.generator.ts`
    */
   // Mở method `translateDigest` để dịch nội dung và giữ fallback khi provider lỗi.
   async translateDigest(digest: string): Promise<string> {
@@ -68,12 +67,12 @@ export class GoogleTranslationService implements DigestTranslator {
   }
 
   /**
-   * Hàm `translateText` dịch nội dung và giữ fallback khi provider lỗi; kết quả được trả cho caller theo kiểu khai báo.
+   * Hàm `translateText` gọi Google Translate cho đúng một chunk; lỗi HTTP được propagate lên `translateDigest` để fallback toàn digest; kết quả được trả cho caller theo kiểu khai báo.
    *
    * Được sử dụng tại:
    * - `src/services/google-translation.service.ts`
    */
-  // Mở method `translateText` để dịch nội dung và giữ fallback khi provider lỗi.
+  // Mở method `translateText` để gọi Google Translate cho đúng một chunk; lỗi HTTP được propagate lên `translateDigest` để fallback toàn digest.
   private async translateText(text: string): Promise<string> {
     // Tính `response` từ `await this.http.get('https://translate.googleapis.com/translate_a/single', {` và giữ bất biến trong phạm vi hiện tại.
     const response = await this.http.get('https://translate.googleapis.com/translate_a/single', {
@@ -92,7 +91,7 @@ export class GoogleTranslationService implements DigestTranslator {
       },
     });
 
-    // Gán field `const data` từ `unknown = response.data;` để object khớp contract.
+    // Khởi tạo biến cục bộ `data` kiểu `unknown` từ `response.data;`.
     const data: unknown = response.data;
 
     // Nếu `Array.isArray(data) && Array.isArray(data[0])` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
@@ -101,7 +100,6 @@ export class GoogleTranslationService implements DigestTranslator {
       const translated = data[0]
         // Áp dụng `map` để tiếp tục biến đổi kết quả trung gian mà không đổi input gốc.
         .map((segment: unknown) =>
-          // Gán field `Array.isArray(segment) && typeof segment[0] === string ? segment[0] ` từ `'',` để object khớp contract.
           Array.isArray(segment) && typeof segment[0] === 'string' ? segment[0] : '',
         )
         // Áp dụng `join` để tiếp tục biến đổi kết quả trung gian mà không đổi input gốc.
@@ -130,7 +128,7 @@ function splitDigestForTranslation(digest: string, maxChars: number): string[] {
     return [digest];
   }
 
-  // Gán field `const chunks` từ `string[] = [];` để object khớp contract.
+  // Khởi tạo biến cục bộ `chunks` kiểu `string[]` từ `[];`.
   const chunks: string[] = [];
   // Khởi tạo trạng thái `current`; các nhánh bên dưới sẽ cập nhật nó có kiểm soát.
   let current = '';

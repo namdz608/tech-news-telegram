@@ -48,9 +48,7 @@ interface SourceServiceCrawlers {
 // Mở khai báo `export class SourceService` để compiler kiểm tra contract cho mọi consumer.
 export class SourceService {
   constructor(
-    // Gán field `private readonly sourceConfigs` từ `SourceConfig[] = defaultSources,` để object khớp contract.
     private readonly sourceConfigs: SourceConfig[] = defaultSources,
-    // Gán field `private readonly crawlers` từ `SourceServiceCrawlers = createCrawlers(),` để object khớp contract.
     private readonly crawlers: SourceServiceCrawlers = createCrawlers(),
     private readonly maxArticleAgeDays = env.MAX_ARTICLE_AGE_DAYS,
   ) {}

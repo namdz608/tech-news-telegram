@@ -22,7 +22,6 @@ import { join } from 'node:path';
  */
 // Mở khai báo `export interface CodexRunner` để compiler kiểm tra contract cho mọi consumer.
 export interface CodexRunner {
-  // Gán field `run(prompt` từ `string, input: string, timeoutMs: number): Promise<string>;` để object khớp contract.
   run(prompt: string, input: string, timeoutMs: number): Promise<string>;
 }
 

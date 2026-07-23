@@ -27,7 +27,6 @@ import { articleEditorialInstructions } from './article-editorial.types';
 interface OpenAIResponseClientLike {
   // Gán field `responses` từ `{` để object khớp contract.
   responses: {
-    // Gán field `create(input` từ `{ model: string; instructions: string; input: string }): Promise<{ output_text?: string…` để object khớp contract.
     create(input: { model: string; instructions: string; input: string }): Promise<{ output_text?: string }>;
   };
 }
@@ -42,7 +41,6 @@ interface OpenAIResponseClientLike {
 // Mở khai báo `export class OpenAIArticleEditorialGenerator implements ArticleEditorialGenerator` để compiler kiểm tra contract cho mọi consumer.
 export class OpenAIArticleEditorialGenerator implements ArticleEditorialGenerator {
   constructor(
-    // Gán field `private readonly client` từ `OpenAIResponseClientLike = new OpenAI({` để object khớp contract.
     private readonly client: OpenAIResponseClientLike = new OpenAI({
       // Gán field `apiKey` từ `env.OPENAI_API_KEY,` để object khớp contract.
       apiKey: env.OPENAI_API_KEY,

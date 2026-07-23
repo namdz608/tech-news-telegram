@@ -27,7 +27,6 @@ import { CodexExecRunner, type CodexRunner } from './codex-exec.runner';
 // Mở khai báo `export class CodexArticleEditorialGenerator implements ArticleEditorialGenerator` để compiler kiểm tra contract cho mọi consumer.
 export class CodexArticleEditorialGenerator implements ArticleEditorialGenerator {
   constructor(
-    // Gán field `private readonly runner` từ `CodexRunner = new CodexExecRunner(),` để object khớp contract.
     private readonly runner: CodexRunner = new CodexExecRunner(),
     private readonly timeoutMs = env.CODEX_TRANSLATION_TIMEOUT_MS,
   ) {}
