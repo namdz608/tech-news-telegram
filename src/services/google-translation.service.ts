@@ -15,16 +15,10 @@ import type { DigestTranslator } from './translation.types';
  * Class `GoogleTranslationService` đóng gói trách nhiệm chính của module.
  *
  * Được sử dụng tại:
- * - `src/services/google-article-editorial.generator.ts:16`
- * - `src/services/google-article-editorial.generator.ts:85`
- * - `src/services/translation.service.ts:1`
- * - `src/services/translation.service.ts:5`
- * - `tests/services/google-translation.service.test.ts:2`
- * - `tests/services/google-translation.service.test.ts:4`
- * - `tests/services/google-translation.service.test.ts:11`
- * - `tests/services/google-translation.service.test.ts:22`
- * - `tests/services/translation.service.test.ts:2`
- * - `tests/services/translation.service.test.ts:7`
+ * - `src/services/google-article-editorial.generator.ts`
+ * - `src/services/translation.service.ts`
+ * - `tests/services/google-translation.service.test.ts`
+ * - `tests/services/translation.service.test.ts`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 export class GoogleTranslationService implements DigestTranslator {
@@ -41,26 +35,13 @@ export class GoogleTranslationService implements DigestTranslator {
    * Hàm `translateDigest` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/controllers/news.controller.ts:63`
-   * - `src/services/google-article-editorial.generator.ts:52`
-   * - `src/services/google-article-editorial.generator.ts:107`
-   * - `src/services/google-article-editorial.generator.ts:109`
-   * - `src/services/translation.service.ts:11`
-   * - `src/services/translation.service.ts:19`
-   * - `src/services/translation.types.ts:9`
-   * - `tests/services/google-article-editorial.generator.test.ts:17`
-   * - `tests/services/google-article-editorial.generator.test.ts:30`
-   * - `tests/services/google-article-editorial.generator.test.ts:31`
-   * - `tests/services/google-translation.service.test.ts:13`
-   * - `tests/services/google-translation.service.test.ts:24`
-   * - `tests/services/translation.service.test.ts:12`
-   * - `tests/services/translation.service.test.ts:15`
-   * - `tests/services/translation.service.test.ts:18`
-   * - `tests/services/translation.service.test.ts:25`
-   * - `tests/services/translation.service.test.ts:30`
-   * - `tests/services/translation.service.test.ts:31`
-   * - `tests/services/translation.service.test.ts:41`
-   * - `tests/services/translation.service.test.ts:44`
+   * - `src/controllers/news.controller.ts`
+   * - `src/services/google-article-editorial.generator.ts`
+   * - `src/services/translation.service.ts`
+   * - `src/services/translation.types.ts`
+   * - `tests/services/google-article-editorial.generator.test.ts`
+   * - `tests/services/google-translation.service.test.ts`
+   * - `tests/services/translation.service.test.ts`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   async translateDigest(digest: string): Promise<string> {
@@ -97,7 +78,7 @@ export class GoogleTranslationService implements DigestTranslator {
    * Hàm `translateText` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/services/google-translation.service.ts:19`
+   * - `src/services/google-translation.service.ts`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   private async translateText(text: string): Promise<string> {
@@ -146,7 +127,7 @@ export class GoogleTranslationService implements DigestTranslator {
  * Hàm `splitDigestForTranslation` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/google-translation.service.ts:17`
+ * - `src/services/google-translation.service.ts`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function splitDigestForTranslation(digest: string, maxChars: number): string[] {

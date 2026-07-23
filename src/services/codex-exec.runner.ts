@@ -17,9 +17,8 @@ import { join } from 'node:path';
  * Interface `CodexRunner` mô tả contract dữ liệu/dependency tại bước này.
  *
  * Được sử dụng tại:
- * - `src/services/codex-article-editorial.generator.ts:20`
- * - `src/services/codex-article-editorial.generator.ts:37`
- * - `src/services/codex-exec.runner.ts:10`
+ * - `src/services/codex-article-editorial.generator.ts`
+ * - `src/services/codex-exec.runner.ts`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 export interface CodexRunner {
@@ -27,11 +26,9 @@ export interface CodexRunner {
    * Hàm `run` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/services/codex-article-editorial.generator.ts:61`
-   * - `src/services/codex-exec.runner.ts:11`
-   * - `tests/services/codex-article-editorial.generator.test.ts:16`
-   * - `tests/services/codex-article-editorial.generator.test.ts:20`
-   * - `tests/services/codex-article-editorial.generator.test.ts:25`
+   * - `src/services/codex-article-editorial.generator.ts`
+   * - `src/services/codex-exec.runner.ts`
+   * - `tests/services/codex-article-editorial.generator.test.ts`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   run(prompt: string, input: string, timeoutMs: number): Promise<string>;
@@ -41,8 +38,7 @@ export interface CodexRunner {
  * Class `CodexExecRunner` đóng gói trách nhiệm chính của module.
  *
  * Được sử dụng tại:
- * - `src/services/codex-article-editorial.generator.ts:20`
- * - `src/services/codex-article-editorial.generator.ts:37`
+ * - `src/services/codex-article-editorial.generator.ts`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 export class CodexExecRunner implements CodexRunner {
@@ -50,11 +46,9 @@ export class CodexExecRunner implements CodexRunner {
    * Hàm `run` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/services/codex-article-editorial.generator.ts:61`
-   * - `src/services/codex-exec.runner.ts:7`
-   * - `tests/services/codex-article-editorial.generator.test.ts:16`
-   * - `tests/services/codex-article-editorial.generator.test.ts:20`
-   * - `tests/services/codex-article-editorial.generator.test.ts:25`
+   * - `src/services/codex-article-editorial.generator.ts`
+   * - `src/services/codex-exec.runner.ts`
+   * - `tests/services/codex-article-editorial.generator.test.ts`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   run(prompt: string, input: string, timeoutMs: number): Promise<string> {
@@ -110,10 +104,7 @@ export class CodexExecRunner implements CodexRunner {
          * Hàm `cleanup` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
          *
          * Được sử dụng tại:
-         * - `src/services/codex-exec.runner.ts:15`
-         * - `src/services/codex-exec.runner.ts:52`
-         * - `src/services/codex-exec.runner.ts:59`
-         * - `src/services/codex-exec.runner.ts:64`
+         * - `src/services/codex-exec.runner.ts`
          */
         // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
         cleanup();
@@ -121,12 +112,9 @@ export class CodexExecRunner implements CodexRunner {
          * Hàm `reject` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
          *
          * Được sử dụng tại:
-         * - `src/services/codex-exec.runner.ts:12`
-         * - `src/services/codex-exec.runner.ts:53`
-         * - `src/services/codex-exec.runner.ts:65`
-         * - `tests/services/source.service.test.ts:86`
-         * - `tests/utils/reddit-dns.test.ts:113`
-         * - `tests/utils/reddit-dns.test.ts:116`
+         * - `src/services/codex-exec.runner.ts`
+         * - `tests/services/source.service.test.ts`
+         * - `tests/utils/reddit-dns.test.ts`
          */
         // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
         reject(new Error(`Codex translation timed out after ${timeoutMs}ms`));
@@ -153,7 +141,7 @@ export class CodexExecRunner implements CodexRunner {
          * Hàm `clearTimeout` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
          *
          * Được sử dụng tại:
-         * - `src/services/codex-exec.runner.ts:56`
+         * - `src/services/codex-exec.runner.ts`
          */
         // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
         clearTimeout(timeout);
@@ -161,10 +149,7 @@ export class CodexExecRunner implements CodexRunner {
          * Hàm `cleanup` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
          *
          * Được sử dụng tại:
-         * - `src/services/codex-exec.runner.ts:15`
-         * - `src/services/codex-exec.runner.ts:38`
-         * - `src/services/codex-exec.runner.ts:59`
-         * - `src/services/codex-exec.runner.ts:64`
+         * - `src/services/codex-exec.runner.ts`
          */
         // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
         cleanup();
@@ -172,12 +157,9 @@ export class CodexExecRunner implements CodexRunner {
          * Hàm `reject` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
          *
          * Được sử dụng tại:
-         * - `src/services/codex-exec.runner.ts:12`
-         * - `src/services/codex-exec.runner.ts:39`
-         * - `src/services/codex-exec.runner.ts:65`
-         * - `tests/services/source.service.test.ts:86`
-         * - `tests/utils/reddit-dns.test.ts:113`
-         * - `tests/utils/reddit-dns.test.ts:116`
+         * - `src/services/codex-exec.runner.ts`
+         * - `tests/services/source.service.test.ts`
+         * - `tests/utils/reddit-dns.test.ts`
          */
         // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
         reject(error);
@@ -188,7 +170,7 @@ export class CodexExecRunner implements CodexRunner {
          * Hàm `clearTimeout` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
          *
          * Được sử dụng tại:
-         * - `src/services/codex-exec.runner.ts:51`
+         * - `src/services/codex-exec.runner.ts`
          */
         // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
         clearTimeout(timeout);
@@ -200,10 +182,7 @@ export class CodexExecRunner implements CodexRunner {
            * Hàm `cleanup` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
            *
            * Được sử dụng tại:
-           * - `src/services/codex-exec.runner.ts:15`
-           * - `src/services/codex-exec.runner.ts:38`
-           * - `src/services/codex-exec.runner.ts:52`
-           * - `src/services/codex-exec.runner.ts:64`
+           * - `src/services/codex-exec.runner.ts`
            */
           // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
           cleanup();
@@ -211,14 +190,11 @@ export class CodexExecRunner implements CodexRunner {
            * Hàm `resolve` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
            *
            * Được sử dụng tại:
-           * - `src/services/codex-exec.runner.ts:12`
-           * - `src/services/google-article-editorial.generator.ts:17`
-           * - `src/services/translation.types.ts:8`
-           * - `tests/crawlers/github-repos.crawler.test.ts:29`
-           * - `tests/crawlers/github-repos.crawler.test.ts:49`
-           * - `tests/crawlers/github-repos.crawler.test.ts:82`
-           * - `tests/utils/reddit-dns.test.ts:113`
-           * - `tests/utils/reddit-dns.test.ts:120`
+           * - `src/services/codex-exec.runner.ts`
+           * - `src/services/google-article-editorial.generator.ts`
+           * - `src/services/translation.types.ts`
+           * - `tests/crawlers/github-repos.crawler.test.ts`
+           * - `tests/utils/reddit-dns.test.ts`
            */
           // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
           resolve(finalMessage);
@@ -230,10 +206,7 @@ export class CodexExecRunner implements CodexRunner {
          * Hàm `cleanup` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
          *
          * Được sử dụng tại:
-         * - `src/services/codex-exec.runner.ts:15`
-         * - `src/services/codex-exec.runner.ts:38`
-         * - `src/services/codex-exec.runner.ts:52`
-         * - `src/services/codex-exec.runner.ts:59`
+         * - `src/services/codex-exec.runner.ts`
          */
         // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
         cleanup();
@@ -241,12 +214,9 @@ export class CodexExecRunner implements CodexRunner {
          * Hàm `reject` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
          *
          * Được sử dụng tại:
-         * - `src/services/codex-exec.runner.ts:12`
-         * - `src/services/codex-exec.runner.ts:39`
-         * - `src/services/codex-exec.runner.ts:53`
-         * - `tests/services/source.service.test.ts:86`
-         * - `tests/utils/reddit-dns.test.ts:113`
-         * - `tests/utils/reddit-dns.test.ts:116`
+         * - `src/services/codex-exec.runner.ts`
+         * - `tests/services/source.service.test.ts`
+         * - `tests/utils/reddit-dns.test.ts`
          */
         // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
         reject(new Error(`Codex translation failed with exit code ${code}: ${stderr.trim()}`));

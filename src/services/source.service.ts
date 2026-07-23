@@ -23,7 +23,7 @@ import { dedupeArticles, isAllowedArticle } from './article.service';
  * Interface `SourceServiceCrawlers` mô tả contract dữ liệu/dependency tại bước này.
  *
  * Được sử dụng tại:
- * - `src/services/source.service.ts:19`
+ * - `src/services/source.service.ts`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 interface SourceServiceCrawlers {
@@ -41,19 +41,10 @@ interface SourceServiceCrawlers {
  * Class `SourceService` đóng gói trách nhiệm chính của module.
  *
  * Được sử dụng tại:
- * - `src/controllers/news.controller.ts:12`
- * - `src/controllers/news.controller.ts:16`
- * - `src/controllers/telegram.controller.ts:11`
- * - `src/controllers/telegram.controller.ts:15`
- * - `src/types/source.ts:64`
- * - `tests/services/source.service.test.ts:2`
- * - `tests/services/source.service.test.ts:6`
- * - `tests/services/source.service.test.ts:37`
- * - `tests/services/source.service.test.ts:84`
- * - `tests/services/source.service.test.ts:123`
- * - `tests/services/source.service.test.ts:170`
- * - `tests/services/source.service.test.ts:208`
- * - `tests/services/source.service.test.ts:242`
+ * - `src/controllers/news.controller.ts`
+ * - `src/controllers/telegram.controller.ts`
+ * - `src/types/source.ts`
+ * - `tests/services/source.service.test.ts`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 export class SourceService {
@@ -72,15 +63,9 @@ export class SourceService {
    * Hàm `collectLatest` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/controllers/news.controller.ts:44`
-   * - `src/controllers/news.controller.ts:57`
-   * - `src/controllers/telegram.controller.ts:31`
-   * - `tests/services/source.service.test.ts:43`
-   * - `tests/services/source.service.test.ts:90`
-   * - `tests/services/source.service.test.ts:129`
-   * - `tests/services/source.service.test.ts:176`
-   * - `tests/services/source.service.test.ts:214`
-   * - `tests/services/source.service.test.ts:249`
+   * - `src/controllers/news.controller.ts`
+   * - `src/controllers/telegram.controller.ts`
+   * - `tests/services/source.service.test.ts`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   async collectLatest(): Promise<Article[]> {
@@ -142,7 +127,7 @@ export class SourceService {
    * Hàm `isFreshArticle` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/services/source.service.ts:55`
+   * - `src/services/source.service.ts`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   private isFreshArticle(article: Article): boolean {

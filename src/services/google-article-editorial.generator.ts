@@ -19,7 +19,7 @@ import { GoogleTranslationService } from './google-translation.service';
  * Interface `TextTranslator` mô tả contract dữ liệu/dependency tại bước này.
  *
  * Được sử dụng tại:
- * - `src/services/google-article-editorial.generator.ts:12`
+ * - `src/services/google-article-editorial.generator.ts`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 interface TextTranslator {
@@ -27,26 +27,14 @@ interface TextTranslator {
    * Hàm `translateDigest` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/controllers/news.controller.ts:63`
-   * - `src/services/google-article-editorial.generator.ts:16`
-   * - `src/services/google-article-editorial.generator.ts:17`
-   * - `src/services/google-translation.service.ts:11`
-   * - `src/services/translation.service.ts:11`
-   * - `src/services/translation.service.ts:19`
-   * - `src/services/translation.types.ts:9`
-   * - `tests/services/google-article-editorial.generator.test.ts:17`
-   * - `tests/services/google-article-editorial.generator.test.ts:30`
-   * - `tests/services/google-article-editorial.generator.test.ts:31`
-   * - `tests/services/google-translation.service.test.ts:13`
-   * - `tests/services/google-translation.service.test.ts:24`
-   * - `tests/services/translation.service.test.ts:12`
-   * - `tests/services/translation.service.test.ts:15`
-   * - `tests/services/translation.service.test.ts:18`
-   * - `tests/services/translation.service.test.ts:25`
-   * - `tests/services/translation.service.test.ts:30`
-   * - `tests/services/translation.service.test.ts:31`
-   * - `tests/services/translation.service.test.ts:41`
-   * - `tests/services/translation.service.test.ts:44`
+   * - `src/controllers/news.controller.ts`
+   * - `src/services/google-article-editorial.generator.ts`
+   * - `src/services/google-translation.service.ts`
+   * - `src/services/translation.service.ts`
+   * - `src/services/translation.types.ts`
+   * - `tests/services/google-article-editorial.generator.test.ts`
+   * - `tests/services/google-translation.service.test.ts`
+   * - `tests/services/translation.service.test.ts`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   translateDigest(text: string): Promise<string>;
@@ -56,11 +44,8 @@ interface TextTranslator {
  * Class `GoogleArticleEditorialGenerator` đóng gói trách nhiệm chính của module.
  *
  * Được sử dụng tại:
- * - `src/services/article-editorial.service.ts:28`
- * - `src/services/article-editorial.service.ts:170`
- * - `tests/services/google-article-editorial.generator.test.ts:2`
- * - `tests/services/google-article-editorial.generator.test.ts:14`
- * - `tests/services/google-article-editorial.generator.test.ts:22`
+ * - `src/services/article-editorial.service.ts`
+ * - `tests/services/google-article-editorial.generator.test.ts`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 export class GoogleArticleEditorialGenerator implements ArticleEditorialGenerator {
@@ -68,18 +53,18 @@ export class GoogleArticleEditorialGenerator implements ArticleEditorialGenerato
    * Hàm `constructor` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/crawlers/github-repos.crawler.ts:121`
-   * - `src/crawlers/html.crawler.ts:110`
-   * - `src/crawlers/rss.crawler.ts:194`
-   * - `src/crawlers/x-search.crawler.ts:166`
-   * - `src/services/article-editorial.service.ts:80`
-   * - `src/services/codex-article-editorial.generator.ts:35`
-   * - `src/services/digest.service.ts:174`
-   * - `src/services/google-translation.service.ts:6`
-   * - `src/services/openai-article-editorial.generator.ts:66`
-   * - `src/services/source.service.ts:61`
-   * - `src/services/telegram.service.ts:52`
-   * - `src/services/translation.service.ts:9`
+   * - `src/crawlers/github-repos.crawler.ts`
+   * - `src/crawlers/html.crawler.ts`
+   * - `src/crawlers/rss.crawler.ts`
+   * - `src/crawlers/x-search.crawler.ts`
+   * - `src/services/article-editorial.service.ts`
+   * - `src/services/codex-article-editorial.generator.ts`
+   * - `src/services/digest.service.ts`
+   * - `src/services/google-translation.service.ts`
+   * - `src/services/openai-article-editorial.generator.ts`
+   * - `src/services/source.service.ts`
+   * - `src/services/telegram.service.ts`
+   * - `src/services/translation.service.ts`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   constructor(private readonly translator: TextTranslator = new GoogleTranslationService()) {}
@@ -88,16 +73,14 @@ export class GoogleArticleEditorialGenerator implements ArticleEditorialGenerato
    * Hàm `generate` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/services/article-editorial.service.ts:107`
-   * - `src/services/article-editorial.types.ts:38`
-   * - `src/services/codex-article-editorial.generator.ts:59`
-   * - `src/services/openai-article-editorial.generator.ts:94`
-   * - `tests/services/article-editorial.service.test.ts:19`
-   * - `tests/services/article-editorial.service.test.ts:42`
-   * - `tests/services/article-editorial.service.test.ts:60`
-   * - `tests/services/codex-article-editorial.generator.test.ts:19`
-   * - `tests/services/google-article-editorial.generator.test.ts:24`
-   * - `tests/services/openai-article-editorial.generator.test.ts:19`
+   * - `src/services/article-editorial.service.ts`
+   * - `src/services/article-editorial.types.ts`
+   * - `src/services/codex-article-editorial.generator.ts`
+   * - `src/services/openai-article-editorial.generator.ts`
+   * - `tests/services/article-editorial.service.test.ts`
+   * - `tests/services/codex-article-editorial.generator.test.ts`
+   * - `tests/services/google-article-editorial.generator.test.ts`
+   * - `tests/services/openai-article-editorial.generator.test.ts`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   async generate(input: ArticleEditorialInput): Promise<string> {

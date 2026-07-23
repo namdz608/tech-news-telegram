@@ -23,8 +23,7 @@ import { articleEditorialInstructions } from './article-editorial.types';
  * Interface `OpenAIResponseClientLike` mô tả contract dữ liệu/dependency tại bước này.
  *
  * Được sử dụng tại:
- * - `src/services/openai-article-editorial.generator.ts:17`
- * - `src/services/openai-article-editorial.generator.ts:19`
+ * - `src/services/openai-article-editorial.generator.ts`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 interface OpenAIResponseClientLike {
@@ -34,16 +33,14 @@ interface OpenAIResponseClientLike {
      * Hàm `create` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
      *
      * Được sử dụng tại:
-     * - `src/crawlers/github-repos.crawler.ts:123`
-     * - `src/crawlers/html.crawler.ts:112`
-     * - `src/crawlers/rss.crawler.ts:213`
-     * - `src/crawlers/x-search.crawler.ts:168`
-     * - `src/services/google-translation.service.ts:8`
-     * - `src/services/openai-article-editorial.generator.ts:24`
-     * - `src/services/telegram.service.ts:57`
-     * - `tests/services/openai-article-editorial.generator.test.ts:16`
-     * - `tests/services/openai-article-editorial.generator.test.ts:17`
-     * - `tests/services/openai-article-editorial.generator.test.ts:20`
+     * - `src/crawlers/github-repos.crawler.ts`
+     * - `src/crawlers/html.crawler.ts`
+     * - `src/crawlers/rss.crawler.ts`
+     * - `src/crawlers/x-search.crawler.ts`
+     * - `src/services/google-translation.service.ts`
+     * - `src/services/openai-article-editorial.generator.ts`
+     * - `src/services/telegram.service.ts`
+     * - `tests/services/openai-article-editorial.generator.test.ts`
      */
     // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
     create(input: { model: string; instructions: string; input: string }): Promise<{ output_text?: string }>;
@@ -54,11 +51,8 @@ interface OpenAIResponseClientLike {
  * Class `OpenAIArticleEditorialGenerator` đóng gói trách nhiệm chính của module.
  *
  * Được sử dụng tại:
- * - `src/services/article-editorial.service.ts:30`
- * - `src/services/article-editorial.service.ts:164`
- * - `tests/services/openai-article-editorial.generator.test.ts:2`
- * - `tests/services/openai-article-editorial.generator.test.ts:14`
- * - `tests/services/openai-article-editorial.generator.test.ts:17`
+ * - `src/services/article-editorial.service.ts`
+ * - `tests/services/openai-article-editorial.generator.test.ts`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 export class OpenAIArticleEditorialGenerator implements ArticleEditorialGenerator {
@@ -79,16 +73,14 @@ export class OpenAIArticleEditorialGenerator implements ArticleEditorialGenerato
    * Hàm `generate` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/services/article-editorial.service.ts:107`
-   * - `src/services/article-editorial.types.ts:38`
-   * - `src/services/codex-article-editorial.generator.ts:59`
-   * - `src/services/google-article-editorial.generator.ts:14`
-   * - `tests/services/article-editorial.service.test.ts:19`
-   * - `tests/services/article-editorial.service.test.ts:42`
-   * - `tests/services/article-editorial.service.test.ts:60`
-   * - `tests/services/codex-article-editorial.generator.test.ts:19`
-   * - `tests/services/google-article-editorial.generator.test.ts:24`
-   * - `tests/services/openai-article-editorial.generator.test.ts:19`
+   * - `src/services/article-editorial.service.ts`
+   * - `src/services/article-editorial.types.ts`
+   * - `src/services/codex-article-editorial.generator.ts`
+   * - `src/services/google-article-editorial.generator.ts`
+   * - `tests/services/article-editorial.service.test.ts`
+   * - `tests/services/codex-article-editorial.generator.test.ts`
+   * - `tests/services/google-article-editorial.generator.test.ts`
+   * - `tests/services/openai-article-editorial.generator.test.ts`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   async generate(input: ArticleEditorialInput): Promise<string> {

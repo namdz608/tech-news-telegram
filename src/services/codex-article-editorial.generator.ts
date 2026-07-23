@@ -23,11 +23,8 @@ import { CodexExecRunner, type CodexRunner } from './codex-exec.runner';
  * Class `CodexArticleEditorialGenerator` đóng gói trách nhiệm chính của module.
  *
  * Được sử dụng tại:
- * - `src/services/article-editorial.service.ts:26`
- * - `src/services/article-editorial.service.ts:158`
- * - `tests/services/codex-article-editorial.generator.test.ts:2`
- * - `tests/services/codex-article-editorial.generator.test.ts:14`
- * - `tests/services/codex-article-editorial.generator.test.ts:17`
+ * - `src/services/article-editorial.service.ts`
+ * - `tests/services/codex-article-editorial.generator.test.ts`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 export class CodexArticleEditorialGenerator implements ArticleEditorialGenerator {
@@ -44,16 +41,14 @@ export class CodexArticleEditorialGenerator implements ArticleEditorialGenerator
    * Hàm `generate` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/services/article-editorial.service.ts:107`
-   * - `src/services/article-editorial.types.ts:38`
-   * - `src/services/google-article-editorial.generator.ts:14`
-   * - `src/services/openai-article-editorial.generator.ts:23`
-   * - `tests/services/article-editorial.service.test.ts:19`
-   * - `tests/services/article-editorial.service.test.ts:42`
-   * - `tests/services/article-editorial.service.test.ts:60`
-   * - `tests/services/codex-article-editorial.generator.test.ts:19`
-   * - `tests/services/google-article-editorial.generator.test.ts:24`
-   * - `tests/services/openai-article-editorial.generator.test.ts:19`
+   * - `src/services/article-editorial.service.ts`
+   * - `src/services/article-editorial.types.ts`
+   * - `src/services/google-article-editorial.generator.ts`
+   * - `src/services/openai-article-editorial.generator.ts`
+   * - `tests/services/article-editorial.service.test.ts`
+   * - `tests/services/codex-article-editorial.generator.test.ts`
+   * - `tests/services/google-article-editorial.generator.test.ts`
+   * - `tests/services/openai-article-editorial.generator.test.ts`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   async generate(input: ArticleEditorialInput): Promise<string> {

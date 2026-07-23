@@ -8,12 +8,9 @@
  * Hàm `normalizeUrl` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/crawlers/html.crawler.ts:20`
- * - `src/crawlers/html.crawler.ts:209`
- * - `src/crawlers/rss.crawler.ts:22`
- * - `src/crawlers/rss.crawler.ts:295`
- * - `tests/services/article.service.test.ts:3`
- * - `tests/services/article.service.test.ts:26`
+ * - `src/crawlers/html.crawler.ts`
+ * - `src/crawlers/rss.crawler.ts`
+ * - `tests/services/article.service.test.ts`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 export function normalizeUrl(input: string): string {

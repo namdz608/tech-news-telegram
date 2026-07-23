@@ -47,15 +47,9 @@ const fallbackWhyImportant: Record<TopicKey, string> = {
  * Class `ArticleEditorialService` đóng gói trách nhiệm chính của module.
  *
  * Được sử dụng tại:
- * - `src/controllers/news.controller.ts:9`
- * - `src/controllers/news.controller.ts:22`
- * - `src/controllers/telegram.controller.ts:8`
- * - `src/controllers/telegram.controller.ts:21`
- * - `tests/services/article-editorial.service.test.ts:2`
- * - `tests/services/article-editorial.service.test.ts:16`
- * - `tests/services/article-editorial.service.test.ts:30`
- * - `tests/services/article-editorial.service.test.ts:42`
- * - `tests/services/article-editorial.service.test.ts:60`
+ * - `src/controllers/news.controller.ts`
+ * - `src/controllers/telegram.controller.ts`
+ * - `tests/services/article-editorial.service.test.ts`
  */
 // Khai báo contract có kiểu để các caller dùng nhất quán.
 export class ArticleEditorialService {
@@ -63,18 +57,18 @@ export class ArticleEditorialService {
    * Hàm `constructor` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/crawlers/github-repos.crawler.ts:121`
-   * - `src/crawlers/html.crawler.ts:110`
-   * - `src/crawlers/rss.crawler.ts:194`
-   * - `src/crawlers/x-search.crawler.ts:166`
-   * - `src/services/codex-article-editorial.generator.ts:10`
-   * - `src/services/digest.service.ts:174`
-   * - `src/services/google-article-editorial.generator.ts:12`
-   * - `src/services/google-translation.service.ts:6`
-   * - `src/services/openai-article-editorial.generator.ts:16`
-   * - `src/services/source.service.ts:61`
-   * - `src/services/telegram.service.ts:52`
-   * - `src/services/translation.service.ts:9`
+   * - `src/crawlers/github-repos.crawler.ts`
+   * - `src/crawlers/html.crawler.ts`
+   * - `src/crawlers/rss.crawler.ts`
+   * - `src/crawlers/x-search.crawler.ts`
+   * - `src/services/codex-article-editorial.generator.ts`
+   * - `src/services/digest.service.ts`
+   * - `src/services/google-article-editorial.generator.ts`
+   * - `src/services/google-translation.service.ts`
+   * - `src/services/openai-article-editorial.generator.ts`
+   * - `src/services/source.service.ts`
+   * - `src/services/telegram.service.ts`
+   * - `src/services/translation.service.ts`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   constructor(private readonly generator = createDefaultGenerator()) {}
@@ -83,12 +77,9 @@ export class ArticleEditorialService {
    * Hàm `editArticle` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
    *
    * Được sử dụng tại:
-   * - `src/services/digest-message-editorial.service.ts:23`
-   * - `src/services/digest-message-editorial.service.ts:65`
-   * - `tests/services/article-editorial.service.test.ts:30`
-   * - `tests/services/article-editorial.service.test.ts:46`
-   * - `tests/services/article-editorial.service.test.ts:64`
-   * - `tests/services/digest-message-editorial.service.test.ts:29`
+   * - `src/services/digest-message-editorial.service.ts`
+   * - `tests/services/article-editorial.service.test.ts`
+   * - `tests/services/digest-message-editorial.service.test.ts`
    */
   // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
   async editArticle(article: Article, topic: TopicKey): Promise<ArticleEditorial> {
@@ -148,7 +139,7 @@ export class ArticleEditorialService {
  * Hàm `createDefaultGenerator` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/article-editorial.service.ts:23`
+ * - `src/services/article-editorial.service.ts`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function createDefaultGenerator(): ArticleEditorialGenerator | undefined {
@@ -178,9 +169,8 @@ function createDefaultGenerator(): ArticleEditorialGenerator | undefined {
  * Hàm `createFallbackEditorial` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/article-editorial.service.ts:26`
- * - `src/services/digest.service.ts:20`
- * - `src/services/digest.service.ts:308`
+ * - `src/services/article-editorial.service.ts`
+ * - `src/services/digest.service.ts`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 export function createFallbackEditorial(article: Article, topic: TopicKey): ArticleEditorial {
@@ -194,11 +184,7 @@ export function createFallbackEditorial(article: Article, topic: TopicKey): Arti
        * Hàm `cleanString` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
        *
        * Được sử dụng tại:
-       * - `src/services/article-editorial.service.ts:44`
-       * - `src/services/article-editorial.service.ts:45`
-       * - `src/services/article-editorial.service.ts:46`
-       * - `src/services/article-editorial.service.ts:48`
-       * - `src/services/article-editorial.service.ts:95`
+       * - `src/services/article-editorial.service.ts`
        */
       // Bắt đầu method xử lý một trách nhiệm cục bộ của class.
       cleanString(article.summary) || 'Nguồn chưa cung cấp mô tả chi tiết cho bản tin này.',
@@ -215,7 +201,7 @@ export function createFallbackEditorial(article: Article, topic: TopicKey): Arti
  * Hàm `parseJsonObject` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/article-editorial.service.ts:41`
+ * - `src/services/article-editorial.service.ts`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function parseJsonObject(raw: string): Record<string, unknown> {
@@ -238,11 +224,7 @@ function parseJsonObject(raw: string): Record<string, unknown> {
  * Hàm `cleanString` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/article-editorial.service.ts:44`
- * - `src/services/article-editorial.service.ts:45`
- * - `src/services/article-editorial.service.ts:46`
- * - `src/services/article-editorial.service.ts:48`
- * - `src/services/article-editorial.service.ts:77`
+ * - `src/services/article-editorial.service.ts`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function cleanString(value: unknown): string {
@@ -254,7 +236,7 @@ function cleanString(value: unknown): string {
  * Hàm `isActionLevel` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/article-editorial.service.ts:47`
+ * - `src/services/article-editorial.service.ts`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function isActionLevel(value: unknown): value is ActionLevel {

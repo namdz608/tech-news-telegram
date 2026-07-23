@@ -17,8 +17,7 @@ import { XSearchCrawler } from './x-search.crawler';
  * Hàm `createCrawlers` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/source.service.ts:3`
- * - `src/services/source.service.ts:19`
+ * - `src/services/source.service.ts`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 export function createCrawlers() {

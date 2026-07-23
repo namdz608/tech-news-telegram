@@ -8,25 +8,12 @@
  * Hàm `compactText` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/crawlers/github-repos.crawler.ts:16`
- * - `src/crawlers/github-repos.crawler.ts:432`
- * - `src/crawlers/html.crawler.ts:22`
- * - `src/crawlers/html.crawler.ts:196`
- * - `src/crawlers/html.crawler.ts:213`
- * - `src/crawlers/html.crawler.ts:251`
- * - `src/crawlers/rss.crawler.ts:26`
- * - `src/crawlers/rss.crawler.ts:291`
- * - `src/crawlers/rss.crawler.ts:293`
- * - `src/crawlers/x-search.crawler.ts:18`
- * - `src/crawlers/x-search.crawler.ts:442`
- * - `src/services/article-editorial.service.ts:14`
- * - `src/services/article-editorial.service.ts:190`
- * - `src/services/article-editorial.service.ts:250`
- * - `src/services/digest.service.ts:18`
- * - `src/services/digest.service.ts:534`
- * - `src/services/digest.service.ts:536`
- * - `src/services/digest.service.ts:538`
- * - `src/services/digest.service.ts:729`
+ * - `src/crawlers/github-repos.crawler.ts`
+ * - `src/crawlers/html.crawler.ts`
+ * - `src/crawlers/rss.crawler.ts`
+ * - `src/crawlers/x-search.crawler.ts`
+ * - `src/services/article-editorial.service.ts`
+ * - `src/services/digest.service.ts`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 export function compactText(value: string): string {
@@ -38,13 +25,7 @@ export function compactText(value: string): string {
  * Hàm `escapeHtml` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/digest.service.ts:18`
- * - `src/services/digest.service.ts:545`
- * - `src/services/digest.service.ts:551`
- * - `src/services/digest.service.ts:573`
- * - `src/services/digest.service.ts:591`
- * - `src/services/digest.service.ts:597`
- * - `src/services/digest.service.ts:601`
+ * - `src/services/digest.service.ts`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 export function escapeHtml(value: string): string {
@@ -62,12 +43,8 @@ export function escapeHtml(value: string): string {
  * Hàm `includesKeyword` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/services/article.service.ts:14`
- * - `src/services/article.service.ts:52`
- * - `src/services/digest.service.ts:18`
- * - `src/services/digest.service.ts:489`
- * - `src/services/digest.service.ts:495`
- * - `src/services/digest.service.ts:501`
+ * - `src/services/article.service.ts`
+ * - `src/services/digest.service.ts`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 export function includesKeyword(text: string, keyword: string): boolean {
@@ -90,7 +67,7 @@ export function includesKeyword(text: string, keyword: string): boolean {
  * Hàm `escapeRegExp` thực hiện bước xử lý được mô tả bởi tên và kiểu trả về.
  *
  * Được sử dụng tại:
- * - `src/utils/text.ts:17`
+ * - `src/utils/text.ts`
  */
 // Bắt đầu hàm và xác định rõ input/output qua TypeScript.
 function escapeRegExp(value: string): string {
