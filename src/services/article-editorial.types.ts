@@ -1,7 +1,15 @@
+/**
+ * Contract chung giữa orchestration editorial và ba provider Codex/OpenAI/Google.
+ *
+ * Các generator nhận ArticleEditorialInput, trả JSON string, rồi
+ * ArticleEditorialService parse/validate thành ArticleEditorial.
+ */
 import type { TopicKey } from '../types/topic';
 
+/** Ba mức hành động được phép xuất hiện trong message cuối. */
 export type ActionLevel = 'urgent' | 'high' | 'monitor';
 
+/** Editorial đã validate, sẵn sàng để DigestService render HTML. */
 export interface ArticleEditorial {
   title: string;
   summary: string;
@@ -10,6 +18,7 @@ export interface ArticleEditorial {
   actionText: string;
 }
 
+/** Dữ kiện tối thiểu được phép gửi cho provider để tránh bịa thông tin. */
 export interface ArticleEditorialInput {
   title: string;
   summary?: string;
@@ -19,11 +28,24 @@ export interface ArticleEditorialInput {
   collectedAt: string;
 }
 
+/**
+ * Interface dependency-injection cho mọi editorial provider.
+ *
+ * Được implement bởi Codex/OpenAI/Google generator và được
+ * `article-editorial.service.ts` cùng các generator tests sử dụng.
+ */
 export interface ArticleEditorialGenerator {
   generate(input: ArticleEditorialInput): Promise<string>;
 }
 
+/**
+ * System instructions dùng chung để ép provider trả JSON có căn cứ.
+ *
+ * Được các provider generator ghép vào prompt; tests provider kiểm tra
+ * request chứa ràng buộc này.
+ */
 export const articleEditorialInstructions = [
+  // Các dòng tách riêng để prompt dễ đọc nhưng được join thành một string.
   'Biên tập một tin công nghệ bằng tiếng Việt tự nhiên, súc tích.',
   'Chỉ trả về một JSON object với đúng các khóa: title, summary, whyImportant, actionLevel, actionText.',
   'actionLevel chỉ được là urgent, high hoặc monitor.',
