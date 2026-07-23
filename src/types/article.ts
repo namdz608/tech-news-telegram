@@ -2,12 +2,20 @@
  * Mô hình dữ liệu chuẩn mà mọi crawler phải trả về.
  *
  * Article đi xuyên suốt luồng crawler → SourceService → article filtering
- * → DigestService → editorial/Telegram. Có 28 reference trong `src/`;
- * các crawler/service tests dùng object theo contract này.
+ * → DigestService → editorial/Telegram.
+ *
+ * Được sử dụng tại:
+ * - `src/crawlers/crawler.types.ts` và bốn crawler implementation.
+ * - `src/services/article.service.ts`, `source.service.ts`, `digest.service.ts`.
+ * - `src/services/article-editorial.service.ts`.
+ * - `tests/services/source.service.test.ts` và các crawler/service tests tạo Article fixture.
  */
 import type { TopicKey } from './topic';
 
-/** Một tin công nghệ đã được chuẩn hóa, độc lập với định dạng nguồn ban đầu. */
+/**
+ * Một tin công nghệ đã được chuẩn hóa, độc lập với định dạng nguồn ban đầu.
+ * Các caller cụ thể được liệt kê trong block cấp file ngay phía trên.
+ */
 export interface Article {
   // ID duy nhất trong phạm vi nguồn.
   id: string;

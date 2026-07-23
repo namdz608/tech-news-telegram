@@ -6,10 +6,17 @@
  */
 import type { TopicKey } from '../types/topic';
 
-/** Ba mức hành động được phép xuất hiện trong message cuối. */
+/**
+ * Ba mức hành động được phép xuất hiện trong message cuối.
+ * Được dùng bởi `ArticleEditorial` và validator `isActionLevel` trong `article-editorial.service.ts`.
+ */
 export type ActionLevel = 'urgent' | 'high' | 'monitor';
 
-/** Editorial đã validate, sẵn sàng để DigestService render HTML. */
+/**
+ * Editorial đã validate, sẵn sàng để DigestService render HTML.
+ * Được dùng tại `article-editorial.service.ts`, `digest-message-editorial.service.ts`
+ * và `digest.service.ts`.
+ */
 export interface ArticleEditorial {
   title: string;
   summary: string;
@@ -18,7 +25,10 @@ export interface ArticleEditorial {
   actionText: string;
 }
 
-/** Dữ kiện tối thiểu được phép gửi cho provider để tránh bịa thông tin. */
+/**
+ * Dữ kiện tối thiểu được phép gửi cho provider để tránh bịa thông tin.
+ * Được cả ba generator Codex/Google/OpenAI và các generator tests sử dụng.
+ */
 export interface ArticleEditorialInput {
   title: string;
   summary?: string;
@@ -33,6 +43,8 @@ export interface ArticleEditorialInput {
  *
  * Được implement bởi Codex/OpenAI/Google generator và được
  * `article-editorial.service.ts` cùng các generator tests sử dụng.
+ * Implementations: `codex-article-editorial.generator.ts`,
+ * `google-article-editorial.generator.ts`, `openai-article-editorial.generator.ts`.
  */
 export interface ArticleEditorialGenerator {
   generate(input: ArticleEditorialInput): Promise<string>;
