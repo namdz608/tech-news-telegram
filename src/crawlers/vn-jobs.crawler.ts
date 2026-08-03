@@ -9,6 +9,7 @@ import type { TopicKey } from '../types/topic';
 import { compactText } from '../utils/text';
 import { matchesExperience } from './vn-jobs/experience';
 import { crawlItviec } from './vn-jobs/itviec.adapter';
+import { matchesRole } from './vn-jobs/role-match';
 import { crawlTopcv } from './vn-jobs/topcv.adapter';
 import { crawlVietnamworks } from './vn-jobs/vietnamworks.adapter';
 import type { JobRole, VnJobListing, VnJobsCrawlOptions, VnJobsHttpClient } from './vn-jobs/types';
@@ -50,7 +51,7 @@ export class VnJobsCrawler {
       this.safeCrawl('vietnamworks', () => crawlVietnamworks(options.role, this.http, options.maxResults)),
     ]);
 
-    let listings = groups.flat();
+    let listings = groups.flat().filter((job) => matchesRole(job, options.role));
 
     if (options.experienceYears) {
       listings = listings.filter((job) => matchesExperience(job.experienceText, options.experienceYears!));

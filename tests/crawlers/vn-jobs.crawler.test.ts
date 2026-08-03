@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { VnJobsCrawler } from '../../src/crawlers/vn-jobs.crawler';
 import type { VnJobsHttpClient } from '../../src/crawlers/vn-jobs/types';
 
@@ -102,6 +102,37 @@ describe('VnJobsCrawler', () => {
     expect(titles).not.toContain('MLOps/ DevOps Engineer');
   });
 
+  it('drops irrelevant titles that do not match the requested role', async () => {
+    const articles = await new VnJobsCrawler(
+      createHttp({
+        async get(url: string) {
+          if (url.includes('itviec.com')) {
+            return {
+              data: `
+                <div class="job-card">
+                  <h3><a href="https://itviec.com/it-jobs/manual-qa-qc">Máy kiểm tra thủ công (QA QC)</a></h3>
+                  <a class="logo-employer-card" title="QI GROUP"></a>
+                </div>
+                <div class="job-card">
+                  <h3><a href="https://itviec.com/it-jobs/devops-ok">DevOps Engineer</a></h3>
+                  <a class="logo-employer-card" title="Acme"></a>
+                </div>
+              `,
+              status: 200,
+            };
+          }
+
+          return { data: '<html>Attention Required! | Cloudflare</html>', status: 403 };
+        },
+        async post() {
+          return { data: { data: [] }, status: 200 };
+        },
+      }),
+    ).crawl({ role: 'devops', maxResults: 10 });
+
+    expect(articles.map((article) => article.title)).toEqual(['DevOps Engineer']);
+  });
+
   it('returns empty when boards fail or are blocked', async () => {
     const articles = await new VnJobsCrawler(
       createHttp({
@@ -117,31 +148,33 @@ describe('VnJobsCrawler', () => {
     expect(articles).toEqual([]);
   });
 
-  it('assigns jobs-english topic for english-teacher role', async () => {
-    const articles = await new VnJobsCrawler(
-      createHttp({
-        async get(url: string) {
-          if (url.includes('itviec.com')) {
-            return {
-              data: `
-                <div class="job-card">
-                  <h3><a href="https://itviec.com/it-jobs/english-teacher-abc">English Teacher Kindergarten</a></h3>
-                  <a class="logo-employer-card" title="Sunshine School"></a>
-                </div>
-              `,
-              status: 200,
-            };
-          }
+  it('assigns jobs-english topic and skips ITviec for english-teacher', async () => {
+    const getMock = vi.fn(async (url: string) => {
+      if (url.includes('topcv.vn')) {
+        return {
+          data: `
+            <div class="job-item">
+              <h3 class="title"><a href="/viec-lam/giao-vien-tieng-anh-1.html">Giáo viên tiếng Anh mầm non</a></h3>
+              <div class="company-name">Sunshine School</div>
+            </div>
+          `,
+          status: 200,
+        };
+      }
 
-          return { data: '<html>Attention Required! | Cloudflare</html>', status: 403 };
-        },
-        async post() {
-          return { data: { data: [] }, status: 200 };
-        },
-      }),
-    ).crawl({ role: 'english-teacher', maxResults: 5 });
+      return { data: '<html>Attention Required! | Cloudflare</html>', status: 403 };
+    });
+
+    const articles = await new VnJobsCrawler({
+      get: getMock,
+      async post() {
+        return { data: { data: [] }, status: 200 };
+      },
+    }).crawl({ role: 'english-teacher', maxResults: 5 });
 
     expect(articles).toHaveLength(1);
     expect(articles[0].topics).toEqual(['jobs-english']);
+    expect(getMock.mock.calls.every(([url]) => !String(url).includes('itviec.com'))).toBe(true);
   });
 });
+

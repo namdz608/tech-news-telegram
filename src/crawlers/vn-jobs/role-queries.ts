@@ -3,12 +3,13 @@
  */
 import type { JobRole } from './types';
 
-export function itviecSearchUrl(role: JobRole): string {
-  if (role === 'devops') {
-    return 'https://itviec.com/it-jobs/devops';
+export function itviecSearchUrl(role: JobRole): string | null {
+  // ITviec là board IT; không dùng cho english-teacher để tránh JD lệch ngành.
+  if (role === 'english-teacher') {
+    return null;
   }
 
-  return 'https://itviec.com/it-jobs?q=' + encodeURIComponent('english teacher teaching assistant');
+  return 'https://itviec.com/it-jobs/devops';
 }
 
 export function topcvSearchUrl(role: JobRole): string {
