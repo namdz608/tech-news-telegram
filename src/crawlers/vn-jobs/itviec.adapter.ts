@@ -51,12 +51,16 @@ export async function crawlItviec(role: JobRole, http: VnJobsHttpClient): Promis
       undefined;
     const salaryText = compactText(card.find('.salary').text()) || undefined;
     const posted = compactText(card.find('.small-text.text-dark-grey').first().text());
-    const highlights = card
+    const highlightItems = card
       .find('ul li')
       .map((_, li) => compactText($(li).text()))
       .get()
-      .filter(Boolean)
-      .join(' · ');
+      .filter(Boolean);
+    const skills = card
+      .find('a[data-responsive-tag-list-target="tag"], .itag')
+      .map((_, tag) => compactText($(tag).text()))
+      .get()
+      .filter(Boolean);
     const imageUrl = card.find('img[data-src]').attr('data-src') || card.find('img').attr('src') || undefined;
 
     jobs.push({
@@ -65,7 +69,9 @@ export async function crawlItviec(role: JobRole, http: VnJobsHttpClient): Promis
       company,
       location,
       salaryText,
-      summary: highlights || undefined,
+      description: highlightItems.length > 0 ? highlightItems.join(' · ') : undefined,
+      skills: skills.length > 0 ? [...new Set(skills)] : undefined,
+      summary: highlightItems.join(' · ') || undefined,
       imageUrl: imageUrl && imageUrl.startsWith('http') ? imageUrl : undefined,
       publishedAt: parseRelativePosted(posted),
       sourceId: 'itviec',

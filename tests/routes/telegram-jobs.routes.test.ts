@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { crawlMock, sendMessagesMock, editDigestMessagesMock } = vi.hoisted(() => ({
+const { crawlMock, sendMessagesMock } = vi.hoisted(() => ({
   crawlMock: vi.fn(),
   sendMessagesMock: vi.fn(),
-  editDigestMessagesMock: vi.fn(async (messages: unknown[]) => messages),
 }));
 
 vi.mock('../../src/crawlers/vn-jobs.crawler', () => ({
@@ -18,10 +17,6 @@ vi.mock('../../src/services/telegram.service', () => ({
   },
 }));
 
-vi.mock('../../src/services/digest-message-editorial.service', () => ({
-  editDigestMessages: (...args: unknown[]) => editDigestMessagesMock(...args),
-}));
-
 import request from 'supertest';
 import { createApp } from '../../src/app';
 
@@ -29,7 +24,6 @@ describe('POST /telegram/send-jobs', () => {
   beforeEach(() => {
     crawlMock.mockReset();
     sendMessagesMock.mockReset();
-    editDigestMessagesMock.mockClear();
   });
 
   it('returns 400 when role is missing', async () => {
@@ -75,9 +69,15 @@ describe('POST /telegram/send-jobs', () => {
         sourceName: 'ITviec',
         title: 'DevOps Engineer',
         url: 'https://example.com/job',
-        summary: 'Acme · Ho Chi Minh',
+        summary: 'Build CI/CD pipelines',
         collectedAt: '2026-08-03T00:00:00.000Z',
         topics: ['devops'],
+        jobDetails: {
+          description: 'Build CI/CD pipelines',
+          skills: ['Docker', 'Kubernetes'],
+          salary: 'Thương lượng',
+          location: 'Hà Nội',
+        },
       },
     ]);
     sendMessagesMock.mockResolvedValueOnce(undefined);
@@ -95,6 +95,11 @@ describe('POST /telegram/send-jobs', () => {
       }),
     );
     expect(sendMessagesMock).toHaveBeenCalledTimes(1);
+    const sentMessages = sendMessagesMock.mock.calls[0][0];
+    expect(sentMessages[0].text).toContain('Mô tả công việc');
+    expect(sentMessages[0].text).toContain('Kỹ năng cần có');
+    expect(sentMessages[0].text).toContain('Mức lương');
+    expect(sentMessages[0].text).toContain('Địa điểm');
     expect(response.body).toMatchObject({
       sent: true,
       articleCount: 1,

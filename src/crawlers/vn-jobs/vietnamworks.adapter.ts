@@ -1,10 +1,18 @@
 /**
  * Crawl danh sách việc làm từ VietnamWorks (JSON search API).
  */
+import { htmlToPlainText } from './html-text';
 import { vietnamworksQueries } from './role-queries';
 import type { JobRole, VnJobListing, VnJobsHttpClient } from './types';
 
 const SEARCH_URL = 'https://ms.vietnamworks.com/job-search/v1.0/search';
+
+/** cityId Hà Nội trên VietnamWorks. */
+const HANOI_CITY_ID = '24';
+
+interface VietnamWorksSkill {
+  skillName?: string;
+}
 
 interface VietnamWorksHit {
   jobTitle?: string;
@@ -15,6 +23,9 @@ interface VietnamWorksHit {
   prettySalary?: string;
   jobLevel?: string;
   companyLogo?: string;
+  jobDescription?: string;
+  jobRequirement?: string;
+  skills?: VietnamWorksSkill[] | null;
   workingLocations?: Array<{ cityName?: string; cityNameVI?: string; address?: string }>;
   expiredOn?: string;
 }
@@ -51,9 +62,6 @@ export async function crawlVietnamworks(
   return [...merged.values()];
 }
 
-/** cityId Hà Nội trên VietnamWorks. */
-const HANOI_CITY_ID = '24';
-
 async function searchOnce(http: VnJobsHttpClient, query: string, hitsPerPage: number): Promise<VnJobListing[]> {
   const body = {
     query,
@@ -78,6 +86,9 @@ async function searchOnce(http: VnJobsHttpClient, query: string, hitsPerPage: nu
       'workingLocations',
       'companyLogo',
       'expiredOn',
+      'jobDescription',
+      'jobRequirement',
+      'skills',
     ],
     userId: 0,
   };
@@ -106,6 +117,15 @@ async function searchOnce(http: VnJobsHttpClient, query: string, hitsPerPage: nu
         .filter(Boolean)
         .join(', ');
 
+      const skills = (hit.skills ?? [])
+        .map((skill) => skill.skillName?.trim())
+        .filter((name): name is string => Boolean(name));
+
+      const description =
+        htmlToPlainText(hit.jobDescription) ||
+        htmlToPlainText(hit.jobRequirement) ||
+        undefined;
+
       return {
         title,
         url,
@@ -113,6 +133,8 @@ async function searchOnce(http: VnJobsHttpClient, query: string, hitsPerPage: nu
         location: location || undefined,
         salaryText: hit.prettySalary || undefined,
         experienceText: hit.jobLevel || undefined,
+        description,
+        skills: skills.length > 0 ? skills : undefined,
         imageUrl: hit.companyLogo?.startsWith('http') ? hit.companyLogo : undefined,
         sourceId: 'vietnamworks',
         sourceName: 'VietnamWorks',

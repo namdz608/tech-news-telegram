@@ -91,10 +91,14 @@ export class VnJobsCrawler {
 }
 
 function toArticle(job: VnJobListing, role: JobRole, collectedAt: string): Article {
-  const locationLabel = job.location ? `Địa điểm: ${compactText(job.location)}` : 'Địa điểm: Hà Nội';
-  const summaryParts = [job.company, locationLabel, job.salaryText, job.experienceText, job.summary]
-    .map((part) => (part ? compactText(part) : ''))
-    .filter(Boolean);
+  const location = job.location ? compactText(job.location) : 'Hà Nội';
+  const salary = job.salaryText ? compactText(job.salaryText) : 'Thương lượng';
+  const skills = (job.skills ?? []).map((skill) => compactText(skill)).filter(Boolean);
+  const description =
+    (job.description ? compactText(job.description) : undefined) ||
+    (job.summary ? compactText(job.summary) : undefined) ||
+    (job.experienceText ? `Yêu cầu kinh nghiệm: ${compactText(job.experienceText)}` : undefined) ||
+    'Chưa có mô tả chi tiết từ nguồn.';
 
   return {
     id: job.url,
@@ -102,7 +106,7 @@ function toArticle(job: VnJobListing, role: JobRole, collectedAt: string): Artic
     sourceName: job.sourceName,
     title: job.title,
     url: job.url,
-    summary: summaryParts.join(' · ') || undefined,
+    summary: description,
     // Logo công ty thường quá nhỏ → Telegram sendPhoto fail rồi rơi về text.
     // Để trống để DigestService dùng ảnh fallback topic (1200x630).
     imageUrl: undefined,
@@ -110,6 +114,12 @@ function toArticle(job: VnJobListing, role: JobRole, collectedAt: string): Artic
     publishedAt: job.publishedAt,
     collectedAt,
     topics: roleTopics(role),
+    jobDetails: {
+      description,
+      skills,
+      salary,
+      location,
+    },
   };
 }
 

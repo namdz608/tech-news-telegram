@@ -19,6 +19,8 @@ export interface VnJobListing {
   location?: string;
   salaryText?: string;
   experienceText?: string;
+  description?: string;
+  skills?: string[];
   summary?: string;
   imageUrl?: string;
   publishedAt?: string;

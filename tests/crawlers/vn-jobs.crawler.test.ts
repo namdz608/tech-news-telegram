@@ -35,6 +35,9 @@ const vietnamworksPayload = {
       jobLevel: 'Experienced (non-manager)',
       companyLogo: 'https://images.vietnamworks.com/logo.jpg',
       workingLocations: [{ cityNameVI: 'Hà Nội' }],
+      jobDescription: '<p>Operate cloud infrastructure and CI/CD</p>',
+      skills: [{ skillName: 'Kubernetes' }, { skillName: 'AWS' }],
+      prettySalary: 'Thương lượng',
     },
     {
       jobTitle: 'Fresher DevOps',
@@ -44,6 +47,7 @@ const vietnamworksPayload = {
       companyName: 'Startup',
       jobLevel: 'Fresher',
       workingLocations: [{ cityName: 'Ha Noi' }],
+      jobRequirement: '<p>Basic Linux knowledge</p>',
     },
     {
       jobTitle: 'DevOps Engineer HCMC',
@@ -89,7 +93,8 @@ describe('VnJobsCrawler', () => {
     expect(articles.map((article) => article.sourceName).sort()).toEqual(
       expect.arrayContaining(['ITviec', 'TopCV', 'VietnamWorks']),
     );
-    expect(articles.every((article) => article.summary?.includes('Địa điểm:'))).toBe(true);
+    expect(articles.every((article) => article.jobDetails?.location?.includes('Hà Nội') || article.jobDetails?.location?.includes('Ha Noi'))).toBe(true);
+    expect(articles.every((article) => Boolean(article.jobDetails?.description))).toBe(true);
     expect(articles.every((article) => !article.imageUrl)).toBe(true);
     expect(articles.map((article) => article.title)).not.toContain('DevOps Engineer HCMC');
   });

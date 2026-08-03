@@ -11,6 +11,7 @@ import { parseJobSendParams } from '../crawlers/vn-jobs/params';
 import { ArticleEditorialService } from '../services/article-editorial.service';
 import { DigestService } from '../services/digest.service';
 import { editDigestMessages } from '../services/digest-message-editorial.service';
+import { buildJobDigestMessages } from '../services/job-message.service';
 import { SourceService } from '../services/source.service';
 import { TelegramService } from '../services/telegram.service';
 
@@ -90,14 +91,14 @@ export async function sendJobs(req: Request, res: Response) {
     return;
   }
 
-  const messages = digestService.buildDigestMessages(articles);
-  const editedMessages = await editDigestMessages(messages, articleEditorialService);
-  await telegramService.sendMessages(editedMessages);
+  // Jobs dùng template riêng (mô tả / kỹ năng / lương / địa điểm), không qua editorial tin tech.
+  const messages = buildJobDigestMessages(articles);
+  await telegramService.sendMessages(messages);
 
   res.json({
     sent: true,
     articleCount: articles.length,
-    messageCount: editedMessages.length,
+    messageCount: messages.length,
     role: params.role,
     experienceYears: params.experienceYears ?? null,
     language: 'vi',
