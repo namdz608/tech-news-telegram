@@ -716,6 +716,7 @@ function topicIcon(topic: TopicKey): string {
     devops: '🛠️',
     // Gán field `cloud` từ `'☁️',` để object khớp contract.
     cloud: '☁️',
+    'jobs-english': '📚',
   };
 
   // Trả `icons[topic];` cho caller và kết thúc nhánh hiện tại.
