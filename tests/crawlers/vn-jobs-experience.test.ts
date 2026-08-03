@@ -12,6 +12,10 @@ describe('parseExperienceBucket', () => {
     expect(parseExperienceBucket('Junior')).toBe('1-2');
   });
 
+  it('maps 2-5 ranges', () => {
+    expect(parseExperienceBucket('2-5 năm')).toBe('2-5');
+  });
+
   it('maps 3-5 ranges and leaves vague VietnamWorks levels unparsed', () => {
     expect(parseExperienceBucket('3-5 years')).toBe('3-5');
     expect(parseExperienceBucket('Experienced (non-manager)')).toBeUndefined();
@@ -39,5 +43,13 @@ describe('matchesExperience', () => {
 
   it('keeps vague Experienced level for any experienceYears filter', () => {
     expect(matchesExperience('Experienced (non-manager)', '1-2')).toBe(true);
+  });
+
+  it('treats 2-5 filter as covering 1-2 and 3-5 buckets', () => {
+    expect(matchesExperience('1-2 năm', '2-5')).toBe(true);
+    expect(matchesExperience('3-5 years', '2-5')).toBe(true);
+    expect(matchesExperience('2-5 năm', '2-5')).toBe(true);
+    expect(matchesExperience('Fresher', '2-5')).toBe(false);
+    expect(matchesExperience('5+ years', '2-5')).toBe(false);
   });
 });

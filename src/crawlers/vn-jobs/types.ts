@@ -4,7 +4,7 @@
 
 export type JobRole = 'english-teacher' | 'devops';
 
-export type ExperienceYears = '0' | '1-2' | '3-5' | '5+';
+export type ExperienceYears = '0' | '1-2' | '2-5' | '3-5' | '5+';
 
 export type JobLocation = 'hanoi' | 'all';
 

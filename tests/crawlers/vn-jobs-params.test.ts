@@ -21,6 +21,13 @@ describe('parseJobSendParams', () => {
     expect(() => parseJobSendParams({ role: 'backend' })).toThrow(/Invalid role/);
   });
 
+  it('accepts 2-5 experienceYears', () => {
+    expect(parseJobSendParams({ role: 'devops', experienceYears: '2-5' })).toEqual({
+      role: 'devops',
+      experienceYears: '2-5',
+    });
+  });
+
   it('rejects unknown experienceYears', () => {
     expect(() => parseJobSendParams({ role: 'devops', experienceYears: '10+' })).toThrow(
       /Invalid experienceYears/,

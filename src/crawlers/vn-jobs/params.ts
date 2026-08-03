@@ -4,7 +4,7 @@
 import type { ExperienceYears, JobRole } from './types';
 
 const JOB_ROLES = new Set<JobRole>(['english-teacher', 'devops']);
-const EXPERIENCE_YEARS = new Set<ExperienceYears>(['0', '1-2', '3-5', '5+']);
+const EXPERIENCE_YEARS = new Set<ExperienceYears>(['0', '1-2', '2-5', '3-5', '5+']);
 
 export interface ParsedJobSendParams {
   role: JobRole;
@@ -45,7 +45,7 @@ export function parseJobSendParams(query: Record<string, unknown>): ParsedJobSen
   }
 
   if (!EXPERIENCE_YEARS.has(experienceRaw as ExperienceYears)) {
-    throw new Error('Invalid experienceYears: must be 0, 1-2, 3-5, or 5+');
+    throw new Error('Invalid experienceYears: must be 0, 1-2, 2-5, 3-5, or 5+');
   }
 
   return {

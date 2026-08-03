@@ -142,7 +142,7 @@ curl -X POST 'http://localhost:3000/telegram/send-jobs?role=english-teacher&expe
 ```
 
 - `role` (bắt buộc): `english-teacher` | `devops`
-- `experienceYears` (tuỳ chọn): `0` | `1-2` | `3-5` | `5+`
+- `experienceYears` (tuỳ chọn): `0` | `1-2` | `2-5` | `3-5` | `5+`
 - Địa điểm mặc định: **Hà Nội** (các tỉnh/thành khác bị lọc)
 - Mỗi tin Telegram gồm 4 mục: **Mô tả công việc**, **Kỹ năng cần có**, **Mức lương**, **Địa điểm**
 - Ảnh Telegram: dùng ảnh fallback theo topic (logo công ty thường quá nhỏ nên không gửi được)

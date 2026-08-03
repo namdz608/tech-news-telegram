@@ -14,6 +14,10 @@ export function matchesExperience(experienceText: string | undefined, bucket: Ex
     return true;
   }
 
+  if (bucket === '2-5') {
+    return parsed === '2-5' || parsed === '1-2' || parsed === '3-5';
+  }
+
   return parsed === bucket;
 }
 
@@ -46,6 +50,10 @@ export function parseExperienceBucket(experienceText: string | undefined): Exper
 
   if (/5\s*\+/.test(text) || /trên\s*5/.test(text) || /over\s*5/.test(text) || /more than\s*5/.test(text)) {
     return '5+';
+  }
+
+  if (/\b2\s*[-–]\s*5\b/.test(text) || /\b2\s*đến\s*5\b/.test(text) || /\b2\s*to\s*5\b/.test(text)) {
+    return '2-5';
   }
 
   if (
