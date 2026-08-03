@@ -27,7 +27,9 @@ const vietnamworksPayload = {
   data: [
     {
       jobTitle: 'MLOps/ DevOps Engineer',
-      jobUrl: 'https://www.vietnamworks.com/mlops-devops-engineer-2084513-jv',
+      jobUrl: '',
+      jobId: 2084513,
+      alias: 'mlops-devops-engineer',
       companyName: 'VINSMART FUTURE',
       prettySalary: 'Thương lượng',
       jobLevel: 'Experienced (non-manager)',
@@ -36,7 +38,9 @@ const vietnamworksPayload = {
     },
     {
       jobTitle: 'Fresher DevOps',
-      jobUrl: 'https://www.vietnamworks.com/fresher-devops-1-jv',
+      jobUrl: '',
+      jobId: 1,
+      alias: 'fresher-devops',
       companyName: 'Startup',
       jobLevel: 'Fresher',
       workingLocations: [{ cityName: 'Ha Noi' }],
@@ -98,8 +102,8 @@ describe('VnJobsCrawler', () => {
     const titles = articles.map((article) => article.title);
     expect(titles).toContain('DevOps Engineer TopCV');
     expect(titles).toContain('Mid/Sr DevOps Engineer');
+    expect(titles).toContain('MLOps/ DevOps Engineer');
     expect(titles).not.toContain('Fresher DevOps');
-    expect(titles).not.toContain('MLOps/ DevOps Engineer');
   });
 
   it('drops irrelevant titles that do not match the requested role', async () => {

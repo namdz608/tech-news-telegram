@@ -79,8 +79,10 @@ export function parseExperienceBucket(experienceText: string | undefined): Exper
     return '3-5';
   }
 
-  if (/\bsenior\b/.test(text) || /\blead\b/.test(text) || /experienced/.test(text)) {
-    return '3-5';
+  // "Experienced (non-manager)" của VietnamWorks không phải số năm cụ thể → coi như không parse được.
+  // Tránh khớp nhầm chữ "manager" trong "(non-manager)".
+  if (/\bsenior\b/.test(text) || /\blead\b/.test(text) || (/\bmanager\b/.test(text) && !/non[\s-]*manager/.test(text))) {
+    return '5+';
   }
 
   return undefined;

@@ -7,6 +7,8 @@ const ENGLISH_TEACHER_PATTERNS = [
   /giáo\s*viên/,
   /tro\s*giang|trợ\s*giảng/,
   /english\s*teacher/,
+  /english\s*instructor/,
+  /ielts\s*(teacher|instructor|giáo)/,
   /teaching\s*assistant/,
   /\bta\b.*english|english.*\bta\b/,
   /teacher.*english|english.*teacher/,
@@ -28,6 +30,10 @@ const ENGLISH_TEACHER_NEGATIVE = [
   /\bengineer\b/,
   /\bbackend\b/,
   /\bfrontend\b/,
+  /nhân\s*viên\s*nhân\s*sự/,
+  /giao\s*dịch\s*viên/,
+  /trưởng\s*phòng/,
+  /academic\s*operations\s*manager/,
 ];
 
 const DEVOPS_PATTERNS = [

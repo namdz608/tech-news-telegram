@@ -1,7 +1,7 @@
 /**
  * Crawl danh sách việc làm từ VietnamWorks (JSON search API).
  */
-import { vietnamworksQuery } from './role-queries';
+import { vietnamworksQueries } from './role-queries';
 import type { JobRole, VnJobListing, VnJobsHttpClient } from './types';
 
 const SEARCH_URL = 'https://ms.vietnamworks.com/job-search/v1.0/search';
@@ -9,6 +9,8 @@ const SEARCH_URL = 'https://ms.vietnamworks.com/job-search/v1.0/search';
 interface VietnamWorksHit {
   jobTitle?: string;
   jobUrl?: string;
+  jobId?: number;
+  alias?: string;
   companyName?: string;
   prettySalary?: string;
   jobLevel?: string;
@@ -19,6 +21,8 @@ interface VietnamWorksHit {
 
 interface VietnamWorksResponse {
   data?: VietnamWorksHit[];
+  meta?: { code?: number; message?: string };
+  errors?: unknown;
 }
 
 export async function crawlVietnamworks(
@@ -30,16 +34,36 @@ export async function crawlVietnamworks(
     return [];
   }
 
+  const queries = vietnamworksQueries(role);
+  const perQuery = Math.min(Math.max(maxResults, 5), 20);
+  const merged = new Map<string, VnJobListing>();
+
+  for (const query of queries) {
+    const hits = await searchOnce(http, query, perQuery);
+
+    for (const job of hits) {
+      if (!merged.has(job.url)) {
+        merged.set(job.url, job);
+      }
+    }
+  }
+
+  return [...merged.values()];
+}
+
+async function searchOnce(http: VnJobsHttpClient, query: string, hitsPerPage: number): Promise<VnJobListing[]> {
   const body = {
-    query: vietnamworksQuery(role),
+    query,
     filter: [],
     ranges: [],
     order: [],
-    hitsPerPage: Math.min(Math.max(maxResults, 1), 50),
+    hitsPerPage,
     page: 0,
     retrieveFields: [
       'jobTitle',
       'jobUrl',
+      'jobId',
+      'alias',
       'companyName',
       'prettySalary',
       'jobLevel',
@@ -50,14 +74,20 @@ export async function crawlVietnamworks(
     userId: 0,
   };
 
-  const response = await http.post(SEARCH_URL, body);
+  const response = await http.post!(SEARCH_URL, body);
+
+  if (response.status && response.status >= 400) {
+    console.error(`VietnamWorks search failed for query="${query}" status=${response.status}`);
+    return [];
+  }
+
   const payload = response.data as VietnamWorksResponse;
   const hits = Array.isArray(payload?.data) ? payload.data : [];
 
   return hits
     .map((hit): VnJobListing | null => {
       const title = hit.jobTitle?.trim();
-      const url = hit.jobUrl?.trim();
+      const url = resolveVietnamworksUrl(hit);
 
       if (!title || !url) {
         return null;
@@ -81,4 +111,18 @@ export async function crawlVietnamworks(
       };
     })
     .filter((job): job is VnJobListing => job !== null);
+}
+
+function resolveVietnamworksUrl(hit: VietnamWorksHit): string | undefined {
+  const direct = hit.jobUrl?.trim();
+
+  if (direct) {
+    return direct;
+  }
+
+  if (hit.alias && hit.jobId) {
+    return `https://www.vietnamworks.com/${hit.alias}-${hit.jobId}-jv`;
+  }
+
+  return undefined;
 }

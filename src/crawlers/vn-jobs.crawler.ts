@@ -14,11 +14,15 @@ import { crawlTopcv } from './vn-jobs/topcv.adapter';
 import { crawlVietnamworks } from './vn-jobs/vietnamworks.adapter';
 import type { JobRole, VnJobListing, VnJobsCrawlOptions, VnJobsHttpClient } from './vn-jobs/types';
 
+// Board VN chặn bot UA (403); dùng browser UA riêng cho luồng jobs.
+const VN_JOBS_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
 function createDefaultHttp(): VnJobsHttpClient {
   const client = axios.create({
     timeout: env.REQUEST_TIMEOUT_MS,
     headers: {
-      'User-Agent': env.USER_AGENT,
+      'User-Agent': VN_JOBS_USER_AGENT,
       Accept: 'text/html,application/json',
     },
     validateStatus: () => true,
@@ -34,6 +38,8 @@ function createDefaultHttp(): VnJobsHttpClient {
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
+          Origin: 'https://www.vietnamworks.com',
+          Referer: 'https://www.vietnamworks.com/',
         },
       });
       return { data: response.data, status: response.status };
