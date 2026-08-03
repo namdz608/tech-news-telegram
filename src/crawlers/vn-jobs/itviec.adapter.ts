@@ -10,7 +10,13 @@ import type { JobRole, VnJobListing, VnJobsHttpClient } from './types';
 const HOMEPAGE = 'https://itviec.com';
 
 export async function crawlItviec(role: JobRole, http: VnJobsHttpClient): Promise<VnJobListing[]> {
-  const response = await http.get(itviecSearchUrl(role));
+  const searchUrl = itviecSearchUrl(role);
+
+  if (!searchUrl) {
+    return [];
+  }
+
+  const response = await http.get(searchUrl);
   const html = typeof response.data === 'string' ? response.data : '';
 
   if (!html || /attention required|cloudflare/i.test(html.slice(0, 2000))) {
