@@ -45,6 +45,21 @@ const envSchema = z.object({
   // Timeout/User-Agent dùng chung cho các HTTP client.
   REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(12000),
   USER_AGENT: z.string().default('TechNewsTelegramBot/1.0'),
+  // FlareSolverr optional — dùng để vượt Cloudflare khi crawl TopCV.
+  FLARESOLVERR_URL: z.string().default(''),
+  // SMTP mail cho luồng gửi PDF tin tuyển dụng.
+  SMTP_HOST: z.string().default(''),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_SECURE: z
+    .string()
+    .default('false')
+    .transform((value) => value === 'true' || value === '1'),
+  SMTP_USER: z.string().default(''),
+  SMTP_PASS: z.string().default(''),
+  MAIL_FROM: z.string().default(''),
+  MAIL_TO: z.string().default(''),
+  // Font PDF (mặc định DejaVu bundled) để hiện tiếng Việt.
+  JOBS_PDF_FONT_PATH: z.string().default(''),
 });
 
 /**

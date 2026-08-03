@@ -20,6 +20,8 @@
     "@eslint/js": "^10.0.1",
     "@types/express": "^5.0.6",
     "@types/node": "^25.9.5",
+    "@types/nodemailer": "^8.0.1",
+    "@types/pdfkit": "^0.17.6",
     "@types/supertest": "^7.2.1",
     "eslint": "^10.7.0",
     "prettier": "^3.9.5",
@@ -34,7 +36,9 @@
     "cheerio": "^1.2.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "nodemailer": "^9.0.3",
     "openai": "^6.48.0",
+    "pdfkit": "^0.19.1",
     "rss-parser": "^3.13.0",
     "telegraf": "^4.16.3",
     "zod": "^4.4.3"

@@ -26,7 +26,11 @@ describe('job message service', () => {
     expect(text).toContain('Mô tả công việc');
     expect(text).toContain('Dạy IELTS cho học sinh tiểu học');
     expect(text).toContain('Kỹ năng cần có');
-    expect(text).toContain('IELTS, Classroom management');
+    expect(text).toContain('IELTS');
+    expect(text).toContain('Classroom management');
+    expect(text).toMatch(/-\s*IELTS/);
+    expect(text).toMatch(/-\s*Classroom management/);
+    expect(text).not.toContain('IELTS, Classroom management');
     expect(text).toContain('Mức lương');
     expect(text).toContain('15-25 triệu');
     expect(text).toContain('Địa điểm');

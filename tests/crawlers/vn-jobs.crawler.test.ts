@@ -82,20 +82,22 @@ function createHttp(overrides?: Partial<VnJobsHttpClient>): VnJobsHttpClient {
 
 describe('VnJobsCrawler', () => {
   it('merges boards, maps articles, and assigns devops topic', async () => {
-    const { articles, boardCounts } = await new VnJobsCrawler(createHttp()).crawl({
+    const { articles, boardCounts, crawledCounts, matchedCount } = await new VnJobsCrawler(createHttp()).crawl({
       role: 'devops',
       maxResults: 10,
     });
 
     expect(articles.length).toBeGreaterThanOrEqual(3);
-    expect(boardCounts).toEqual({ topcv: 1, itviec: 1, vietnamworks: 3 });
+    expect(crawledCounts).toEqual({ topcv: 1, itviec: 1, vietnamworks: 3 });
+    expect(boardCounts).toEqual({ topcv: 1, itviec: 1, vietnamworks: 2 });
+    expect(matchedCount).toBeGreaterThanOrEqual(articles.length);
     expect(articles.every((article) => article.topics.includes('devops'))).toBe(true);
     expect(articles.map((article) => article.sourceName).sort()).toEqual(
       expect.arrayContaining(['ITviec', 'TopCV', 'VietnamWorks']),
     );
     expect(articles.every((article) => article.jobDetails?.location?.includes('Hà Nội') || article.jobDetails?.location?.includes('Ha Noi'))).toBe(true);
     expect(articles.every((article) => Boolean(article.jobDetails?.description))).toBe(true);
-    expect(articles.every((article) => !article.imageUrl)).toBe(true);
+    expect(articles.some((article) => article.imageUrl === 'https://images.vietnamworks.com/logo.jpg')).toBe(true);
     expect(articles.map((article) => article.title)).not.toContain('DevOps Engineer HCMC');
   });
 

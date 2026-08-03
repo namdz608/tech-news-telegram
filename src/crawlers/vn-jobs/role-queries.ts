@@ -12,13 +12,16 @@ export function itviecSearchUrl(role: JobRole): string | null {
   return 'https://itviec.com/it-jobs/devops';
 }
 
+/**
+ * TopCV SEO list pages render job cards in HTML (SPA `?keyword=` often does not).
+ * Default to Hà Nội (`kl1`) to match product location filter.
+ */
 export function topcvSearchUrl(role: JobRole): string {
-  const keyword =
-    role === 'devops'
-      ? 'devops'
-      : 'giáo viên tiếng anh mầm non tiểu học trợ giảng';
+  if (role === 'devops') {
+    return 'https://www.topcv.vn/tim-viec-lam-devops-tai-ha-noi-kl1';
+  }
 
-  return `https://www.topcv.vn/viec-lam?keyword=${encodeURIComponent(keyword)}`;
+  return 'https://www.topcv.vn/tim-viec-lam-giao-vien-tieng-anh-tai-ha-noi-kl1';
 }
 
 /**

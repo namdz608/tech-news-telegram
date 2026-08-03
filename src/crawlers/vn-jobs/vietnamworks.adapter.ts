@@ -2,6 +2,7 @@
  * Crawl danh sách việc làm từ VietnamWorks (JSON search API).
  */
 import { htmlToPlainText } from './html-text';
+import { normalizeLogoUrl } from './logo-url';
 import { vietnamworksQueries } from './role-queries';
 import type { JobRole, VnJobListing, VnJobsHttpClient } from './types';
 
@@ -46,12 +47,12 @@ export async function crawlVietnamworks(
   }
 
   const queries = vietnamworksQueries(role);
-  const perQuery = Math.min(Math.max(maxResults, 5), 20);
+  const perQuery = Math.min(Math.max(maxResults, 5), 100);
   const merged = new Map<string, VnJobListing>();
 
-  for (const query of queries) {
-    const hits = await searchOnce(http, query, perQuery);
+  const batches = await Promise.all(queries.map((query) => searchOnce(http, query, perQuery)));
 
+  for (const hits of batches) {
     for (const job of hits) {
       if (!merged.has(job.url)) {
         merged.set(job.url, job);
@@ -122,9 +123,15 @@ async function searchOnce(http: VnJobsHttpClient, query: string, hitsPerPage: nu
         .filter((name): name is string => Boolean(name));
 
       const description =
-        htmlToPlainText(hit.jobDescription) ||
-        htmlToPlainText(hit.jobRequirement) ||
+        htmlToPlainText(hit.jobDescription, 1600) ||
+        htmlToPlainText(hit.jobRequirement, 1600) ||
         undefined;
+
+      const requirementText = htmlToPlainText(hit.jobRequirement, 1200);
+      const mergedDescription =
+        hit.jobDescription && hit.jobRequirement && requirementText
+          ? [htmlToPlainText(hit.jobDescription, 1400), `Yêu cầu:\n${requirementText}`].filter(Boolean).join('\n\n')
+          : description;
 
       return {
         title,
@@ -133,9 +140,9 @@ async function searchOnce(http: VnJobsHttpClient, query: string, hitsPerPage: nu
         location: location || undefined,
         salaryText: hit.prettySalary || undefined,
         experienceText: hit.jobLevel || undefined,
-        description,
+        description: mergedDescription || description,
         skills: skills.length > 0 ? skills : undefined,
-        imageUrl: hit.companyLogo?.startsWith('http') ? hit.companyLogo : undefined,
+        imageUrl: normalizeLogoUrl(hit.companyLogo, 'https://www.vietnamworks.com'),
         sourceId: 'vietnamworks',
         sourceName: 'VietnamWorks',
       };

@@ -9,6 +9,8 @@ import { compactText, escapeHtml } from '../utils/text';
 import type { DigestMessage } from './digest.service';
 
 const FALLBACK = 'Chưa cập nhật';
+/** Giữ mô tả dài; Telegram sendMessage = 4096, ảnh tách riêng nếu vượt caption. */
+const DESCRIPTION_MAX_LENGTH = 2400;
 
 /**
  * Map Article[] jobs → DigestMessage[] với cấu trúc:
@@ -32,7 +34,7 @@ export function renderJobMessage(article: Article, topic: TopicKey): string {
   const topicDefinition = topics.find((item) => item.key === topic);
   const topicLabel = (topicDefinition?.label ?? topic).toUpperCase();
   const details = article.jobDetails;
-  const description = truncate(details?.description || article.summary || FALLBACK, 700);
+  const description = formatDescription(details?.description || article.summary || FALLBACK);
   const skills = formatSkills(details?.skills);
   const salary = compactText(details?.salary || '') || FALLBACK;
   const location = compactText(details?.location || '') || 'Hà Nội';
@@ -65,22 +67,36 @@ export function renderJobMessage(article: Article, topic: TopicKey): string {
     .trim();
 }
 
+function formatDescription(value: string): string {
+  const text = value
+    .replace(/\r/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  if (!text) {
+    return FALLBACK;
+  }
+
+  if (text.length <= DESCRIPTION_MAX_LENGTH) {
+    return text;
+  }
+
+  return `${text.slice(0, DESCRIPTION_MAX_LENGTH - 1).trimEnd()}…`;
+}
+
 function formatSkills(skills: string[] | undefined): string {
   if (!skills || skills.length === 0) {
     return FALLBACK;
   }
 
-  return skills.map((skill) => compactText(skill)).filter(Boolean).join(', ') || FALLBACK;
-}
+  const items = skills.map((skill) => compactText(skill)).filter(Boolean);
 
-function truncate(value: string, maxLength: number): string {
-  const text = compactText(value);
-
-  if (text.length <= maxLength) {
-    return text;
+  if (items.length === 0) {
+    return FALLBACK;
   }
 
-  return `${text.slice(0, maxLength - 1).trimEnd()}…`;
+  return items.map((skill) => `- ${skill}`).join('\n');
 }
 
 function topicIcon(topic: TopicKey): string {
