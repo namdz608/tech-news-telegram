@@ -14,6 +14,10 @@ export function matchesExperience(experienceText: string | undefined, bucket: Ex
     return true;
   }
 
+  if (bucket === '2-5') {
+    return parsed === '2-5' || parsed === '1-2' || parsed === '3-5';
+  }
+
   return parsed === bucket;
 }
 
@@ -48,6 +52,10 @@ export function parseExperienceBucket(experienceText: string | undefined): Exper
     return '5+';
   }
 
+  if (/\b2\s*[-–]\s*5\b/.test(text) || /\b2\s*đến\s*5\b/.test(text) || /\b2\s*to\s*5\b/.test(text)) {
+    return '2-5';
+  }
+
   if (
     /\b3\s*[-–]\s*5\b/.test(text) ||
     /\b3\s*đến\s*5\b/.test(text) ||
@@ -79,8 +87,10 @@ export function parseExperienceBucket(experienceText: string | undefined): Exper
     return '3-5';
   }
 
-  if (/\bsenior\b/.test(text) || /\blead\b/.test(text) || /experienced/.test(text)) {
-    return '3-5';
+  // "Experienced (non-manager)" của VietnamWorks không phải số năm cụ thể → coi như không parse được.
+  // Tránh khớp nhầm chữ "manager" trong "(non-manager)".
+  if (/\bsenior\b/.test(text) || /\blead\b/.test(text) || (/\bmanager\b/.test(text) && !/non[\s-]*manager/.test(text))) {
+    return '5+';
   }
 
   return undefined;

@@ -8,7 +8,7 @@ const itviecHtml = `
   <h3><a href="https://itviec.com/it-jobs/mid-sr-devops-engineer-english-rakuten">Mid/Sr DevOps Engineer</a></h3>
   <a class="logo-employer-card" title="Rakuten Fintech Vietnam Co., Ltd." href="/companies/rakuten"></a>
   <div class="salary">Sign in to view salary</div>
-  <div class="text-rich-grey text-truncate" title="Ho Chi Minh">Ho Chi Minh</div>
+  <div class="text-rich-grey text-truncate" title="Ha Noi">Ha Noi</div>
   <ul><li>Hybrid working</li></ul>
 </div>
 `;
@@ -27,19 +27,35 @@ const vietnamworksPayload = {
   data: [
     {
       jobTitle: 'MLOps/ DevOps Engineer',
-      jobUrl: 'https://www.vietnamworks.com/mlops-devops-engineer-2084513-jv',
+      jobUrl: '',
+      jobId: 2084513,
+      alias: 'mlops-devops-engineer',
       companyName: 'VINSMART FUTURE',
       prettySalary: 'Thương lượng',
       jobLevel: 'Experienced (non-manager)',
       companyLogo: 'https://images.vietnamworks.com/logo.jpg',
-      workingLocations: [{ cityNameVI: 'Hồ Chí Minh' }],
+      workingLocations: [{ cityNameVI: 'Hà Nội' }],
+      jobDescription: '<p>Operate cloud infrastructure and CI/CD</p>',
+      skills: [{ skillName: 'Kubernetes' }, { skillName: 'AWS' }],
     },
     {
       jobTitle: 'Fresher DevOps',
-      jobUrl: 'https://www.vietnamworks.com/fresher-devops-1-jv',
+      jobUrl: '',
+      jobId: 1,
+      alias: 'fresher-devops',
       companyName: 'Startup',
       jobLevel: 'Fresher',
       workingLocations: [{ cityName: 'Ha Noi' }],
+      jobRequirement: '<p>Basic Linux knowledge</p>',
+    },
+    {
+      jobTitle: 'DevOps Engineer HCMC',
+      jobUrl: '',
+      jobId: 2,
+      alias: 'devops-hcmc',
+      companyName: 'South Co',
+      jobLevel: 'Experienced (non-manager)',
+      workingLocations: [{ cityNameVI: 'Hồ Chí Minh' }],
     },
   ],
 };
@@ -66,20 +82,27 @@ function createHttp(overrides?: Partial<VnJobsHttpClient>): VnJobsHttpClient {
 
 describe('VnJobsCrawler', () => {
   it('merges boards, maps articles, and assigns devops topic', async () => {
-    const articles = await new VnJobsCrawler(createHttp()).crawl({
+    const { articles, boardCounts, crawledCounts, matchedCount } = await new VnJobsCrawler(createHttp()).crawl({
       role: 'devops',
       maxResults: 10,
     });
 
     expect(articles.length).toBeGreaterThanOrEqual(3);
+    expect(crawledCounts).toEqual({ topcv: 1, itviec: 1, vietnamworks: 3 });
+    expect(boardCounts).toEqual({ topcv: 1, itviec: 1, vietnamworks: 2 });
+    expect(matchedCount).toBeGreaterThanOrEqual(articles.length);
     expect(articles.every((article) => article.topics.includes('devops'))).toBe(true);
     expect(articles.map((article) => article.sourceName).sort()).toEqual(
       expect.arrayContaining(['ITviec', 'TopCV', 'VietnamWorks']),
     );
+    expect(articles.every((article) => article.jobDetails?.location?.includes('Hà Nội') || article.jobDetails?.location?.includes('Ha Noi'))).toBe(true);
+    expect(articles.every((article) => Boolean(article.jobDetails?.description))).toBe(true);
+    expect(articles.some((article) => article.imageUrl === 'https://images.vietnamworks.com/logo.jpg')).toBe(true);
+    expect(articles.map((article) => article.title)).not.toContain('DevOps Engineer HCMC');
   });
 
   it('dedupes by url and respects maxResults', async () => {
-    const articles = await new VnJobsCrawler(createHttp()).crawl({
+    const { articles } = await new VnJobsCrawler(createHttp()).crawl({
       role: 'devops',
       maxResults: 2,
     });
@@ -89,7 +112,7 @@ describe('VnJobsCrawler', () => {
   });
 
   it('filters experienceYears but keeps missing experience cards', async () => {
-    const articles = await new VnJobsCrawler(createHttp()).crawl({
+    const { articles } = await new VnJobsCrawler(createHttp()).crawl({
       role: 'devops',
       experienceYears: '1-2',
       maxResults: 10,
@@ -98,12 +121,12 @@ describe('VnJobsCrawler', () => {
     const titles = articles.map((article) => article.title);
     expect(titles).toContain('DevOps Engineer TopCV');
     expect(titles).toContain('Mid/Sr DevOps Engineer');
+    expect(titles).toContain('MLOps/ DevOps Engineer');
     expect(titles).not.toContain('Fresher DevOps');
-    expect(titles).not.toContain('MLOps/ DevOps Engineer');
   });
 
   it('drops irrelevant titles that do not match the requested role', async () => {
-    const articles = await new VnJobsCrawler(
+    const { articles } = await new VnJobsCrawler(
       createHttp({
         async get(url: string) {
           if (url.includes('itviec.com')) {
@@ -112,10 +135,12 @@ describe('VnJobsCrawler', () => {
                 <div class="job-card">
                   <h3><a href="https://itviec.com/it-jobs/manual-qa-qc">Máy kiểm tra thủ công (QA QC)</a></h3>
                   <a class="logo-employer-card" title="QI GROUP"></a>
+                  <div class="text-rich-grey text-truncate" title="Ha Noi">Ha Noi</div>
                 </div>
                 <div class="job-card">
                   <h3><a href="https://itviec.com/it-jobs/devops-ok">DevOps Engineer</a></h3>
                   <a class="logo-employer-card" title="Acme"></a>
+                  <div class="text-rich-grey text-truncate" title="Ha Noi">Ha Noi</div>
                 </div>
               `,
               status: 200,
@@ -134,7 +159,7 @@ describe('VnJobsCrawler', () => {
   });
 
   it('returns empty when boards fail or are blocked', async () => {
-    const articles = await new VnJobsCrawler(
+    const { articles, boardCounts } = await new VnJobsCrawler(
       createHttp({
         async get() {
           return { data: '<html>Attention Required! Cloudflare</html>', status: 403 };
@@ -146,6 +171,7 @@ describe('VnJobsCrawler', () => {
     ).crawl({ role: 'devops', maxResults: 5 });
 
     expect(articles).toEqual([]);
+    expect(boardCounts).toEqual({ topcv: 0, itviec: 0, vietnamworks: 0 });
   });
 
   it('assigns jobs-english topic and skips ITviec for english-teacher', async () => {
@@ -156,6 +182,7 @@ describe('VnJobsCrawler', () => {
             <div class="job-item">
               <h3 class="title"><a href="/viec-lam/giao-vien-tieng-anh-1.html">Giáo viên tiếng Anh mầm non</a></h3>
               <div class="company-name">Sunshine School</div>
+              <div class="address">Hà Nội</div>
             </div>
           `,
           status: 200,
@@ -165,7 +192,7 @@ describe('VnJobsCrawler', () => {
       return { data: '<html>Attention Required! | Cloudflare</html>', status: 403 };
     });
 
-    const articles = await new VnJobsCrawler({
+    const { articles, boardCounts } = await new VnJobsCrawler({
       get: getMock,
       async post() {
         return { data: { data: [] }, status: 200 };
@@ -173,8 +200,8 @@ describe('VnJobsCrawler', () => {
     }).crawl({ role: 'english-teacher', maxResults: 5 });
 
     expect(articles).toHaveLength(1);
+    expect(boardCounts.topcv).toBe(1);
     expect(articles[0].topics).toEqual(['jobs-english']);
     expect(getMock.mock.calls.every(([url]) => !String(url).includes('itviec.com'))).toBe(true);
   });
 });
-

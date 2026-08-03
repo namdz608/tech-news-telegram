@@ -134,16 +134,43 @@ Gửi bản tin thủ công:
 curl -X POST http://localhost:3000/telegram/send-digest
 ```
 
-Gửi tin tuyển dụng Việt Nam (TopCV, ITviec, VietnamWorks) — endpoint riêng, không trộn digest tech:
+Gửi tin tuyển dụng Việt Nam (TopCV, ITviec, VietnamWorks) — **gom 1 PDF gửi email** (không Telegram):
 
 ```bash
 curl -X POST 'http://localhost:3000/telegram/send-jobs?role=devops'
+curl -X POST 'http://localhost:3000/telegram/send-jobs?role=devops&experienceYears=2-5&limit=25'
 curl -X POST 'http://localhost:3000/telegram/send-jobs?role=english-teacher&experienceYears=1-2'
 ```
 
 - `role` (bắt buộc): `english-teacher` | `devops`
-- `experienceYears` (tuỳ chọn): `0` | `1-2` | `3-5` | `5+`
-- Giới hạn số tin: `MAX_JOBS_PER_DIGEST` (mặc định `10`)
+- `experienceYears` (tuỳ chọn): `0` | `1-2` | `2-5` | `3-5` | `5+`
+- `limit` (tuỳ chọn): số tin trong PDF (1–100). Mặc định = `50` với `english-teacher`, `MAX_JOBS_PER_DIGEST` với `devops`
+- Response:
+  - `channel`: `"email"`
+  - `crawledCounts`: số job thô từng board (chưa lọc)
+  - `boardCounts`: số còn lại sau lọc role / Hà Nội / kinh nghiệm
+  - `matchedCount`: tổng hợp lệ sau lọc + dedupe (trước `limit`)
+  - `articleCount`: số tin trong PDF / đã gửi mail
+  - `pdfFileName`, `mailTo`
+- Địa điểm mặc định: **Hà Nội**
+- PDF gồm: mô tả, kỹ năng, lương, địa điểm, nguồn, link
+- **Email SMTP** (bắt buộc để gửi):
+  ```bash
+  SMTP_HOST=smtp.gmail.com
+  SMTP_PORT=587
+  SMTP_SECURE=false
+  SMTP_USER=you@gmail.com
+  SMTP_PASS=app-password
+  MAIL_FROM=you@gmail.com
+  MAIL_TO=you@gmail.com
+  ```
+- **TopCV**: bị Cloudflare chặn khi gọi trực tiếp. Bật bằng FlareSolverr:
+  ```bash
+  docker run -d --name flaresolverr -p 8191:8191 ghcr.io/flaresolverr/flaresolverr:latest
+  # .env
+  FLARESOLVERR_URL=http://127.0.0.1:8191/v1
+  ```
+  Không cấu hình `FLARESOLVERR_URL` → `crawledCounts.topcv` / `boardCounts.topcv` = 0; ITviec + VietnamWorks vẫn chạy.
 
 Kiểm tra build/test:
 

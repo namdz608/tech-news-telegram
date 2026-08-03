@@ -34,4 +34,11 @@ export interface Article {
   collectedAt: string;
   // Một bài có thể thuộc nhiều TopicKey.
   topics: TopicKey[];
+  // Chi tiết tuyển dụng (chỉ có với luồng VN jobs).
+  jobDetails?: {
+    description?: string;
+    skills?: string[];
+    salary?: string;
+    location?: string;
+  };
 }
