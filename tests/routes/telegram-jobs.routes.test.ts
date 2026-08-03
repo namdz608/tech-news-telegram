@@ -45,7 +45,10 @@ describe('POST /telegram/send-jobs', () => {
   });
 
   it('succeeds without experienceYears and does not send when empty', async () => {
-    crawlMock.mockResolvedValueOnce([]);
+    crawlMock.mockResolvedValueOnce({
+      articles: [],
+      boardCounts: { topcv: 0, itviec: 0, vietnamworks: 0 },
+    });
 
     const response = await request(createApp()).post('/telegram/send-jobs').query({ role: 'devops' });
 
@@ -56,30 +59,34 @@ describe('POST /telegram/send-jobs', () => {
       messageCount: 0,
       role: 'devops',
       experienceYears: null,
+      boardCounts: { topcv: 0, itviec: 0, vietnamworks: 0 },
       language: 'vi',
     });
     expect(sendMessagesMock).not.toHaveBeenCalled();
   });
 
-  it('crawls, edits, and sends mapped job articles', async () => {
-    crawlMock.mockResolvedValueOnce([
-      {
-        id: 'https://example.com/job',
-        sourceId: 'itviec',
-        sourceName: 'ITviec',
-        title: 'DevOps Engineer',
-        url: 'https://example.com/job',
-        summary: 'Build CI/CD pipelines',
-        collectedAt: '2026-08-03T00:00:00.000Z',
-        topics: ['devops'],
-        jobDetails: {
-          description: 'Build CI/CD pipelines',
-          skills: ['Docker', 'Kubernetes'],
-          salary: 'Thương lượng',
-          location: 'Hà Nội',
+  it('crawls and sends mapped job articles with boardCounts', async () => {
+    crawlMock.mockResolvedValueOnce({
+      articles: [
+        {
+          id: 'https://example.com/job',
+          sourceId: 'itviec',
+          sourceName: 'ITviec',
+          title: 'DevOps Engineer',
+          url: 'https://example.com/job',
+          summary: 'Build CI/CD pipelines',
+          collectedAt: '2026-08-03T00:00:00.000Z',
+          topics: ['devops'],
+          jobDetails: {
+            description: 'Build CI/CD pipelines',
+            skills: ['Docker', 'Kubernetes'],
+            salary: 'Thương lượng',
+            location: 'Hà Nội',
+          },
         },
-      },
-    ]);
+      ],
+      boardCounts: { topcv: 0, itviec: 3, vietnamworks: 5 },
+    });
     sendMessagesMock.mockResolvedValueOnce(undefined);
 
     const response = await request(createApp()).post('/telegram/send-jobs').query({
@@ -106,6 +113,7 @@ describe('POST /telegram/send-jobs', () => {
       messageCount: 1,
       role: 'devops',
       experienceYears: '1-2',
+      boardCounts: { topcv: 0, itviec: 3, vietnamworks: 5 },
     });
   });
 });

@@ -73,7 +73,7 @@ export async function sendJobs(req: Request, res: Response) {
     return;
   }
 
-  const articles = await vnJobsCrawler.crawl({
+  const { articles, boardCounts } = await vnJobsCrawler.crawl({
     role: params.role,
     experienceYears: params.experienceYears,
     maxResults: env.MAX_JOBS_PER_DIGEST,
@@ -86,6 +86,7 @@ export async function sendJobs(req: Request, res: Response) {
       messageCount: 0,
       role: params.role,
       experienceYears: params.experienceYears ?? null,
+      boardCounts,
       language: 'vi',
     });
     return;
@@ -101,6 +102,7 @@ export async function sendJobs(req: Request, res: Response) {
     messageCount: messages.length,
     role: params.role,
     experienceYears: params.experienceYears ?? null,
+    boardCounts,
     language: 'vi',
   });
 }

@@ -12,8 +12,12 @@ const HOMEPAGE = 'https://www.topcv.vn';
 export async function crawlTopcv(role: JobRole, http: VnJobsHttpClient): Promise<VnJobListing[]> {
   const response = await http.get(topcvSearchUrl(role));
   const html = typeof response.data === 'string' ? response.data : '';
+  const status = response.status ?? 0;
 
-  if (!html || /attention required|cloudflare|you have been blocked/i.test(html.slice(0, 4000))) {
+  if (!html || status === 403 || /attention required|cloudflare|you have been blocked|just a moment/i.test(html.slice(0, 4000))) {
+    console.warn(
+      `TopCV unavailable (status=${status || 'n/a'}): Cloudflare is blocking server requests. Jobs from TopCV are skipped.`,
+    );
     return [];
   }
 

@@ -146,6 +146,7 @@ curl -X POST 'http://localhost:3000/telegram/send-jobs?role=english-teacher&expe
 - Địa điểm mặc định: **Hà Nội** (các tỉnh/thành khác bị lọc)
 - Mỗi tin Telegram gồm 4 mục: **Mô tả công việc**, **Kỹ năng cần có**, **Mức lương**, **Địa điểm**
 - Ảnh Telegram: dùng ảnh fallback theo topic (logo công ty thường quá nhỏ nên không gửi được)
+- **TopCV**: server thường bị Cloudflare chặn (403) nên `boardCounts.topcv` = 0; nguồn chính hiện tại là ITviec + VietnamWorks
 - Giới hạn số tin: `MAX_JOBS_PER_DIGEST` (mặc định `10`)
 
 Kiểm tra build/test:

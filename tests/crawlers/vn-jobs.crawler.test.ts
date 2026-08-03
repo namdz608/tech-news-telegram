@@ -37,7 +37,6 @@ const vietnamworksPayload = {
       workingLocations: [{ cityNameVI: 'Hà Nội' }],
       jobDescription: '<p>Operate cloud infrastructure and CI/CD</p>',
       skills: [{ skillName: 'Kubernetes' }, { skillName: 'AWS' }],
-      prettySalary: 'Thương lượng',
     },
     {
       jobTitle: 'Fresher DevOps',
@@ -83,12 +82,13 @@ function createHttp(overrides?: Partial<VnJobsHttpClient>): VnJobsHttpClient {
 
 describe('VnJobsCrawler', () => {
   it('merges boards, maps articles, and assigns devops topic', async () => {
-    const articles = await new VnJobsCrawler(createHttp()).crawl({
+    const { articles, boardCounts } = await new VnJobsCrawler(createHttp()).crawl({
       role: 'devops',
       maxResults: 10,
     });
 
     expect(articles.length).toBeGreaterThanOrEqual(3);
+    expect(boardCounts).toEqual({ topcv: 1, itviec: 1, vietnamworks: 3 });
     expect(articles.every((article) => article.topics.includes('devops'))).toBe(true);
     expect(articles.map((article) => article.sourceName).sort()).toEqual(
       expect.arrayContaining(['ITviec', 'TopCV', 'VietnamWorks']),
@@ -100,7 +100,7 @@ describe('VnJobsCrawler', () => {
   });
 
   it('dedupes by url and respects maxResults', async () => {
-    const articles = await new VnJobsCrawler(createHttp()).crawl({
+    const { articles } = await new VnJobsCrawler(createHttp()).crawl({
       role: 'devops',
       maxResults: 2,
     });
@@ -110,7 +110,7 @@ describe('VnJobsCrawler', () => {
   });
 
   it('filters experienceYears but keeps missing experience cards', async () => {
-    const articles = await new VnJobsCrawler(createHttp()).crawl({
+    const { articles } = await new VnJobsCrawler(createHttp()).crawl({
       role: 'devops',
       experienceYears: '1-2',
       maxResults: 10,
@@ -124,7 +124,7 @@ describe('VnJobsCrawler', () => {
   });
 
   it('drops irrelevant titles that do not match the requested role', async () => {
-    const articles = await new VnJobsCrawler(
+    const { articles } = await new VnJobsCrawler(
       createHttp({
         async get(url: string) {
           if (url.includes('itviec.com')) {
@@ -157,7 +157,7 @@ describe('VnJobsCrawler', () => {
   });
 
   it('returns empty when boards fail or are blocked', async () => {
-    const articles = await new VnJobsCrawler(
+    const { articles, boardCounts } = await new VnJobsCrawler(
       createHttp({
         async get() {
           return { data: '<html>Attention Required! Cloudflare</html>', status: 403 };
@@ -169,6 +169,7 @@ describe('VnJobsCrawler', () => {
     ).crawl({ role: 'devops', maxResults: 5 });
 
     expect(articles).toEqual([]);
+    expect(boardCounts).toEqual({ topcv: 0, itviec: 0, vietnamworks: 0 });
   });
 
   it('assigns jobs-english topic and skips ITviec for english-teacher', async () => {
@@ -189,7 +190,7 @@ describe('VnJobsCrawler', () => {
       return { data: '<html>Attention Required! | Cloudflare</html>', status: 403 };
     });
 
-    const articles = await new VnJobsCrawler({
+    const { articles, boardCounts } = await new VnJobsCrawler({
       get: getMock,
       async post() {
         return { data: { data: [] }, status: 200 };
@@ -197,8 +198,8 @@ describe('VnJobsCrawler', () => {
     }).crawl({ role: 'english-teacher', maxResults: 5 });
 
     expect(articles).toHaveLength(1);
+    expect(boardCounts.topcv).toBe(1);
     expect(articles[0].topics).toEqual(['jobs-english']);
     expect(getMock.mock.calls.every(([url]) => !String(url).includes('itviec.com'))).toBe(true);
   });
 });
-

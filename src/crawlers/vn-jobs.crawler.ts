@@ -48,19 +48,33 @@ function createDefaultHttp(): VnJobsHttpClient {
   };
 }
 
+export interface VnJobsCrawlResult {
+  articles: Article[];
+  boardCounts: {
+    topcv: number;
+    itviec: number;
+    vietnamworks: number;
+  };
+}
+
 export class VnJobsCrawler {
   constructor(private readonly http: VnJobsHttpClient = createDefaultHttp()) {}
 
-  async crawl(options: VnJobsCrawlOptions): Promise<Article[]> {
-    const groups = await Promise.all([
+  async crawl(options: VnJobsCrawlOptions): Promise<VnJobsCrawlResult> {
+    const [topcvJobs, itviecJobs, vietnamworksJobs] = await Promise.all([
       this.safeCrawl('topcv', () => crawlTopcv(options.role, this.http)),
       this.safeCrawl('itviec', () => crawlItviec(options.role, this.http)),
       this.safeCrawl('vietnamworks', () => crawlVietnamworks(options.role, this.http, options.maxResults)),
     ]);
 
+    const boardCounts = {
+      topcv: topcvJobs.length,
+      itviec: itviecJobs.length,
+      vietnamworks: vietnamworksJobs.length,
+    };
+
     const locationFilter = options.location ?? 'hanoi';
-    let listings = groups
-      .flat()
+    let listings = [...topcvJobs, ...itviecJobs, ...vietnamworksJobs]
       .filter((job) => matchesRole(job, options.role))
       .filter((job) => matchesLocation(job, locationFilter));
 
@@ -77,7 +91,10 @@ export class VnJobsCrawler {
       return dateB - dateA;
     });
 
-    return dedupeArticles(articles).slice(0, options.maxResults);
+    return {
+      articles: dedupeArticles(articles).slice(0, options.maxResults),
+      boardCounts,
+    };
   }
 
   private async safeCrawl(board: string, run: () => Promise<VnJobListing[]>): Promise<VnJobListing[]> {
