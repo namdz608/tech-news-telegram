@@ -9,6 +9,7 @@ import type { TopicKey } from '../types/topic';
 import { compactText } from '../utils/text';
 import { matchesExperience } from './vn-jobs/experience';
 import { crawlItviec } from './vn-jobs/itviec.adapter';
+import { matchesLocation } from './vn-jobs/location';
 import { matchesRole } from './vn-jobs/role-match';
 import { crawlTopcv } from './vn-jobs/topcv.adapter';
 import { crawlVietnamworks } from './vn-jobs/vietnamworks.adapter';
@@ -57,7 +58,11 @@ export class VnJobsCrawler {
       this.safeCrawl('vietnamworks', () => crawlVietnamworks(options.role, this.http, options.maxResults)),
     ]);
 
-    let listings = groups.flat().filter((job) => matchesRole(job, options.role));
+    const locationFilter = options.location ?? 'hanoi';
+    let listings = groups
+      .flat()
+      .filter((job) => matchesRole(job, options.role))
+      .filter((job) => matchesLocation(job, locationFilter));
 
     if (options.experienceYears) {
       listings = listings.filter((job) => matchesExperience(job.experienceText, options.experienceYears!));
@@ -86,7 +91,8 @@ export class VnJobsCrawler {
 }
 
 function toArticle(job: VnJobListing, role: JobRole, collectedAt: string): Article {
-  const summaryParts = [job.company, job.location, job.salaryText, job.experienceText, job.summary]
+  const locationLabel = job.location ? `Địa điểm: ${compactText(job.location)}` : 'Địa điểm: Hà Nội';
+  const summaryParts = [job.company, locationLabel, job.salaryText, job.experienceText, job.summary]
     .map((part) => (part ? compactText(part) : ''))
     .filter(Boolean);
 
@@ -97,7 +103,9 @@ function toArticle(job: VnJobListing, role: JobRole, collectedAt: string): Artic
     title: job.title,
     url: job.url,
     summary: summaryParts.join(' · ') || undefined,
-    imageUrl: job.imageUrl,
+    // Logo công ty thường quá nhỏ → Telegram sendPhoto fail rồi rơi về text.
+    // Để trống để DigestService dùng ảnh fallback topic (1200x630).
+    imageUrl: undefined,
     author: job.company,
     publishedAt: job.publishedAt,
     collectedAt,

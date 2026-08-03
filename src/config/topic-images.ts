@@ -14,5 +14,5 @@ export const topicImageUrls: Record<TopicKey, string> = {
   security: 'https://placehold.co/1200x630/991b1b/ffffff.png?text=Security',
   devops: 'https://placehold.co/1200x630/166534/ffffff.png?text=DevOps',
   cloud: 'https://placehold.co/1200x630/0369a1/ffffff.png?text=Cloud',
-  'jobs-english': 'https://placehold.co/1200x630/9a3412/ffffff.png?text=English+Jobs',
+  'jobs-english': 'https://placehold.co/1200x630/9a3412/ffffff.png?text=English+Teacher+Jobs',
 };

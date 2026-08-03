@@ -6,6 +6,8 @@ export type JobRole = 'english-teacher' | 'devops';
 
 export type ExperienceYears = '0' | '1-2' | '3-5' | '5+';
 
+export type JobLocation = 'hanoi' | 'all';
+
 export type VnJobBoardId = 'topcv' | 'itviec' | 'vietnamworks';
 
 export type VnJobBoardName = 'TopCV' | 'ITviec' | 'VietnamWorks';
@@ -27,6 +29,8 @@ export interface VnJobListing {
 export interface VnJobsCrawlOptions {
   role: JobRole;
   experienceYears?: ExperienceYears;
+  /** Mặc định `hanoi` — chỉ lấy việc tại Hà Nội. */
+  location?: JobLocation;
   maxResults: number;
 }
 

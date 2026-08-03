@@ -51,10 +51,18 @@ export async function crawlVietnamworks(
   return [...merged.values()];
 }
 
+/** cityId Hà Nội trên VietnamWorks. */
+const HANOI_CITY_ID = '24';
+
 async function searchOnce(http: VnJobsHttpClient, query: string, hitsPerPage: number): Promise<VnJobListing[]> {
   const body = {
     query,
-    filter: [],
+    filter: [
+      {
+        field: 'workingLocations.cityId',
+        value: HANOI_CITY_ID,
+      },
+    ],
     ranges: [],
     order: [],
     hitsPerPage,

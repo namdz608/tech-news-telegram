@@ -8,7 +8,7 @@ const itviecHtml = `
   <h3><a href="https://itviec.com/it-jobs/mid-sr-devops-engineer-english-rakuten">Mid/Sr DevOps Engineer</a></h3>
   <a class="logo-employer-card" title="Rakuten Fintech Vietnam Co., Ltd." href="/companies/rakuten"></a>
   <div class="salary">Sign in to view salary</div>
-  <div class="text-rich-grey text-truncate" title="Ho Chi Minh">Ho Chi Minh</div>
+  <div class="text-rich-grey text-truncate" title="Ha Noi">Ha Noi</div>
   <ul><li>Hybrid working</li></ul>
 </div>
 `;
@@ -34,7 +34,7 @@ const vietnamworksPayload = {
       prettySalary: 'Thương lượng',
       jobLevel: 'Experienced (non-manager)',
       companyLogo: 'https://images.vietnamworks.com/logo.jpg',
-      workingLocations: [{ cityNameVI: 'Hồ Chí Minh' }],
+      workingLocations: [{ cityNameVI: 'Hà Nội' }],
     },
     {
       jobTitle: 'Fresher DevOps',
@@ -44,6 +44,15 @@ const vietnamworksPayload = {
       companyName: 'Startup',
       jobLevel: 'Fresher',
       workingLocations: [{ cityName: 'Ha Noi' }],
+    },
+    {
+      jobTitle: 'DevOps Engineer HCMC',
+      jobUrl: '',
+      jobId: 2,
+      alias: 'devops-hcmc',
+      companyName: 'South Co',
+      jobLevel: 'Experienced (non-manager)',
+      workingLocations: [{ cityNameVI: 'Hồ Chí Minh' }],
     },
   ],
 };
@@ -80,6 +89,9 @@ describe('VnJobsCrawler', () => {
     expect(articles.map((article) => article.sourceName).sort()).toEqual(
       expect.arrayContaining(['ITviec', 'TopCV', 'VietnamWorks']),
     );
+    expect(articles.every((article) => article.summary?.includes('Địa điểm:'))).toBe(true);
+    expect(articles.every((article) => !article.imageUrl)).toBe(true);
+    expect(articles.map((article) => article.title)).not.toContain('DevOps Engineer HCMC');
   });
 
   it('dedupes by url and respects maxResults', async () => {
@@ -116,10 +128,12 @@ describe('VnJobsCrawler', () => {
                 <div class="job-card">
                   <h3><a href="https://itviec.com/it-jobs/manual-qa-qc">Máy kiểm tra thủ công (QA QC)</a></h3>
                   <a class="logo-employer-card" title="QI GROUP"></a>
+                  <div class="text-rich-grey text-truncate" title="Ha Noi">Ha Noi</div>
                 </div>
                 <div class="job-card">
                   <h3><a href="https://itviec.com/it-jobs/devops-ok">DevOps Engineer</a></h3>
                   <a class="logo-employer-card" title="Acme"></a>
+                  <div class="text-rich-grey text-truncate" title="Ha Noi">Ha Noi</div>
                 </div>
               `,
               status: 200,
@@ -160,6 +174,7 @@ describe('VnJobsCrawler', () => {
             <div class="job-item">
               <h3 class="title"><a href="/viec-lam/giao-vien-tieng-anh-1.html">Giáo viên tiếng Anh mầm non</a></h3>
               <div class="company-name">Sunshine School</div>
+              <div class="address">Hà Nội</div>
             </div>
           `,
           status: 200,

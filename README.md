@@ -143,6 +143,8 @@ curl -X POST 'http://localhost:3000/telegram/send-jobs?role=english-teacher&expe
 
 - `role` (bắt buộc): `english-teacher` | `devops`
 - `experienceYears` (tuỳ chọn): `0` | `1-2` | `3-5` | `5+`
+- Địa điểm mặc định: **Hà Nội** (các tỉnh/thành khác bị lọc)
+- Ảnh Telegram: dùng ảnh fallback theo topic (logo công ty thường quá nhỏ nên không gửi được)
 - Giới hạn số tin: `MAX_JOBS_PER_DIGEST` (mặc định `10`)
 
 Kiểm tra build/test:
