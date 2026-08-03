@@ -82,6 +82,7 @@ CODEX_TRANSLATION_TIMEOUT_MS=120000
 MAX_ARTICLES_PER_DIGEST=20
 MAX_ARTICLES_PER_TOPIC=2
 MAX_ARTICLE_AGE_DAYS=14
+MAX_JOBS_PER_DIGEST=10
 REQUEST_TIMEOUT_MS=12000
 USER_AGENT=TechNewsTelegramBot/1.0
 ```
@@ -132,6 +133,17 @@ Gửi bản tin thủ công:
 ```bash
 curl -X POST http://localhost:3000/telegram/send-digest
 ```
+
+Gửi tin tuyển dụng Việt Nam (TopCV, ITviec, VietnamWorks) — endpoint riêng, không trộn digest tech:
+
+```bash
+curl -X POST 'http://localhost:3000/telegram/send-jobs?role=devops'
+curl -X POST 'http://localhost:3000/telegram/send-jobs?role=english-teacher&experienceYears=1-2'
+```
+
+- `role` (bắt buộc): `english-teacher` | `devops`
+- `experienceYears` (tuỳ chọn): `0` | `1-2` | `3-5` | `5+`
+- Giới hạn số tin: `MAX_JOBS_PER_DIGEST` (mặc định `10`)
 
 Kiểm tra build/test:
 

@@ -39,6 +39,8 @@ const fallbackWhyImportant: Record<TopicKey, string> = {
   devops: 'Thay đổi này có thể ảnh hưởng đến pipeline, công cụ hoặc quy trình vận hành đang sử dụng.',
   // Gán field `cloud` từ `'Các workload và dịch vụ cloud liên quan nên được đánh giá để xác định tác động đến vận…` để object khớp contract.
   cloud: 'Các workload và dịch vụ cloud liên quan nên được đánh giá để xác định tác động đến vận hành, chi phí hoặc bảo mật.',
+  'jobs-english':
+    'Tin tuyển dụng này có thể phù hợp nếu bạn đang tìm vị trí giáo viên hoặc trợ giảng tiếng Anh mầm non / tiểu học.',
 };
 
 /**

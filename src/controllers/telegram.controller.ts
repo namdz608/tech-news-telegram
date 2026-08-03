@@ -5,6 +5,9 @@
  * sau khi dựng/biên tập message, nó gọi Telegram API trước khi trả JSON.
  */
 import type { Request, Response } from 'express';
+import { env } from '../config/env';
+import { VnJobsCrawler } from '../crawlers/vn-jobs.crawler';
+import { parseJobSendParams } from '../crawlers/vn-jobs/params';
 import { ArticleEditorialService } from '../services/article-editorial.service';
 import { DigestService } from '../services/digest.service';
 import { editDigestMessages } from '../services/digest-message-editorial.service';
@@ -19,6 +22,8 @@ const digestService = new DigestService();
 const telegramService = new TelegramService();
 // Biên tập nội dung từng bài trước khi gửi ra ngoài.
 const articleEditorialService = new ArticleEditorialService();
+// Crawl tin tuyển dụng VN; không nằm trong SourceService tech digest.
+const vnJobsCrawler = new VnJobsCrawler();
 
 /**
  * Thu thập, biên tập và gửi một đợt message Telegram.
@@ -45,6 +50,56 @@ export async function sendDigest(_req: Request, res: Response) {
     // Tổng message đã biên tập và chuyển cho TelegramService.
     messageCount: editedMessages.length,
     // Ngôn ngữ đầu ra theo contract hiện tại.
+    language: 'vi',
+  });
+}
+
+/**
+ * Crawl tin tuyển dụng VN theo role/experience rồi gửi Telegram.
+ *
+ * Được sử dụng tại:
+ * - `src/routes/telegram.routes.ts`: handler của `POST /telegram/send-jobs`.
+ */
+export async function sendJobs(req: Request, res: Response) {
+  let params;
+
+  try {
+    params = parseJobSendParams(req.query as Record<string, unknown>);
+  } catch (error) {
+    res.status(400).json({
+      error: error instanceof Error ? error.message : 'Invalid params',
+    });
+    return;
+  }
+
+  const articles = await vnJobsCrawler.crawl({
+    role: params.role,
+    experienceYears: params.experienceYears,
+    maxResults: env.MAX_JOBS_PER_DIGEST,
+  });
+
+  if (articles.length === 0) {
+    res.json({
+      sent: true,
+      articleCount: 0,
+      messageCount: 0,
+      role: params.role,
+      experienceYears: params.experienceYears ?? null,
+      language: 'vi',
+    });
+    return;
+  }
+
+  const messages = digestService.buildDigestMessages(articles);
+  const editedMessages = await editDigestMessages(messages, articleEditorialService);
+  await telegramService.sendMessages(editedMessages);
+
+  res.json({
+    sent: true,
+    articleCount: articles.length,
+    messageCount: editedMessages.length,
+    role: params.role,
+    experienceYears: params.experienceYears ?? null,
     language: 'vi',
   });
 }

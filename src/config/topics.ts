@@ -38,4 +38,10 @@ export const topics: TopicDefinition[] = [
     label: 'Cloud',
     keywords: ['aws', 'azure', 'gcp', 'cloud', 'serverless', 'terraform'],
   },
+  // Nhóm tin tuyển dụng giáo viên / trợ giảng tiếng Anh.
+  {
+    key: 'jobs-english',
+    label: 'Jobs · English Teacher',
+    keywords: ['english teacher', 'giáo viên tiếng anh', 'trợ giảng tiếng anh', 'teaching assistant'],
+  },
 ];

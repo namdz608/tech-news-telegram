@@ -41,6 +41,7 @@ const envSchema = z.object({
   MAX_ARTICLES_PER_DIGEST: z.coerce.number().int().positive().default(20),
   MAX_ARTICLES_PER_TOPIC: z.coerce.number().int().positive().default(2),
   MAX_ARTICLE_AGE_DAYS: z.coerce.number().int().positive().default(14),
+  MAX_JOBS_PER_DIGEST: z.coerce.number().int().positive().default(10),
   // Timeout/User-Agent dùng chung cho các HTTP client.
   REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(12000),
   USER_AGENT: z.string().default('TechNewsTelegramBot/1.0'),
