@@ -1,0 +1,103 @@
+/**
+ * Điều phối crawl TopCV / ITviec / VietnamWorks và map sang Article[].
+ */
+import axios from 'axios';
+import { env } from '../config/env';
+import { dedupeArticles } from '../services/article.service';
+import type { Article } from '../types/article';
+import type { TopicKey } from '../types/topic';
+import { compactText } from '../utils/text';
+import { matchesExperience } from './vn-jobs/experience';
+import { crawlItviec } from './vn-jobs/itviec.adapter';
+import { crawlTopcv } from './vn-jobs/topcv.adapter';
+import { crawlVietnamworks } from './vn-jobs/vietnamworks.adapter';
+import type { JobRole, VnJobListing, VnJobsCrawlOptions, VnJobsHttpClient } from './vn-jobs/types';
+
+function createDefaultHttp(): VnJobsHttpClient {
+  const client = axios.create({
+    timeout: env.REQUEST_TIMEOUT_MS,
+    headers: {
+      'User-Agent': env.USER_AGENT,
+      Accept: 'text/html,application/json',
+    },
+    validateStatus: () => true,
+  });
+
+  return {
+    async get(url: string) {
+      const response = await client.get<string>(url);
+      return { data: typeof response.data === 'string' ? response.data : String(response.data ?? ''), status: response.status };
+    },
+    async post(url: string, body: unknown) {
+      const response = await client.post(url, body, {
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+      });
+      return { data: response.data, status: response.status };
+    },
+  };
+}
+
+export class VnJobsCrawler {
+  constructor(private readonly http: VnJobsHttpClient = createDefaultHttp()) {}
+
+  async crawl(options: VnJobsCrawlOptions): Promise<Article[]> {
+    const groups = await Promise.all([
+      this.safeCrawl('topcv', () => crawlTopcv(options.role, this.http)),
+      this.safeCrawl('itviec', () => crawlItviec(options.role, this.http)),
+      this.safeCrawl('vietnamworks', () => crawlVietnamworks(options.role, this.http, options.maxResults)),
+    ]);
+
+    let listings = groups.flat();
+
+    if (options.experienceYears) {
+      listings = listings.filter((job) => matchesExperience(job.experienceText, options.experienceYears!));
+    }
+
+    const collectedAt = new Date().toISOString();
+    const articles = listings.map((job) => toArticle(job, options.role, collectedAt));
+
+    articles.sort((a, b) => {
+      const dateA = new Date(a.publishedAt ?? a.collectedAt).getTime();
+      const dateB = new Date(b.publishedAt ?? b.collectedAt).getTime();
+      return dateB - dateA;
+    });
+
+    return dedupeArticles(articles).slice(0, options.maxResults);
+  }
+
+  private async safeCrawl(board: string, run: () => Promise<VnJobListing[]>): Promise<VnJobListing[]> {
+    try {
+      return await run();
+    } catch (error) {
+      console.error(`Failed to crawl VN jobs board ${board}`, error);
+      return [];
+    }
+  }
+}
+
+function toArticle(job: VnJobListing, role: JobRole, collectedAt: string): Article {
+  const summaryParts = [job.company, job.location, job.salaryText, job.experienceText, job.summary]
+    .map((part) => (part ? compactText(part) : ''))
+    .filter(Boolean);
+
+  return {
+    id: job.url,
+    sourceId: job.sourceId,
+    sourceName: job.sourceName,
+    title: job.title,
+    url: job.url,
+    summary: summaryParts.join(' · ') || undefined,
+    imageUrl: job.imageUrl,
+    author: job.company,
+    publishedAt: job.publishedAt,
+    collectedAt,
+    topics: roleTopics(role),
+  };
+}
+
+function roleTopics(role: JobRole): TopicKey[] {
+  return role === 'english-teacher' ? ['jobs-english'] : ['devops'];
+}
