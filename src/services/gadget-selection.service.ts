@@ -4,7 +4,6 @@ import { gadgetSourceAffinity, gadgetTopics } from '../config/gadget-topics';
 import type { Article } from '../types/article';
 import type { GadgetDigestEntry, GadgetSelectionResult, GadgetTopicKey } from '../types/gadget';
 import { normalizeUrl } from '../utils/normalize-url';
-import { includesKeyword } from '../utils/text';
 
 interface RankedGadgetEntry extends GadgetDigestEntry {
   index: number;
@@ -77,27 +76,38 @@ function hasStrongProductTerm(article: Article): boolean {
   const searchable = `${article.title} ${article.summary ?? ''}`;
   return gadgetTopics.some((topic) =>
     topic.keywords.some(
-      (keyword) => !vendorOnlyKeywords.has(keyword) && includesKeyword(searchable, keyword),
+      (keyword) => !vendorOnlyKeywords.has(keyword) && matchesGadgetKeyword(searchable, keyword),
     ),
   );
 }
 
 function keywordHits(article: Article, keywords: string[]): number {
   const searchable = `${article.title} ${article.summary ?? ''}`;
-  return keywords.filter((keyword) => includesKeyword(searchable, keyword)).length;
+  return keywords.filter((keyword) => matchesGadgetKeyword(searchable, keyword)).length;
 }
 
 function scoreArticle(article: Article, topic: GadgetTopicKey, now: Date): number {
   const definition = gadgetTopics.find((candidate) => candidate.key === topic);
   if (!definition) return 0;
-  const titleHits = definition.keywords.filter((keyword) => includesKeyword(article.title, keyword)).length;
+  const titleHits = definition.keywords.filter((keyword) =>
+    matchesGadgetKeyword(article.title, keyword),
+  ).length;
   const summaryHits = definition.keywords.filter((keyword) =>
-    includesKeyword(article.summary ?? '', keyword),
+    matchesGadgetKeyword(article.summary ?? '', keyword),
   ).length;
   const affinity = (gadgetSourceAffinity[article.sourceId] ?? []).includes(topic) ? 25 : 0;
   const published = new Date(article.publishedAt ?? article.collectedAt).getTime();
   const ageDays = Math.max(0, Math.floor((now.getTime() - published) / 86_400_000));
   return titleHits * 100 + summaryHits * 10 + affinity + Math.max(0, 14 - ageDays);
+}
+
+function matchesGadgetKeyword(text: string, keyword: string): boolean {
+  const phrase = keyword
+    .trim()
+    .split(/\s+/)
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('\\s+');
+  return new RegExp(`(?<![\\p{L}\\p{N}])${phrase}(?![\\p{L}\\p{N}])`, 'iu').test(text);
 }
 
 function pickBalanced(ranked: RankedGadgetEntry[], limit: number): GadgetDigestEntry[] {

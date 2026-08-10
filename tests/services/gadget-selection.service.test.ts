@@ -25,6 +25,7 @@ describe('GadgetSelectionService', () => {
     ['Samsung Galaxy tablet launches', 'mobile'],
     ['New gaming laptop arrives', 'computers'],
     ['Nvidia GPU and GDDR7 memory tested', 'components'],
+    ['Sony headphones reviewed', 'av-accessories'],
     ['OLED monitor and wireless earbuds reviewed', 'av-accessories'],
     ['Smart home camera gains Matter support', 'smart-devices'],
   ])('classifies %s as %s', (title, topic) => {
@@ -45,6 +46,8 @@ describe('GadgetSelectionService', () => {
         article({ title: 'Apple reports quarterly revenue' }),
         article({ title: 'Nvidia faces antitrust investigation' }),
         article({ title: 'Intel announces layoffs' }),
+        article({ title: 'Apple displays quarterly revenue' }),
+        article({ title: 'Company monitors quarterly performance' }),
       ],
       new Set(),
     );
