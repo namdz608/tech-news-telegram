@@ -19,6 +19,7 @@ import type {
   ArticleEditorial,
   // Đưa giá trị `ArticleEditorialGenerator` vào field cùng tên của object đang tạo.
   ArticleEditorialGenerator,
+  EditorialTopicContext,
 } from './article-editorial.types';
 // Nạp { CodexArticleEditorialGenerator } từ `./codex-article-editorial.generator` để dùng đúng dependency/type thay vì tự triển khai lại.
 import { CodexArticleEditorialGenerator } from './codex-article-editorial.generator';
@@ -63,7 +64,8 @@ export class ArticleEditorialService {
    * - `src/services/digest-message-editorial.service.ts`
    */
   // Mở method `editArticle` để biên tập nội dung và giữ contract message.
-  async editArticle(article: Article, topic: TopicKey): Promise<ArticleEditorial> {
+  async editArticle(article: Article, topic: TopicKey | EditorialTopicContext): Promise<ArticleEditorial> {
+    const topicContext = resolveEditorialTopic(topic);
     // Tính `fallback` từ `createFallbackEditorial(article, topic);` và giữ bất biến trong phạm vi hiện tại.
     const fallback = createFallbackEditorial(article, topic);
 
@@ -84,7 +86,7 @@ export class ArticleEditorialService {
         // Gán field `sourceName` từ `article.sourceName,` để object khớp contract.
         sourceName: article.sourceName,
         // Đưa giá trị `topic` vào field cùng tên của object đang tạo.
-        topic,
+        topic: topicContext.key,
         // Gán field `publishedAt` từ `article.publishedAt,` để object khớp contract.
         publishedAt: article.publishedAt,
         // Gán field `collectedAt` từ `article.collectedAt,` để object khớp contract.
@@ -154,7 +156,11 @@ function createDefaultGenerator(): ArticleEditorialGenerator | undefined {
  * - `src/services/digest.service.ts`
  */
 // Mở thân hàm `createFallbackEditorial` với input/output được TypeScript kiểm tra.
-export function createFallbackEditorial(article: Article, topic: TopicKey): ArticleEditorial {
+export function createFallbackEditorial(
+  article: Article,
+  topic: TopicKey | EditorialTopicContext,
+): ArticleEditorial {
+  const topicContext = resolveEditorialTopic(topic);
   // Trả `{` cho caller và kết thúc nhánh hiện tại.
   return {
     // Gán field `title` từ `compactText(article.title),` để object khớp contract.
@@ -162,12 +168,18 @@ export function createFallbackEditorial(article: Article, topic: TopicKey): Arti
     summary:
       cleanString(article.summary) || 'Nguồn chưa cung cấp mô tả chi tiết cho bản tin này.',
     // Gán field `whyImportant` từ `fallbackWhyImportant[topic],` để object khớp contract.
-    whyImportant: fallbackWhyImportant[topic],
+    whyImportant: topicContext.fallbackWhyImportant,
     // Gán field `actionLevel` từ `'monitor',` để object khớp contract.
     actionLevel: 'monitor',
     // Gán field `actionText` từ `'Kiểm tra mức độ liên quan và theo dõi thông báo chính thức từ nguồn.',` để object khớp contract.
     actionText: 'Kiểm tra mức độ liên quan và theo dõi thông báo chính thức từ nguồn.',
   };
+}
+
+function resolveEditorialTopic(topic: TopicKey | EditorialTopicContext): EditorialTopicContext {
+  return typeof topic === 'string'
+    ? { key: topic, fallbackWhyImportant: fallbackWhyImportant[topic] }
+    : topic;
 }
 
 /**

@@ -1,0 +1,110 @@
+import type { GadgetTopicDefinition, GadgetTopicKey } from '../types/gadget';
+
+export const gadgetTopics: GadgetTopicDefinition[] = [
+  {
+    key: 'mobile',
+    label: 'Điện thoại & Máy tính bảng',
+    icon: '📱',
+    keywords: ['smartphone', 'phone', 'android', 'galaxy', 'pixel', 'tablet', 'điện thoại', 'máy tính bảng'],
+    fallbackImageUrl: 'https://placehold.co/1200x630/1d4ed8/ffffff.png?text=Mobile',
+    fallbackWhyImportant:
+      'Thiết bị di động mới có thể ảnh hưởng đến lựa chọn mua, nâng cấp và khả năng tương thích hệ sinh thái.',
+  },
+  {
+    key: 'apple',
+    label: 'Apple',
+    icon: '🍎',
+    keywords: ['apple', 'iphone', 'ipad', 'macbook', 'mac', 'airpods', 'apple watch'],
+    fallbackImageUrl: 'https://placehold.co/1200x630/111827/ffffff.png?text=Apple',
+    fallbackWhyImportant:
+      'Thay đổi trong hệ sinh thái Apple có thể ảnh hưởng đến quyết định mua, nâng cấp và khả năng tương thích thiết bị.',
+  },
+  {
+    key: 'computers',
+    label: 'Laptop & Máy tính',
+    icon: '💻',
+    keywords: ['laptop', 'notebook', 'desktop', 'pc', 'workstation', 'máy tính'],
+    fallbackImageUrl: 'https://placehold.co/1200x630/0f766e/ffffff.png?text=Computers',
+    fallbackWhyImportant: 'Sản phẩm máy tính mới có thể thay đổi lựa chọn cấu hình, hiệu năng và chi phí nâng cấp.',
+  },
+  {
+    key: 'components',
+    label: 'Linh kiện',
+    icon: '🧩',
+    keywords: [
+      'cpu',
+      'gpu',
+      'chip',
+      'processor',
+      'graphics card',
+      'ram',
+      'memory',
+      'ssd',
+      'storage',
+      'intel',
+      'amd',
+      'nvidia',
+      'qualcomm',
+    ],
+    fallbackImageUrl: 'https://placehold.co/1200x630/7c3aed/ffffff.png?text=Components',
+    fallbackWhyImportant:
+      'Thông số linh kiện có thể ảnh hưởng trực tiếp đến hiệu năng, giá thành và quyết định nâng cấp.',
+  },
+  {
+    key: 'av-accessories',
+    label: 'Màn hình, Âm thanh & Phụ kiện',
+    icon: '🎧',
+    keywords: [
+      'monitor',
+      'display',
+      'tv',
+      'screen',
+      'headphones',
+      'earbuds',
+      'speaker',
+      'keyboard',
+      'mouse',
+      'dock',
+      'charger',
+      'màn hình',
+      'tai nghe',
+      'loa',
+      'bàn phím',
+      'chuột',
+    ],
+    fallbackImageUrl: 'https://placehold.co/1200x630/be123c/ffffff.png?text=Accessories',
+    fallbackWhyImportant:
+      'Phụ kiện và thiết bị nghe nhìn mới có thể cải thiện trải nghiệm, kết nối và hiệu quả sử dụng.',
+  },
+  {
+    key: 'smart-devices',
+    label: 'Thiết bị thông minh',
+    icon: '⌚',
+    keywords: [
+      'smartwatch',
+      'wearable',
+      'smart home',
+      'camera',
+      'router',
+      'console',
+      'vr',
+      'ar',
+      'gadget',
+      'đồng hồ thông minh',
+      'nhà thông minh',
+    ],
+    fallbackImageUrl: 'https://placehold.co/1200x630/a16207/ffffff.png?text=Smart+Devices',
+    fallbackWhyImportant:
+      'Thiết bị thông minh mới có thể mở rộng khả năng kết nối, giải trí và tự động hóa trong đời sống.',
+  },
+];
+
+export const gadgetSourceAffinity: Record<string, GadgetTopicKey[]> = {
+  'vnexpress-tech': ['mobile', 'apple', 'computers', 'smart-devices'],
+  'thanhnien-products': ['mobile', 'apple', 'av-accessories', 'smart-devices'],
+  'tuoitre-tech': ['mobile', 'computers', 'smart-devices'],
+  'ars-gadgets': ['computers', 'components', 'av-accessories', 'smart-devices'],
+  'macrumors-all': ['apple'],
+  'tomshardware-all': ['computers', 'components', 'av-accessories'],
+  'engadget-all': ['mobile', 'apple', 'computers', 'av-accessories', 'smart-devices'],
+};

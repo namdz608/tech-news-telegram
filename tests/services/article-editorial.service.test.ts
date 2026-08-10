@@ -70,4 +70,19 @@ describe('ArticleEditorialService', () => {
       warn.mockRestore();
     }
   });
+
+  it('uses a custom gadget editorial context without changing tech topics', async () => {
+    const service = new ArticleEditorialService({ generate: vi.fn().mockResolvedValue('{}') });
+
+    await expect(
+      service.editArticle(article, {
+        key: 'components',
+        fallbackWhyImportant:
+          'Thông số linh kiện có thể ảnh hưởng trực tiếp đến hiệu năng và quyết định nâng cấp.',
+      }),
+    ).resolves.toMatchObject({
+      whyImportant: expect.stringContaining('hiệu năng'),
+      actionLevel: 'monitor',
+    });
+  });
 });

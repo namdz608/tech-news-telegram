@@ -1,0 +1,68 @@
+/** Danh sách RSS chỉ dành cho luồng tin thiết bị tiêu dùng. */
+import type { RssSourceConfig } from '../types/source';
+
+export const gadgetSources: RssSourceConfig[] = [
+  {
+    id: 'vnexpress-tech',
+    name: 'VnExpress Khoa học Công nghệ',
+    kind: 'rss',
+    enabled: true,
+    includeUnmatched: true,
+    homepageUrl: 'https://vnexpress.net/khoa-hoc-cong-nghe',
+    feedUrl: 'https://vnexpress.net/rss/khoa-hoc-cong-nghe.rss',
+  },
+  {
+    id: 'thanhnien-products',
+    name: 'Thanh Niên Sản phẩm Công nghệ',
+    kind: 'rss',
+    enabled: true,
+    includeUnmatched: true,
+    homepageUrl: 'https://thanhnien.vn/cong-nghe/san-pham.htm',
+    feedUrl: 'https://thanhnien.vn/rss/cong-nghe/san-pham.rss',
+  },
+  {
+    id: 'tuoitre-tech',
+    name: 'Tuổi Trẻ Công nghệ',
+    kind: 'rss',
+    enabled: true,
+    includeUnmatched: true,
+    homepageUrl: 'https://tuoitre.vn/cong-nghe.htm',
+    feedUrl: 'https://tuoitre.vn/rss/cong-nghe.rss',
+  },
+  {
+    id: 'ars-gadgets',
+    name: 'Ars Technica Gear & Gadgets',
+    kind: 'rss',
+    enabled: true,
+    includeUnmatched: true,
+    homepageUrl: 'https://arstechnica.com/gadgets/',
+    feedUrl: 'https://feeds.arstechnica.com/arstechnica/gadgets',
+  },
+  {
+    id: 'macrumors-all',
+    name: 'MacRumors',
+    kind: 'rss',
+    enabled: true,
+    includeUnmatched: true,
+    homepageUrl: 'https://www.macrumors.com',
+    feedUrl: 'https://feeds.macrumors.com/MacRumors-All',
+  },
+  {
+    id: 'tomshardware-all',
+    name: "Tom's Hardware",
+    kind: 'rss',
+    enabled: true,
+    includeUnmatched: true,
+    homepageUrl: 'https://www.tomshardware.com',
+    feedUrl: 'https://www.tomshardware.com/feeds/all',
+  },
+  {
+    id: 'engadget-all',
+    name: 'Engadget',
+    kind: 'rss',
+    enabled: true,
+    includeUnmatched: true,
+    homepageUrl: 'https://www.engadget.com',
+    feedUrl: 'https://www.engadget.com/rss.xml',
+  },
+];

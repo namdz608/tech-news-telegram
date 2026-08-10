@@ -4,6 +4,39 @@ import type { RssSourceConfig } from '../../src/types/source';
 import { redditHttpsAgent } from '../../src/utils/reddit-dns';
 
 describe('RssCrawler', () => {
+  it('retains unmatched articles only when the RSS source opts in', async () => {
+    const parser = {
+      parseURL: vi.fn().mockResolvedValue({
+        items: [
+          {
+            title: 'New laptop with 32 GB RAM',
+            link: 'https://example.com/laptop',
+            contentSnippet: 'Consumer hardware announcement',
+            enclosure: { url: 'https://example.com/laptop.jpg', type: 'image/jpeg' },
+          },
+        ],
+      }),
+    };
+    const crawler = new RssCrawler(parser, { get: vi.fn() });
+    const baseSource = {
+      id: 'gadgets',
+      name: 'Gadgets',
+      kind: 'rss' as const,
+      enabled: true,
+      homepageUrl: 'https://example.com',
+      feedUrl: 'https://example.com/feed.xml',
+    };
+
+    await expect(crawler.crawl(baseSource)).resolves.toEqual([]);
+    await expect(crawler.crawl({ ...baseSource, includeUnmatched: true })).resolves.toEqual([
+      expect.objectContaining({
+        title: 'New laptop with 32 GB RAM',
+        url: 'https://example.com/laptop',
+        topics: [],
+      }),
+    ]);
+  });
+
   it('configures default RSS clients with forum headers and Reddit-aware DNS', () => {
     const crawler = new RssCrawler();
     const parser = (

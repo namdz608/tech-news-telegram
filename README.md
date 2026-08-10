@@ -63,6 +63,13 @@ PORT=3000
 TELEGRAM_BOT_TOKEN=123456789:replace_me
 TELEGRAM_CHAT_ID=-1001234567890
 
+# Consumer gadget news Telegram flow (POST /telegram/send-gadgets)
+GADGET_TELEGRAM_BOT_TOKEN=replace_me
+GADGET_TELEGRAM_CHAT_ID=replace_me
+GADGET_MAX_ARTICLES=12
+GADGET_HISTORY_RETENTION_DAYS=30
+GADGET_HISTORY_PATH=data/gadget-sent-history.json
+
 X_BEARER_TOKEN=
 X_SEARCH_QUERY=(AI OR "artificial intelligence" OR LLM OR Kubernetes OR DevOps OR cloud OR security OR CVE) lang:en -is:retweet -is:reply
 X_SEARCH_MAX_RESULTS=20
@@ -132,6 +139,33 @@ Gửi bản tin thủ công:
 
 ```bash
 curl -X POST http://localhost:3000/telegram/send-digest
+```
+
+### Bản tin đồ công nghệ
+
+`POST /telegram/send-gadgets` là luồng riêng dành cho RAM, chip, GPU, điện thoại,
+iPhone, MacBook, laptop, phụ kiện và thiết bị thông minh. API chỉ chạy khi được gọi;
+trong code không có scheduler.
+
+Luồng lấy tối đa 12 bài mới từ bảy RSS: VnExpress Công nghệ, Thanh Niên Sản phẩm,
+Tuổi Trẻ Công nghệ, Ars Technica Gadgets, MacRumors, Tom's Hardware và Engadget.
+Bài được cân bằng theo sáu nhóm: Điện thoại & Máy tính bảng, Apple, Laptop & Máy tính,
+Linh kiện, Màn hình/Âm thanh/Phụ kiện và Thiết bị thông minh. URL đã gửi được lưu 30 ngày
+để lần gọi sau không gửi trùng.
+
+```bash
+curl -X POST http://localhost:3000/telegram/send-gadgets
+```
+
+Khi gửi thành công, API trả `sent: true`, `messageCount` và các số liệu thu thập/lọc.
+Khi không còn bài mới, API trả `sent: false`, `reason: "no_new_articles"` và
+`messageCount: 0`. Nếu mọi nguồn RSS đều lỗi, API trả HTTP 503; nếu một lượt khác đang
+chạy, API trả HTTP 409.
+
+Khi chạy Docker, gắn volume bền vững để giữ lịch sử qua lần restart:
+
+```bash
+docker run -v tech-news-gadget-data:/app/data -p 3000:3000 --env-file .env tech-news-telegram
 ```
 
 Gửi tin tuyển dụng Việt Nam (TopCV, ITviec, VietnamWorks) — **gom 1 PDF gửi email** (không Telegram):

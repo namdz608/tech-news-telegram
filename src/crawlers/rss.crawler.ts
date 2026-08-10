@@ -188,7 +188,7 @@ export class RssCrawler implements NewsCrawler<RssSourceConfig> {
         };
       })
       // Áp dụng `filter` để tiếp tục biến đổi kết quả trung gian mà không đổi input gốc.
-      .filter(({ article }) => article.topics.length > 0);
+      .filter(({ article }) => source.includeUnmatched || article.topics.length > 0);
 
     // Trả `Promise.all(articles.map(({ article, item }) => this.withArticlePageImage(article, item…` cho caller và kết thúc nhánh hiện tại.
     return Promise.all(articles.map(({ article, item }) => this.withArticlePageImage(article, item)));
