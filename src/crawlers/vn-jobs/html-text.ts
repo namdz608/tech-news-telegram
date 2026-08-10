@@ -2,7 +2,6 @@
  * Chuyển HTML mô tả JD thành text gọn, giữ bullet để dễ đọc trên Telegram.
  */
 import * as cheerio from 'cheerio';
-import { compactText } from '../../utils/text';
 
 export function htmlToPlainText(value: string | undefined, maxLength = 2000): string | undefined {
   if (!value?.trim()) {

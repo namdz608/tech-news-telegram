@@ -12,8 +12,11 @@ import { Telegraf } from 'telegraf';
 import { env } from '../config/env';
 // Nạp { redditHttpsAgent } từ `../utils/reddit-dns` để dùng đúng dependency/type thay vì tự triển khai lại.
 import { redditHttpsAgent } from '../utils/reddit-dns';
-// Nạp { DigestMessage } từ `./digest.service` để dùng đúng dependency/type thay vì tự triển khai lại.
-import type { DigestMessage } from './digest.service';
+export interface TelegramMessage {
+  text: string;
+  url: string;
+  imageUrl?: string;
+}
 
 // Tính `triggerSeparator` từ `'━━━━━━━━━━━━━━━━━━━━━━━━━━━━';` và giữ bất biến trong phạm vi hiện tại.
 const triggerSeparator = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
@@ -190,7 +193,10 @@ export class TelegramService {
    * - `src/controllers/telegram.controller.ts`
    */
   // Mở method `sendMessages` để gửi dữ liệu ra Telegram theo đúng thứ tự.
-  async sendMessages(messages: DigestMessage[]): Promise<void> {
+  async sendMessages(
+    messages: TelegramMessage[],
+    onSent?: (message: TelegramMessage) => void | Promise<void>,
+  ): Promise<void> {
     // Tính `validMessages` từ `messages.filter((message) => message.text.trim());` và giữ bất biến trong phạm vi hiện tại.
     const validMessages = messages.filter((message) => message.text.trim());
 
@@ -212,6 +218,7 @@ export class TelegramService {
     for (const message of validMessages) {
       // Chờ `this.sendDigest(message.text, message.url, message.imageUrl);` hoàn tất để giữ đúng thứ tự side effect.
       await this.sendDigest(message.text, message.url, message.imageUrl);
+      await onSent?.(message);
     }
   }
 
@@ -335,6 +342,10 @@ export class TelegramService {
       filename: getImageFilename(imageUrl),
     };
   }
+}
+
+export function createTelegramService(botToken: string, chatId: string): TelegramService {
+  return new TelegramService(new Telegraf(botToken) as unknown as TelegramClientLike, chatId);
 }
 
 /**

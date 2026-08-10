@@ -17,6 +17,12 @@ const envSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().default('test-token'),
   TELEGRAM_CHAT_ID: z.string().default('test-chat-id'),
   TELEGRAM_MESSAGE_EFFECT_ID: z.string().default('5104841245755180586'),
+  // Credential, đích gửi và giới hạn riêng cho luồng tin thiết bị tiêu dùng.
+  GADGET_TELEGRAM_BOT_TOKEN: z.string().default('test-gadget-token'),
+  GADGET_TELEGRAM_CHAT_ID: z.string().default('test-gadget-chat-id'),
+  GADGET_MAX_ARTICLES: z.coerce.number().int().min(1).max(50).default(12),
+  GADGET_HISTORY_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
+  GADGET_HISTORY_PATH: z.string().min(1).default('data/gadget-sent-history.json'),
   // Token rỗng sẽ khiến nguồn X bị tắt trong `sources.ts`.
   X_BEARER_TOKEN: z.string().default(''),
   // Query mặc định bao phủ các chủ đề công nghệ chính và loại retweet/reply.
