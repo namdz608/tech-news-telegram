@@ -8,6 +8,10 @@ import { ArticleEditorialService } from '../services/article-editorial.service';
 import { DigestService } from '../services/digest.service';
 import { editDigestMessages } from '../services/digest-message-editorial.service';
 import { EmailService } from '../services/email.service';
+import {
+  createGadgetFlowService,
+  isAllGadgetSourcesFailedError,
+} from '../services/gadget-flow.service';
 import { buildJobsPdf } from '../services/jobs-pdf.service';
 import { SourceService } from '../services/source.service';
 import { TelegramService } from '../services/telegram.service';
@@ -18,6 +22,8 @@ const telegramService = new TelegramService();
 const articleEditorialService = new ArticleEditorialService();
 const vnJobsCrawler = new VnJobsCrawler();
 const emailService = new EmailService();
+let gadgetFlowService: ReturnType<typeof createGadgetFlowService> | undefined;
+let gadgetDigestRunning = false;
 
 /**
  * Thu thập, biên tập và gửi một đợt message Telegram (tech digest).
@@ -34,6 +40,28 @@ export async function sendDigest(_req: Request, res: Response) {
     messageCount: editedMessages.length,
     language: 'vi',
   });
+}
+
+/** Thu thập và gửi bản tin thiết bị bằng bot/chat riêng. */
+export async function sendGadgets(_req: Request, res: Response) {
+  if (gadgetDigestRunning) {
+    res.status(409).json({ error: 'Gadget digest is already running' });
+    return;
+  }
+
+  gadgetDigestRunning = true;
+  try {
+    gadgetFlowService ??= createGadgetFlowService();
+    res.json(await gadgetFlowService.run());
+  } catch (error) {
+    if (isAllGadgetSourcesFailedError(error)) {
+      res.status(503).json({ error: 'All gadget sources failed' });
+      return;
+    }
+    throw error;
+  } finally {
+    gadgetDigestRunning = false;
+  }
 }
 
 /**
