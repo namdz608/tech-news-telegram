@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 function readEditorialProvider(value?: string): string {
   const childEnv = { ...process.env };
+  childEnv.DOTENV_CONFIG_PATH = '/dev/null';
   delete childEnv.EDITORIAL_PROVIDER;
 
   if (value) {
@@ -29,6 +30,7 @@ function readEditorialProvider(value?: string): string {
 
 function readEnvValues(keys: string[]): Record<string, unknown> {
   const childEnv = { ...process.env };
+  childEnv.DOTENV_CONFIG_PATH = '/dev/null';
   for (const key of keys) {
     delete childEnv[key];
   }
