@@ -4,8 +4,6 @@
  * Các generator nhận ArticleEditorialInput, trả JSON string, rồi
  * ArticleEditorialService parse/validate thành ArticleEditorial.
  */
-import type { TopicKey } from '../types/topic';
-
 /**
  * Ba mức hành động được phép xuất hiện trong message cuối.
  * Được dùng bởi `ArticleEditorial` và validator `isActionLevel` trong `article-editorial.service.ts`.
@@ -33,9 +31,14 @@ export interface ArticleEditorialInput {
   title: string;
   summary?: string;
   sourceName: string;
-  topic: TopicKey;
+  topic: string;
   publishedAt?: string;
   collectedAt: string;
+}
+
+export interface EditorialTopicContext {
+  key: string;
+  fallbackWhyImportant: string;
 }
 
 /**
