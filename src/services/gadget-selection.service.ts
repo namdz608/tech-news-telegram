@@ -10,6 +10,8 @@ interface RankedGadgetEntry extends GadgetDigestEntry {
   index: number;
 }
 
+const vendorOnlyKeywords = new Set(['apple', 'intel', 'amd', 'nvidia', 'qualcomm']);
+
 export class GadgetSelectionService {
   constructor(
     private readonly maxArticles = env.GADGET_MAX_ARTICLES,
@@ -57,6 +59,8 @@ function canonicalizeAndDedupe(articles: Article[]): Article[] {
 }
 
 function classifyGadgetArticle(article: Article): GadgetTopicKey | undefined {
+  if (!hasStrongProductTerm(article)) return undefined;
+
   const apple = gadgetTopics.find((topic) => topic.key === 'apple');
   if (apple && keywordHits(article, apple.keywords) > 0) return 'apple';
 
@@ -67,6 +71,15 @@ function classifyGadgetArticle(article: Article): GadgetTopicKey | undefined {
     if (hits > 0 && (!best || hits > best.hits)) best = { key: topic.key, hits };
   }
   return best?.key;
+}
+
+function hasStrongProductTerm(article: Article): boolean {
+  const searchable = `${article.title} ${article.summary ?? ''}`;
+  return gadgetTopics.some((topic) =>
+    topic.keywords.some(
+      (keyword) => !vendorOnlyKeywords.has(keyword) && includesKeyword(searchable, keyword),
+    ),
+  );
 }
 
 function keywordHits(article: Article, keywords: string[]): number {

@@ -42,10 +42,14 @@ describe('GadgetSelectionService', () => {
       [
         article({ title: 'Company reports quarterly revenue' }),
         article({ title: 'New AI model API released for developers' }),
+        article({ title: 'Apple reports quarterly revenue' }),
+        article({ title: 'Nvidia faces antitrust investigation' }),
+        article({ title: 'Intel announces layoffs' }),
       ],
       new Set(),
     );
     expect(result.selected).toEqual([]);
+    expect(result.eligibleCount).toBe(0);
   });
 
   it('canonicalizes duplicate URLs and removes URLs found in history', () => {
