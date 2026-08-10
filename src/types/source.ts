@@ -34,6 +34,8 @@ export interface RssSourceConfig extends BaseSourceConfig {
   kind: 'rss';
   feedUrl: string;
   defaultTopics?: TopicKey[];
+  // Cho phép flow chuyên biệt tự phân loại sau khi crawl thay vì dùng tech topics mặc định.
+  includeUnmatched?: boolean;
 }
 
 /**
