@@ -44,6 +44,24 @@ describe('TelegramService', () => {
     ]);
   });
 
+  it('calls onSent only after each successful article', async () => {
+    const sendMessage = vi
+      .fn()
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error('telegram down'));
+    const onSent = vi.fn();
+    const service = new TelegramService({ telegram: { sendMessage } }, 'chat-id', 3900, '');
+    const messages = [
+      { text: 'one', url: 'https://example.com/one' },
+      { text: 'two', url: 'https://example.com/two' },
+    ];
+
+    await expect(service.sendMessages(messages, onSent)).rejects.toThrow('telegram down');
+    expect(onSent).toHaveBeenCalledOnce();
+    expect(onSent).toHaveBeenCalledWith(messages[0]);
+  });
+
   it('does not send a separator for an empty message batch', async () => {
     const sendMessage = vi.fn().mockResolvedValue({});
     const service = new TelegramService(
