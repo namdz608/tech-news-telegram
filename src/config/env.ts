@@ -23,6 +23,12 @@ const envSchema = z.object({
   GADGET_MAX_ARTICLES: z.coerce.number().int().min(1).max(50).default(12),
   GADGET_HISTORY_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
   GADGET_HISTORY_PATH: z.string().min(1).default('data/gadget-sent-history.json'),
+  // Credential, giới hạn và lịch sử riêng cho luồng đời sống/sức khỏe.
+  HEALTH_TELEGRAM_BOT_TOKEN: z.string().default('test-health-token'),
+  HEALTH_TELEGRAM_CHAT_ID: z.string().default('test-health-chat-id'),
+  HEALTH_MAX_ARTICLES: z.coerce.number().int().min(1).max(50).default(12),
+  HEALTH_HISTORY_RETENTION_DAYS: z.coerce.number().int().positive().default(7),
+  HEALTH_HISTORY_PATH: z.string().min(1).default('data/health-sent-history.json'),
   // Token rỗng sẽ khiến nguồn X bị tắt trong `sources.ts`.
   X_BEARER_TOKEN: z.string().default(''),
   // Query mặc định bao phủ các chủ đề công nghệ chính và loại retweet/reply.

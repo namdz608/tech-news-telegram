@@ -79,4 +79,22 @@ describe('env config', () => {
       GADGET_HISTORY_PATH: 'data/gadget-sent-history.json',
     });
   });
+
+  it('provides isolated health defaults', () => {
+    expect(
+      readEnvValues([
+        'HEALTH_TELEGRAM_BOT_TOKEN',
+        'HEALTH_TELEGRAM_CHAT_ID',
+        'HEALTH_MAX_ARTICLES',
+        'HEALTH_HISTORY_RETENTION_DAYS',
+        'HEALTH_HISTORY_PATH',
+      ]),
+    ).toEqual({
+      HEALTH_TELEGRAM_BOT_TOKEN: 'test-health-token',
+      HEALTH_TELEGRAM_CHAT_ID: 'test-health-chat-id',
+      HEALTH_MAX_ARTICLES: 12,
+      HEALTH_HISTORY_RETENTION_DAYS: 7,
+      HEALTH_HISTORY_PATH: 'data/health-sent-history.json',
+    });
+  });
 });
