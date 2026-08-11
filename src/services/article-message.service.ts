@@ -19,9 +19,9 @@ export function renderArticleMessageWithPresentation(
   presentation: ArticleMessagePresentation,
   editorial: ArticleEditorial,
 ): string {
-  const summary = truncate(compactText(editorial.summary), 360);
-  const whyImportant = truncate(compactText(editorial.whyImportant), 320);
-  const actionText = truncate(compactText(editorial.actionText), 240);
+  const summary = truncateArticleMessageText(compactText(editorial.summary), 360);
+  const whyImportant = truncateArticleMessageText(compactText(editorial.whyImportant), 320);
+  const actionText = truncateArticleMessageText(compactText(editorial.actionText), 240);
   const action = actions[editorial.actionLevel];
   return [
     `${presentation.icon}  <b>${escapeHtml(`${presentation.label.toUpperCase()} UPDATE`)}</b>`,
@@ -29,7 +29,7 @@ export function renderArticleMessageWithPresentation(
     '',
     `📰  <b>${escapeHtml(editorial.title)}</b>`,
     '',
-    `📅 <b>Công bố:</b> ${formatDate(article)}`,
+    `📅 <b>Công bố:</b> ${formatArticleDate(article)}`,
     '',
     '📝 <b>Tóm tắt</b>',
     escapeHtml(summary),
@@ -48,7 +48,7 @@ export function getArticleMessageImageUrl(article: Article, fallbackImageUrl: st
   return validHttpsUrl(article.imageUrl) ?? validHttpsUrl(fallbackImageUrl);
 }
 
-function formatDate(article: Article): string {
+export function formatArticleDate(article: Article): string {
   for (const value of [article.publishedAt, article.collectedAt]) {
     if (!value) continue;
     const date = new Date(value);
@@ -70,6 +70,6 @@ function validHttpsUrl(input?: string): string | undefined {
   }
 }
 
-function truncate(value: string, maxLength: number): string {
+export function truncateArticleMessageText(value: string, maxLength: number): string {
   return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1).trimEnd()}…`;
 }
