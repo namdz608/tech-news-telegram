@@ -21,8 +21,8 @@ const guidanceTerms = [
   'thói quen', 'lối sống', 'phòng bệnh', 'vận động', 'dinh dưỡng', 'giấc ngủ',
 ];
 const dosagePattern = /\b\d+(?:[.,]\d+)?\s?(?:mg|mcg|µg|g|ml|viên|liều)\b/iu;
-const treatmentDirectivePattern = /(?:uống|dùng|bắt đầu|ngừng|bỏ|đổi|tăng|giảm|take|start|stop|switch|increase|decrease).{0,40}(?:thuốc|medicine|drug|dose|liều|viên|điều trị|treatment|therapy)/iu;
-const reversedTreatmentDirectivePattern = /(?:thuốc|medicine|drug|dose|liều|viên|điều trị|treatment|therapy).{0,40}(?:uống|dùng|bắt đầu|ngừng|bỏ|đổi|tăng|giảm|take|start|stop|switch|increase|decrease)/iu;
+const treatmentDirectivePattern = /(?:uống|dùng|bắt đầu|ngừng|bỏ|đổi|thay|điều chỉnh|chỉnh|tăng|giảm|take|start|stop|switch|change|adjust|increase|decrease).{0,40}(?:thuốc|medicine|medication|drug|dose|liều|viên|điều trị|treatment|therapy)/iu;
+const reversedTreatmentDirectivePattern = /(?:thuốc|medicine|medication|drug|dose|liều|viên|điều trị|treatment|therapy).{0,40}(?:uống|dùng|bắt đầu|ngừng|bỏ|đổi|thay|điều chỉnh|chỉnh|tăng|giảm|take|start|stop|switch|change|adjust|increase|decrease)/iu;
 const selfMedicationPattern = /(?:tự điều trị|tự dùng thuốc|tự uống thuốc|self[- ]?medicat)/iu;
 const rapidWeightLossPattern = /(?:giảm|lose)\s+\d+\s*(?:kg|kilograms?).{0,20}(?:ngày|days?|tuần|weeks?)/iu;
 const personalizedDiagnosisPattern = /(?:bạn|you).{0,30}(?:bị|mắc|have|has|được chẩn đoán|diagnosed)/iu;

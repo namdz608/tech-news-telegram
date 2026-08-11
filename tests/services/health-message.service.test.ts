@@ -15,6 +15,7 @@ it('renders evidence, safe action, limitation, disclaimer, and source', async ()
     whyImportant: 'Khuyến nghị chung có thể không phù hợp với mọi người.',
     actionLevel: 'monitor' as const,
     actionText: 'Duy trì giờ ngủ đều.',
+    languageVerified: true,
   }) };
   const service = new HealthMessageService(editor);
   const messages = await service.buildMessages([{
@@ -42,6 +43,7 @@ it('replaces generated dosage and treatment directives', async () => {
     title: 'Thông tin thuốc', summary: 'Uống 500 mg mỗi ngày.',
     whyImportant: 'Hãy ngừng thuốc ngay.', actionLevel: 'high' as const,
     actionText: 'Đổi thuốc và tăng liều.',
+    languageVerified: true,
   }) };
   const service = new HealthMessageService(editor);
   const [message] = await service.buildMessages([{
@@ -60,6 +62,7 @@ it('escapes HTML and stays below Telegram text limits', async () => {
     whyImportant: 'Giới hạn <cần xem xét>.',
     actionLevel: 'monitor' as const,
     actionText: 'Duy trì giờ ngủ đều.',
+    languageVerified: true,
   }) };
   const service = new HealthMessageService(editor);
   const [message] = await service.buildMessages([{
@@ -83,7 +86,8 @@ it('forces clinician guidance for drug-safety messages', async () => {
     summary: 'Cơ quan quản lý vừa phát cảnh báo an toàn.',
     whyImportant: 'Cảnh báo áp dụng cho một số sản phẩm.',
     actionLevel: 'high' as const,
-    actionText: 'Theo dõi thông báo chính thức.',
+    actionText: 'Bác sĩ đang theo dõi cảnh báo.',
+    languageVerified: true,
   }) };
   const service = new HealthMessageService(editor);
   const [message] = await service.buildMessages([{
@@ -91,7 +95,9 @@ it('forces clinician guidance for drug-safety messages', async () => {
     topic: 'conditions-medicine-research', evidence: 'drug-safety', score: 100,
   }]);
 
-  expect(message.text).toMatch(/bác sĩ|dược sĩ/iu);
+  expect(message.text).toContain(
+    'Không tự thay đổi điều trị; hãy trao đổi với bác sĩ hoặc dược sĩ trước mọi quyết định liên quan đến thuốc.',
+  );
 });
 
 it('forces an evidence limitation for research messages', async () => {
@@ -101,17 +107,48 @@ it('forces an evidence limitation for research messages', async () => {
     whyImportant: 'Kết quả này rất đáng chú ý.',
     actionLevel: 'monitor' as const,
     actionText: 'Theo dõi nguồn nghiên cứu chính thức.',
+    languageVerified: true,
   }) };
   const service = new HealthMessageService(editor);
   const [message] = await service.buildMessages([{
-    article: { ...article, sourceId: 'niddk-news', sourceName: 'NIH/NIDDK' },
+    article: {
+      ...article,
+      sourceId: 'niddk-news',
+      sourceName: 'NIH/NIDDK',
+      summary: 'Preliminary animal study with a small sample.',
+    },
     topic: 'conditions-medicine-research', evidence: 'research', score: 100,
   }]);
 
-  expect(message.text).toMatch(/sơ bộ|thiết kế nghiên cứu/iu);
+  expect(message.text).toMatch(/sơ bộ/iu);
+  expect(message.text).toMatch(/động vật/iu);
+  expect(message.text).toMatch(/mẫu nhỏ/iu);
 });
 
 it('uses deterministic Vietnamese copy when an international article is not translated', async () => {
+  const editor = { editArticle: vi.fn().mockResolvedValue({
+    title: 'Healthy sleep habits',
+    summary: 'Café consumption may support heart health.',
+    whyImportant: 'General guidance may not apply to everyone.',
+    actionLevel: 'monitor' as const,
+    actionText: 'Keep a regular sleep schedule.',
+  }) };
+  const translator = {
+    translateDigestVerified: vi.fn(async (text: string) => ({ text, succeeded: false })),
+  };
+  const service = new HealthMessageService(editor, translator);
+  const [message] = await service.buildMessages([{
+    article,
+    topic: 'sleep-recovery', evidence: 'guidance', score: 100,
+  }]);
+
+  expect(message.text).not.toContain('Healthy sleep habits');
+  expect(message.text).not.toContain('Café consumption');
+  expect(message.text).toContain('Bản tin sức khỏe từ nguồn quốc tế');
+  expect(message.text).toContain('chưa có bản dịch tiếng Việt an toàn');
+});
+
+it('uses explicitly verified Vietnamese translations for international title and summary', async () => {
   const editor = { editArticle: vi.fn().mockResolvedValue({
     title: 'Healthy sleep habits',
     summary: 'A regular sleep schedule may support health.',
@@ -119,14 +156,24 @@ it('uses deterministic Vietnamese copy when an international article is not tran
     actionLevel: 'monitor' as const,
     actionText: 'Keep a regular sleep schedule.',
   }) };
-  const service = new HealthMessageService(editor);
+  const translator = {
+    translateDigestVerified: vi
+      .fn()
+      .mockResolvedValueOnce({ text: 'Thói quen ngủ lành mạnh', succeeded: true })
+      .mockResolvedValueOnce({
+        text: 'Lịch ngủ đều đặn có thể hỗ trợ sức khỏe.',
+        succeeded: true,
+      }),
+  };
+  const service = new HealthMessageService(editor, translator);
+
   const [message] = await service.buildMessages([{
     article,
     topic: 'sleep-recovery', evidence: 'guidance', score: 100,
   }]);
 
-  expect(message.text).not.toContain('Healthy sleep habits');
-  expect(message.text).not.toContain('A regular sleep schedule');
-  expect(message.text).toContain('Bản tin sức khỏe từ nguồn quốc tế');
-  expect(message.text).toContain('chưa có bản dịch tiếng Việt an toàn');
+  expect(message.text).toContain('Thói quen ngủ lành mạnh');
+  expect(message.text).toContain('Lịch ngủ đều đặn có thể hỗ trợ sức khỏe.');
+  expect(message.text).not.toContain('General guidance');
+  expect(message.text).toContain('Khuyến nghị về giấc ngủ');
 });

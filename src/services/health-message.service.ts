@@ -14,10 +14,15 @@ import {
   getArticleMessageImageUrl,
   truncateArticleMessageText,
 } from './article-message.service';
+import { GoogleTranslationService } from './google-translation.service';
 import { sanitizeHealthEditorialText } from './health-safety.service';
 
 interface HealthArticleEditor {
   editArticle(article: Article, topic: EditorialTopicContext): Promise<ArticleEditorial>;
+}
+
+interface VerifiedHealthTranslator {
+  translateDigestVerified(text: string): Promise<{ text: string; succeeded: boolean }>;
 }
 
 export const healthEditorialInstructions = [
@@ -45,12 +50,33 @@ const internationalSourceIds = new Set([
   'fda-medwatch',
   'niddk-news',
 ]);
-const vietnameseCharacterPattern = /[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]/iu;
-const clinicianPattern = /(?:bác sĩ|dược sĩ)/iu;
 const researchLimitationPattern = /(?:sơ bộ|thiết kế nghiên cứu|nghiên cứu quan sát|nghiên cứu động vật|mẫu (?:nhỏ|hạn chế)|chưa (?:đủ|thể|xác định))/iu;
+const drugSafetyTakeaway = 'Không tự thay đổi điều trị; hãy trao đổi với bác sĩ hoặc dược sĩ trước mọi quyết định liên quan đến thuốc.';
+
+const researchQualifierRules: Array<{ pattern: RegExp; note: string }> = [
+  {
+    pattern: /(?:preliminary|early evidence|pilot|sơ bộ)/iu,
+    note: 'Kết quả còn sơ bộ.',
+  },
+  {
+    pattern: /(?:animal(?:-only)?|mice|mouse|rats?|động vật|chuột)/iu,
+    note: 'Nghiên cứu trên động vật chưa cho phép kết luận tương tự ở người.',
+  },
+  {
+    pattern: /(?:small (?:sample|study)|limited sample|mẫu (?:nhỏ|hạn chế))/iu,
+    note: 'Mẫu nhỏ làm hạn chế khả năng khái quát kết quả.',
+  },
+  {
+    pattern: /(?:observational|cohort|quan sát|đoàn hệ)/iu,
+    note: 'Thiết kế quan sát không đủ để khẳng định quan hệ nhân quả.',
+  },
+];
 
 export class HealthMessageService {
-  constructor(private readonly editor: HealthArticleEditor = new ArticleEditorialService()) {}
+  constructor(
+    private readonly editor: HealthArticleEditor = new ArticleEditorialService(),
+    private readonly translator: VerifiedHealthTranslator = new GoogleTranslationService(),
+  ) {}
 
   async buildMessages(entries: HealthDigestEntry[]): Promise<HealthMessage[]> {
     return Promise.all(entries.map(async (entry) => {
@@ -63,6 +89,16 @@ export class HealthMessageService {
       });
       const international = internationalSourceIds.has(entry.article.sourceId);
       const sourceText = `${entry.article.title} ${entry.article.summary ?? ''}`;
+      const translated = editorial.languageVerified === true
+        ? {
+            title: editorial.title,
+            summary: editorial.summary,
+            succeeded: true,
+          }
+        : await translateHealthTitleAndSummary(this.translator, editorial);
+      const titleFallback = international
+        ? 'Bản tin sức khỏe từ nguồn quốc tế.'
+        : entry.article.title;
       const sourceSummaryFallback = sanitizeHealthEditorialText(
         international ? '' : entry.article.summary ?? '',
         international
@@ -71,48 +107,44 @@ export class HealthMessageService {
         sourceText,
       );
       const title = truncateArticleMessageText(sanitizeHealthEditorialText(
-        ensureVietnameseHealthText(
-          editorial.title,
-          international ? 'Bản tin sức khỏe từ nguồn quốc tế.' : editorial.title,
-          international,
-        ),
-        international
-          ? 'Bản tin sức khỏe từ nguồn quốc tế.'
-          : 'Bản tin sức khỏe từ nguồn chính thức.',
+        translated.succeeded ? translated.title : titleFallback,
+        titleFallback || 'Bản tin sức khỏe từ nguồn chính thức.',
         sourceText,
       ), 220);
       const summary = truncateArticleMessageText(
         sanitizeHealthEditorialText(
-          ensureVietnameseHealthText(editorial.summary, sourceSummaryFallback, international),
+          translated.succeeded ? translated.summary : sourceSummaryFallback,
           sourceSummaryFallback,
           sourceText,
         ),
         520,
       );
       let safeTakeaway = sanitizeHealthEditorialText(
-        ensureVietnameseHealthText(
-          editorial.actionText,
-          topic.fallbackSafeTakeaway,
-          international,
-        ),
+        editorial.languageVerified === true
+          ? editorial.actionText
+          : topic.fallbackSafeTakeaway,
         topic.fallbackSafeTakeaway,
         sourceText,
       );
-      if (entry.evidence === 'drug-safety' && !clinicianPattern.test(safeTakeaway)) {
-        safeTakeaway = topic.fallbackSafeTakeaway;
+      if (entry.evidence === 'drug-safety') {
+        safeTakeaway = drugSafetyTakeaway;
       }
       safeTakeaway = truncateArticleMessageText(safeTakeaway, 320);
       let evidenceNote = sanitizeHealthEditorialText(
-        ensureVietnameseHealthText(
-          editorial.whyImportant,
-          topic.fallbackEvidenceNote,
-          international,
-        ),
+        editorial.languageVerified === true
+          ? editorial.whyImportant
+          : topic.fallbackEvidenceNote,
         topic.fallbackEvidenceNote,
         sourceText,
       );
-      if (entry.evidence === 'research' && !researchLimitationPattern.test(evidenceNote)) {
-        evidenceNote = topic.fallbackEvidenceNote;
+      if (entry.evidence === 'research') {
+        const sourceLimitations = getResearchLimitations(sourceText);
+        if (!sourceLimitations.length && !researchLimitationPattern.test(evidenceNote)) {
+          evidenceNote = topic.fallbackEvidenceNote;
+        }
+        evidenceNote = [evidenceNote, ...sourceLimitations]
+          .filter((note, index, notes) => notes.indexOf(note) === index)
+          .join(' ');
       }
       evidenceNote = truncateArticleMessageText(evidenceNote, 360);
       const text = [
@@ -149,13 +181,25 @@ export class HealthMessageService {
   }
 }
 
-function ensureVietnameseHealthText(
-  value: string,
-  fallback: string,
-  required: boolean,
-): string {
-  if (!required || vietnameseCharacterPattern.test(value)) return value;
-  return fallback;
+async function translateHealthTitleAndSummary(
+  translator: VerifiedHealthTranslator,
+  editorial: ArticleEditorial,
+): Promise<{ title: string; summary: string; succeeded: boolean }> {
+  const [title, summary] = await Promise.all([
+    translator.translateDigestVerified(editorial.title),
+    translator.translateDigestVerified(editorial.summary),
+  ]);
+  return {
+    title: title.text,
+    summary: summary.text,
+    succeeded: title.succeeded && summary.succeeded,
+  };
+}
+
+function getResearchLimitations(sourceText: string): string[] {
+  return researchQualifierRules
+    .filter(({ pattern }) => pattern.test(sourceText))
+    .map(({ note }) => note);
 }
 
 function getHealthTopic(key: HealthTopicKey) {

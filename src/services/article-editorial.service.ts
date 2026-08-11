@@ -96,8 +96,7 @@ export class ArticleEditorialService {
       // Tính `parsed` từ `parseJsonObject(raw);` và giữ bất biến trong phạm vi hiện tại.
       const parsed = parseJsonObject(raw);
 
-      // Trả `{` cho caller và kết thúc nhánh hiện tại.
-      return {
+      const editorial: ArticleEditorial = {
         // Gán field `title` từ `cleanString(parsed.title) || fallback.title,` để object khớp contract.
         title: cleanString(parsed.title) || fallback.title,
         // Gán field `summary` từ `cleanString(parsed.summary) || fallback.summary,` để object khớp contract.
@@ -109,6 +108,9 @@ export class ArticleEditorialService {
         // Gán field `actionText` từ `cleanString(parsed.actionText) || fallback.actionText,` để object khớp contract.
         actionText: cleanString(parsed.actionText) || fallback.actionText,
       };
+      return parsed.languageVerified === true
+        ? { ...editorial, languageVerified: true }
+        : editorial;
     // Bắt lỗi từ khối try, không để một dependency ngoài làm hỏng toàn bộ đợt xử lý.
     } catch (error) {
       // Ghi sự kiện `console.warn('Article editorial generation failed, using fallback', error);` phục vụ chẩn đoán mà không đổi kết quả nghiệp vụ.

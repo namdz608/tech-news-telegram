@@ -21,6 +21,7 @@ export interface ArticleEditorial {
   whyImportant: string;
   actionLevel: ActionLevel;
   actionText: string;
+  languageVerified?: boolean;
 }
 
 /**

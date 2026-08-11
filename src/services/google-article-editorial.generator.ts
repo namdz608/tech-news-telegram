@@ -22,6 +22,7 @@ import { GoogleTranslationService } from './google-translation.service';
 // Mở khai báo `interface TextTranslator` để compiler kiểm tra contract cho mọi consumer.
 interface TextTranslator {
   translateDigest(text: string): Promise<string>;
+  translateDigestVerified?(text: string): Promise<{ text: string; succeeded: boolean }>;
 }
 
 /**
@@ -44,6 +45,20 @@ export class GoogleArticleEditorialGenerator implements ArticleEditorialGenerato
    */
   // Mở method `generate` để thực hiện trách nhiệm `generate` của module.
   async generate(input: ArticleEditorialInput): Promise<string> {
+    if (this.translator.translateDigestVerified) {
+      const [title, summary] = await Promise.all([
+        this.translator.translateDigestVerified(input.title),
+        input.summary
+          ? this.translator.translateDigestVerified(input.summary)
+          : Promise.resolve({ text: '', succeeded: true }),
+      ]);
+      return JSON.stringify({
+        title: title.text,
+        summary: summary.text,
+        languageVerified: title.succeeded && summary.succeeded,
+      });
+    }
+
     const [title, summary] = await Promise.all([
       this.translator.translateDigest(input.title),
       input.summary ? this.translator.translateDigest(input.summary) : Promise.resolve(''),

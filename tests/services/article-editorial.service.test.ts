@@ -23,6 +23,7 @@ describe('ArticleEditorialService', () => {
           whyImportant: 'Gateway thường được mở trực tiếp ra Internet.',
           actionLevel: 'urgent',
           actionText: 'Kiểm tra phơi nhiễm và vá ngay.',
+          languageVerified: true,
         }),
       ),
     };
@@ -33,6 +34,7 @@ describe('ArticleEditorialService', () => {
       whyImportant: 'Gateway thường được mở trực tiếp ra Internet.',
       actionLevel: 'urgent',
       actionText: 'Kiểm tra phơi nhiễm và vá ngay.',
+      languageVerified: true,
     });
   });
 

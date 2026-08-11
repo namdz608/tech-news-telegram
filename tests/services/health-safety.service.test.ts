@@ -50,6 +50,14 @@ describe('health safety policy', () => {
     expect(sanitizeHealthEditorialText('Hãy ngừng thuốc ngay.', fallback)).toBe(fallback);
     expect(sanitizeHealthEditorialText('Thuốc này nên ngừng ngay.', fallback)).toBe(fallback);
     expect(sanitizeHealthEditorialText('Hãy ngừng điều trị ngay.', fallback)).toBe(fallback);
+    expect(sanitizeHealthEditorialText(
+      'Hãy điều chỉnh liều thuốc theo triệu chứng.',
+      fallback,
+    )).toBe(fallback);
+    expect(sanitizeHealthEditorialText(
+      'Change your medication based on symptoms.',
+      fallback,
+    )).toBe(fallback);
     expect(sanitizeHealthEditorialText('Bạn mắc bệnh thận.', fallback)).toBe(fallback);
     expect(sanitizeHealthEditorialText('Kê đơn thuốc mới cho bạn.', fallback)).toBe(fallback);
     expect(sanitizeHealthEditorialText(
