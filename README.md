@@ -70,6 +70,13 @@ GADGET_MAX_ARTICLES=12
 GADGET_HISTORY_RETENTION_DAYS=30
 GADGET_HISTORY_PATH=data/gadget-sent-history.json
 
+# Health and lifestyle Telegram flow (POST /telegram/send-health)
+HEALTH_TELEGRAM_BOT_TOKEN=replace_me
+HEALTH_TELEGRAM_CHAT_ID=replace_me
+HEALTH_MAX_ARTICLES=12
+HEALTH_HISTORY_RETENTION_DAYS=7
+HEALTH_HISTORY_PATH=data/health-sent-history.json
+
 X_BEARER_TOKEN=
 X_SEARCH_QUERY=(AI OR "artificial intelligence" OR LLM OR Kubernetes OR DevOps OR cloud OR security OR CVE) lang:en -is:retweet -is:reply
 X_SEARCH_MAX_RESULTS=20
@@ -167,6 +174,32 @@ Khi chạy Docker, gắn volume bền vững để giữ lịch sử qua lần r
 ```bash
 docker run -v tech-news-gadget-data:/app/data -p 3000:3000 --env-file .env tech-news-telegram
 ```
+
+### Bản tin đời sống và sức khỏe
+
+`POST /telegram/send-health` đọc bảy RSS đã duyệt: VnExpress Sức khỏe, Tuổi Trẻ
+Sức khỏe, Thanh Niên Sức khỏe, MedlinePlus New Links, MedlinePlus Healthy Living,
+FDA MedWatch và NIH/NIDDK News. Bài được biên tập sang tiếng Việt và cân bằng theo
+sáu nhóm: giấc ngủ, dinh dưỡng, vận động, sức khỏe tinh thần, phòng bệnh, và bệnh
+lý/thuốc/nghiên cứu.
+
+Mỗi lần gọi gửi tối đa 12 bài, tối đa hai bài cho mỗi nhóm và hai bài cho mỗi
+nguồn. URL đã gửi được lưu riêng trong 7 ngày tại
+`data/health-sent-history.json`. Nội dung chỉ nhằm cung cấp thông tin:
+`Thông tin tham khảo, không thay thế chẩn đoán hoặc điều trị y khoa.`
+
+Ứng dụng không có scheduler và không tự chạy lịch. Ứng dụng cũng không cung cấp
+endpoint lấy chat ID; hãy gửi tin cho bot rồi lấy chat ID bằng quy trình vận hành
+của Telegram. Kích hoạt thủ công bằng API:
+
+```bash
+curl -X POST http://localhost:3000/telegram/send-health
+```
+
+HTTP 200 trả kết quả gửi hoặc `reason: "no_new_articles"`; HTTP 409 nghĩa là
+luồng sức khỏe đang chạy; HTTP 503 nghĩa là toàn bộ nguồn sức khỏe đều lỗi.
+Gadget và sức khỏe dùng lock, bot/chat, lịch sử và cấu hình độc lập. Volume
+`/app/data` trong lệnh Docker phía trên cũng lưu bền vững lịch sử sức khỏe.
 
 Gửi tin tuyển dụng Việt Nam (TopCV, ITviec, VietnamWorks) — **gom 1 PDF gửi email** (không Telegram):
 
