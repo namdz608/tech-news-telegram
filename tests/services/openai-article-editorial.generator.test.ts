@@ -23,4 +23,18 @@ describe('OpenAIArticleEditorialGenerator', () => {
       input: JSON.stringify(input),
     });
   });
+
+  it('uses domain-specific instructions when provided', async () => {
+    const create = vi.fn().mockResolvedValue({ output_text: '{"title":"Tin"}' });
+    const generator = new OpenAIArticleEditorialGenerator({ responses: { create } }, 'test-model');
+    const customInput = { ...input, instructions: 'CUSTOM-INSTRUCTIONS' };
+
+    await generator.generate(customInput);
+
+    expect(create).toHaveBeenCalledWith({
+      model: 'test-model',
+      instructions: 'CUSTOM-INSTRUCTIONS',
+      input: JSON.stringify(customInput),
+    });
+  });
 });

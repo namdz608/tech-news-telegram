@@ -62,7 +62,7 @@ export class OpenAIArticleEditorialGenerator implements ArticleEditorialGenerato
       // Gán field `model` từ `this.model,` để object khớp contract.
       model: this.model,
       // Gán field `instructions` từ `articleEditorialInstructions,` để object khớp contract.
-      instructions: articleEditorialInstructions,
+      instructions: input.instructions ?? articleEditorialInstructions,
       // Gán field `input` từ `JSON.stringify(input),` để object khớp contract.
       input: JSON.stringify(input),
     });

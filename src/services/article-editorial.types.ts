@@ -34,11 +34,14 @@ export interface ArticleEditorialInput {
   topic: string;
   publishedAt?: string;
   collectedAt: string;
+  instructions?: string;
 }
 
 export interface EditorialTopicContext {
   key: string;
   fallbackWhyImportant: string;
+  fallbackActionText?: string;
+  instructions?: string;
 }
 
 /**

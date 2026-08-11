@@ -91,6 +91,7 @@ export class ArticleEditorialService {
         publishedAt: article.publishedAt,
         // Gán field `collectedAt` từ `article.collectedAt,` để object khớp contract.
         collectedAt: article.collectedAt,
+        instructions: topicContext.instructions,
       });
       // Tính `parsed` từ `parseJsonObject(raw);` và giữ bất biến trong phạm vi hiện tại.
       const parsed = parseJsonObject(raw);
@@ -172,7 +173,9 @@ export function createFallbackEditorial(
     // Gán field `actionLevel` từ `'monitor',` để object khớp contract.
     actionLevel: 'monitor',
     // Gán field `actionText` từ `'Kiểm tra mức độ liên quan và theo dõi thông báo chính thức từ nguồn.',` để object khớp contract.
-    actionText: 'Kiểm tra mức độ liên quan và theo dõi thông báo chính thức từ nguồn.',
+    actionText:
+      topicContext.fallbackActionText
+      ?? 'Kiểm tra mức độ liên quan và theo dõi thông báo chính thức từ nguồn.',
   };
 }
 

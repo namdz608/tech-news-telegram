@@ -85,4 +85,23 @@ describe('ArticleEditorialService', () => {
       actionLevel: 'monitor',
     });
   });
+
+  it('passes domain instructions and uses a domain fallback action', async () => {
+    const generator = { generate: vi.fn().mockResolvedValue('{}') };
+    const service = new ArticleEditorialService(generator);
+    const healthArticle = { ...article, title: 'Healthy sleep' };
+
+    await expect(service.editArticle(healthArticle, {
+      key: 'sleep-recovery',
+      fallbackWhyImportant: 'Evidence fallback',
+      fallbackActionText: 'Safe action fallback',
+      instructions: 'HEALTH-SAFETY-INSTRUCTIONS',
+    })).resolves.toMatchObject({
+      whyImportant: 'Evidence fallback',
+      actionText: 'Safe action fallback',
+    });
+    expect(generator.generate).toHaveBeenCalledWith(expect.objectContaining({
+      instructions: 'HEALTH-SAFETY-INSTRUCTIONS',
+    }));
+  });
 });
