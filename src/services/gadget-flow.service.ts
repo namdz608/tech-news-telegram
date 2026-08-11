@@ -1,6 +1,7 @@
 import { env } from '../config/env';
 import type { Article } from '../types/article';
-import type { GadgetMessage, GadgetSelectionResult } from '../types/gadget';
+import type { GadgetDigestEntry, GadgetMessage, GadgetSelectionResult } from '../types/gadget';
+import { CuratedTelegramFlow } from './curated-telegram-flow.service';
 import { GadgetDeliveryService } from './gadget-delivery.service';
 import { GadgetMessageService } from './gadget-message.service';
 import { GadgetSelectionService } from './gadget-selection.service';
@@ -30,31 +31,30 @@ export function isAllGadgetSourcesFailedError(error: unknown): boolean {
 }
 
 export class GadgetFlowService {
-  constructor(
-    private readonly source: Collector,
-    private readonly history: HistoryReader,
-    private readonly selection: Selector,
-    private readonly messages: MessageBuilder,
-    private readonly delivery: Delivery,
-  ) {}
+  private readonly flow: CuratedTelegramFlow<
+    GadgetDigestEntry,
+    GadgetMessage,
+    'telegram-gadgets'
+  >;
 
-  async run() {
-    const collected = await this.source.collectLatest();
-    if (collected.successfulSourceCount === 0) throw new AllGadgetSourcesFailedError();
-    const result = this.selection.select(collected.articles, await this.history.seenUrls());
-    const common = {
-      collectedCount: collected.articles.length,
-      eligibleCount: result.eligibleCount,
-      skippedSeenCount: result.skippedSeenCount,
-      language: 'vi' as const,
-      channel: 'telegram-gadgets' as const,
-    };
-    if (result.selected.length === 0) {
-      return { sent: false, reason: 'no_new_articles' as const, messageCount: 0, ...common };
-    }
-    const messages = await this.messages.buildMessages(result.selected);
-    await this.delivery.send(messages);
-    return { sent: true, messageCount: messages.length, ...common };
+  constructor(
+    source: Collector,
+    history: HistoryReader,
+    selection: Selector,
+    messages: MessageBuilder,
+    delivery: Delivery,
+  ) {
+    this.flow = new CuratedTelegramFlow(
+      { collector: source, history, selector: selection, messageBuilder: messages, delivery },
+      {
+        channel: 'telegram-gadgets',
+        createAllSourcesFailedError: () => new AllGadgetSourcesFailedError(),
+      },
+    );
+  }
+
+  run() {
+    return this.flow.run();
   }
 }
 
