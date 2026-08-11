@@ -1,4 +1,5 @@
 import { expect, it, vi } from 'vitest';
+import { verifiedVietnameseEditorial } from '../../src/services/article-editorial.types';
 import { HealthMessageService } from '../../src/services/health-message.service';
 import type { Article } from '../../src/types/article';
 
@@ -15,7 +16,7 @@ it('renders evidence, safe action, limitation, disclaimer, and source', async ()
     whyImportant: 'Khuyến nghị chung có thể không phù hợp với mọi người.',
     actionLevel: 'monitor' as const,
     actionText: 'Duy trì giờ ngủ đều.',
-    languageVerified: true,
+    [verifiedVietnameseEditorial]: true,
   }) };
   const service = new HealthMessageService(editor);
   const messages = await service.buildMessages([{
@@ -43,7 +44,7 @@ it('replaces generated dosage and treatment directives', async () => {
     title: 'Thông tin thuốc', summary: 'Uống 500 mg mỗi ngày.',
     whyImportant: 'Hãy ngừng thuốc ngay.', actionLevel: 'high' as const,
     actionText: 'Đổi thuốc và tăng liều.',
-    languageVerified: true,
+    [verifiedVietnameseEditorial]: true,
   }) };
   const service = new HealthMessageService(editor);
   const [message] = await service.buildMessages([{
@@ -62,7 +63,7 @@ it('escapes HTML and stays below Telegram text limits', async () => {
     whyImportant: 'Giới hạn <cần xem xét>.',
     actionLevel: 'monitor' as const,
     actionText: 'Duy trì giờ ngủ đều.',
-    languageVerified: true,
+    [verifiedVietnameseEditorial]: true,
   }) };
   const service = new HealthMessageService(editor);
   const [message] = await service.buildMessages([{
@@ -87,7 +88,7 @@ it('forces clinician guidance for drug-safety messages', async () => {
     whyImportant: 'Cảnh báo áp dụng cho một số sản phẩm.',
     actionLevel: 'high' as const,
     actionText: 'Bác sĩ đang theo dõi cảnh báo.',
-    languageVerified: true,
+    [verifiedVietnameseEditorial]: true,
   }) };
   const service = new HealthMessageService(editor);
   const [message] = await service.buildMessages([{
@@ -104,10 +105,10 @@ it('forces an evidence limitation for research messages', async () => {
   const editor = { editArticle: vi.fn().mockResolvedValue({
     title: 'Nghiên cứu mới về bệnh thận',
     summary: 'Nghiên cứu ghi nhận một kết quả mới.',
-    whyImportant: 'Kết quả này rất đáng chú ý.',
+    whyImportant: `Kết quả còn sơ bộ và rất đáng chú ý. ${'Chi tiết. '.repeat(80)}`,
     actionLevel: 'monitor' as const,
     actionText: 'Theo dõi nguồn nghiên cứu chính thức.',
-    languageVerified: true,
+    [verifiedVietnameseEditorial]: true,
   }) };
   const service = new HealthMessageService(editor);
   const [message] = await service.buildMessages([{

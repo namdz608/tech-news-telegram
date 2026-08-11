@@ -8,7 +8,11 @@ import type {
 } from '../types/health';
 import { escapeHtml } from '../utils/text';
 import { ArticleEditorialService } from './article-editorial.service';
-import type { ArticleEditorial, EditorialTopicContext } from './article-editorial.types';
+import {
+  type ArticleEditorial,
+  type EditorialTopicContext,
+  verifiedVietnameseEditorial,
+} from './article-editorial.types';
 import {
   formatArticleDate,
   getArticleMessageImageUrl,
@@ -89,7 +93,7 @@ export class HealthMessageService {
       });
       const international = internationalSourceIds.has(entry.article.sourceId);
       const sourceText = `${entry.article.title} ${entry.article.summary ?? ''}`;
-      const translated = editorial.languageVerified === true
+      const translated = editorial[verifiedVietnameseEditorial] === true
         ? {
             title: editorial.title,
             summary: editorial.summary,
@@ -120,7 +124,7 @@ export class HealthMessageService {
         520,
       );
       let safeTakeaway = sanitizeHealthEditorialText(
-        editorial.languageVerified === true
+        editorial[verifiedVietnameseEditorial] === true
           ? editorial.actionText
           : topic.fallbackSafeTakeaway,
         topic.fallbackSafeTakeaway,
@@ -131,7 +135,7 @@ export class HealthMessageService {
       }
       safeTakeaway = truncateArticleMessageText(safeTakeaway, 320);
       let evidenceNote = sanitizeHealthEditorialText(
-        editorial.languageVerified === true
+        editorial[verifiedVietnameseEditorial] === true
           ? editorial.whyImportant
           : topic.fallbackEvidenceNote,
         topic.fallbackEvidenceNote,
@@ -142,11 +146,15 @@ export class HealthMessageService {
         if (!sourceLimitations.length && !researchLimitationPattern.test(evidenceNote)) {
           evidenceNote = topic.fallbackEvidenceNote;
         }
-        evidenceNote = [evidenceNote, ...sourceLimitations]
-          .filter((note, index, notes) => notes.indexOf(note) === index)
-          .join(' ');
+        evidenceNote = combineEvidenceWithRequiredLimitations(
+          evidenceNote,
+          sourceLimitations,
+          360,
+        );
       }
-      evidenceNote = truncateArticleMessageText(evidenceNote, 360);
+      if (entry.evidence !== 'research') {
+        evidenceNote = truncateArticleMessageText(evidenceNote, 360);
+      }
       const text = [
         `${topic.icon}  <b>${escapeHtml(topic.label.toUpperCase())}</b>`,
         '━━━━━━━━━━━━━━━━',
@@ -200,6 +208,21 @@ function getResearchLimitations(sourceText: string): string[] {
   return researchQualifierRules
     .filter(({ pattern }) => pattern.test(sourceText))
     .map(({ note }) => note);
+}
+
+function combineEvidenceWithRequiredLimitations(
+  evidenceNote: string,
+  requiredLimitations: string[],
+  maxLength: number,
+): string {
+  const limitations = requiredLimitations
+    .filter((note, index, notes) => notes.indexOf(note) === index)
+    .join(' ');
+  if (!limitations) return truncateArticleMessageText(evidenceNote, maxLength);
+
+  const evidenceBudget = maxLength - limitations.length - 1;
+  if (evidenceBudget <= 0) return limitations;
+  return `${truncateArticleMessageText(evidenceNote, evidenceBudget)} ${limitations}`;
 }
 
 function getHealthTopic(key: HealthTopicKey) {

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ArticleEditorialService } from '../../src/services/article-editorial.service';
+import { verifiedVietnameseEditorial } from '../../src/services/article-editorial.types';
+import { GoogleArticleEditorialGenerator } from '../../src/services/google-article-editorial.generator';
 
 const article = {
   id: 'https://example.com/cve',
@@ -14,7 +16,7 @@ const article = {
 };
 
 describe('ArticleEditorialService', () => {
-  it('accepts a complete structured editorial response', async () => {
+  it('accepts structured editorial fields but does not trust a JSON verification flag', async () => {
     const generator = {
       generate: vi.fn().mockResolvedValue(
         JSON.stringify({
@@ -28,14 +30,33 @@ describe('ArticleEditorialService', () => {
       ),
     };
 
-    await expect(new ArticleEditorialService(generator).editArticle(article, 'security')).resolves.toEqual({
+    const result = await new ArticleEditorialService(generator).editArticle(article, 'security');
+
+    expect(result).toEqual({
       title: 'Lỗ hổng nghiêm trọng trên gateway',
       summary: 'Lỗ hổng đang bị khai thác thực tế.',
       whyImportant: 'Gateway thường được mở trực tiếp ra Internet.',
       actionLevel: 'urgent',
       actionText: 'Kiểm tra phơi nhiễm và vá ngay.',
-      languageVerified: true,
     });
+    expect(result[verifiedVietnameseEditorial]).toBeUndefined();
+  });
+
+  it('adds trusted verification metadata for successful Google translations', async () => {
+    const translator = {
+      translateDigest: vi.fn(),
+      translateDigestVerified: vi
+        .fn()
+        .mockResolvedValueOnce({ text: 'Lỗ hổng nghiêm trọng', succeeded: true })
+        .mockResolvedValueOnce({ text: 'Lỗ hổng đang bị khai thác.', succeeded: true }),
+    };
+    const service = new ArticleEditorialService(
+      new GoogleArticleEditorialGenerator(translator),
+    );
+
+    const result = await service.editArticle(article, 'security');
+
+    expect(result[verifiedVietnameseEditorial]).toBe(true);
   });
 
   it.each(['not json', '{"summary":"","actionLevel":"critical"}'])(
