@@ -10,6 +10,10 @@
  */
 export type ActionLevel = 'urgent' | 'high' | 'monitor';
 
+export const verifiedVietnameseEditorial: unique symbol = Symbol(
+  'verifiedVietnameseEditorial',
+);
+
 /**
  * Editorial đã validate, sẵn sàng để DigestService render HTML.
  * Được dùng tại `article-editorial.service.ts`, `digest-message-editorial.service.ts`
@@ -21,6 +25,7 @@ export interface ArticleEditorial {
   whyImportant: string;
   actionLevel: ActionLevel;
   actionText: string;
+  [verifiedVietnameseEditorial]?: true;
 }
 
 /**
@@ -34,11 +39,14 @@ export interface ArticleEditorialInput {
   topic: string;
   publishedAt?: string;
   collectedAt: string;
+  instructions?: string;
 }
 
 export interface EditorialTopicContext {
   key: string;
   fallbackWhyImportant: string;
+  fallbackActionText?: string;
+  instructions?: string;
 }
 
 /**

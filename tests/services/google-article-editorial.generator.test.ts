@@ -30,4 +30,21 @@ describe('GoogleArticleEditorialGenerator', () => {
     expect(translator.translateDigest).toHaveBeenNthCalledWith(1, input.title);
     expect(translator.translateDigest).toHaveBeenNthCalledWith(2, input.summary);
   });
+
+  it('marks editorial language verified only when both translations succeed', async () => {
+    const translator = {
+      translateDigest: vi.fn(),
+      translateDigestVerified: vi
+        .fn()
+        .mockResolvedValueOnce({ text: 'Lỗ hổng nghiêm trọng', succeeded: true })
+        .mockResolvedValueOnce({ text: 'Lỗ hổng đang bị khai thác.', succeeded: true }),
+    };
+    const generator = new GoogleArticleEditorialGenerator(translator);
+
+    await expect(generator.generate(input)).resolves.toBe(JSON.stringify({
+      title: 'Lỗ hổng nghiêm trọng',
+      summary: 'Lỗ hổng đang bị khai thác.',
+      languageVerified: true,
+    }));
+  });
 });

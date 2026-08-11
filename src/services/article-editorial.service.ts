@@ -21,6 +21,7 @@ import type {
   ArticleEditorialGenerator,
   EditorialTopicContext,
 } from './article-editorial.types';
+import { verifiedVietnameseEditorial } from './article-editorial.types';
 // Nạp { CodexArticleEditorialGenerator } từ `./codex-article-editorial.generator` để dùng đúng dependency/type thay vì tự triển khai lại.
 import { CodexArticleEditorialGenerator } from './codex-article-editorial.generator';
 // Nạp { GoogleArticleEditorialGenerator } từ `./google-article-editorial.generator` để dùng đúng dependency/type thay vì tự triển khai lại.
@@ -91,12 +92,12 @@ export class ArticleEditorialService {
         publishedAt: article.publishedAt,
         // Gán field `collectedAt` từ `article.collectedAt,` để object khớp contract.
         collectedAt: article.collectedAt,
+        instructions: topicContext.instructions,
       });
       // Tính `parsed` từ `parseJsonObject(raw);` và giữ bất biến trong phạm vi hiện tại.
       const parsed = parseJsonObject(raw);
 
-      // Trả `{` cho caller và kết thúc nhánh hiện tại.
-      return {
+      const editorial: ArticleEditorial = {
         // Gán field `title` từ `cleanString(parsed.title) || fallback.title,` để object khớp contract.
         title: cleanString(parsed.title) || fallback.title,
         // Gán field `summary` từ `cleanString(parsed.summary) || fallback.summary,` để object khớp contract.
@@ -108,6 +109,10 @@ export class ArticleEditorialService {
         // Gán field `actionText` từ `cleanString(parsed.actionText) || fallback.actionText,` để object khớp contract.
         actionText: cleanString(parsed.actionText) || fallback.actionText,
       };
+      return this.generator instanceof GoogleArticleEditorialGenerator
+        && parsed.languageVerified === true
+        ? { ...editorial, [verifiedVietnameseEditorial]: true }
+        : editorial;
     // Bắt lỗi từ khối try, không để một dependency ngoài làm hỏng toàn bộ đợt xử lý.
     } catch (error) {
       // Ghi sự kiện `console.warn('Article editorial generation failed, using fallback', error);` phục vụ chẩn đoán mà không đổi kết quả nghiệp vụ.
@@ -172,7 +177,9 @@ export function createFallbackEditorial(
     // Gán field `actionLevel` từ `'monitor',` để object khớp contract.
     actionLevel: 'monitor',
     // Gán field `actionText` từ `'Kiểm tra mức độ liên quan và theo dõi thông báo chính thức từ nguồn.',` để object khớp contract.
-    actionText: 'Kiểm tra mức độ liên quan và theo dõi thông báo chính thức từ nguồn.',
+    actionText:
+      topicContext.fallbackActionText
+      ?? 'Kiểm tra mức độ liên quan và theo dõi thông báo chính thức từ nguồn.',
   };
 }
 

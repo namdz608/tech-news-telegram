@@ -43,7 +43,7 @@ export class CodexArticleEditorialGenerator implements ArticleEditorialGenerator
     // Tính `output` từ `await this.runner.run(` và giữ bất biến trong phạm vi hiện tại.
     const output = await this.runner.run(
       // Đưa giá trị `articleEditorialInstructions` vào field cùng tên của object đang tạo.
-      articleEditorialInstructions,
+      input.instructions ?? articleEditorialInstructions,
       JSON.stringify(input),
       this.timeoutMs,
     );

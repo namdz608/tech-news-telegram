@@ -27,7 +27,18 @@ describe('GadgetFlowService', () => {
     deps.messages.buildMessages.mockResolvedValue([message]);
     const flow = new GadgetFlowService(deps.source, deps.history, deps.selection, deps.messages, deps.delivery);
 
-    await expect(flow.run()).resolves.toMatchObject({ sent: true, collectedCount: 1, messageCount: 1 });
+    await expect(flow.run()).resolves.toEqual({
+      sent: true,
+      messageCount: 1,
+      collectedCount: 1,
+      eligibleCount: 1,
+      skippedSeenCount: 0,
+      language: 'vi',
+      channel: 'telegram-gadgets',
+    });
+    expect(deps.history.seenUrls).toHaveBeenCalledOnce();
+    expect(deps.selection.select).toHaveBeenCalledWith([article], new Set());
+    expect(deps.messages.buildMessages).toHaveBeenCalledWith([entry]);
     expect(deps.delivery.send).toHaveBeenCalledWith([message]);
   });
 

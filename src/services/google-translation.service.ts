@@ -37,10 +37,15 @@ export class GoogleTranslationService implements DigestTranslator {
    */
   // Mở method `translateDigest` để dịch nội dung và giữ fallback khi provider lỗi.
   async translateDigest(digest: string): Promise<string> {
+    return (await this.translateDigestVerified(digest)).text;
+  }
+
+  async translateDigestVerified(
+    digest: string,
+  ): Promise<{ text: string; succeeded: boolean }> {
     // Nếu `!digest.trim()` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
     if (!digest.trim()) {
-      // Trả `digest;` cho caller và kết thúc nhánh hiện tại.
-      return digest;
+      return { text: digest, succeeded: true };
     }
 
     // Cô lập thao tác có thể lỗi để module còn cơ hội log và trả fallback an toàn.
@@ -54,15 +59,20 @@ export class GoogleTranslationService implements DigestTranslator {
       );
       
       // Tính `translated` từ `translatedChunks.map((chunk) => chunk.trim()).filter(Boolean).join('\n\n');` và giữ bất biến trong phạm vi hiện tại.
-      const translated = translatedChunks.map((chunk) => chunk.trim()).filter(Boolean).join('\n\n');
-      // Trả `translated.trim() || digest;` cho caller và kết thúc nhánh hiện tại.
-      return translated.trim() || digest;
+      const succeeded = translatedChunks.every((chunk) => chunk.succeeded);
+      const translated = translatedChunks
+        .map((chunk) => chunk.text.trim())
+        .filter(Boolean)
+        .join('\n\n');
+      const text = translated.trim();
+      return succeeded && text
+        ? { text, succeeded: true }
+        : { text: digest, succeeded: false };
     // Bắt lỗi từ khối try, không để một dependency ngoài làm hỏng toàn bộ đợt xử lý.
     } catch (error) {
       // Ghi sự kiện `console.error('Google Translate failed', error);` phục vụ chẩn đoán mà không đổi kết quả nghiệp vụ.
       console.error('Google Translate failed', error);
-      // Trả `digest;` cho caller và kết thúc nhánh hiện tại.
-      return digest;
+      return { text: digest, succeeded: false };
     }
   }
 
@@ -73,7 +83,7 @@ export class GoogleTranslationService implements DigestTranslator {
    * - `src/services/google-translation.service.ts`
    */
   // Mở method `translateText` để gọi Google Translate cho đúng một chunk; lỗi HTTP được propagate lên `translateDigest` để fallback toàn digest.
-  private async translateText(text: string): Promise<string> {
+  private async translateText(text: string): Promise<{ text: string; succeeded: boolean }> {
     // Tính `response` từ `await this.http.get('https://translate.googleapis.com/translate_a/single', {` và giữ bất biến trong phạm vi hiện tại.
     const response = await this.http.get('https://translate.googleapis.com/translate_a/single', {
       // Gán field `params` từ `{` để object khớp contract.
@@ -106,11 +116,13 @@ export class GoogleTranslationService implements DigestTranslator {
         .join('');
 
       // Trả `translated || text;` cho caller và kết thúc nhánh hiện tại.
-      return translated || text;
+      return translated
+        ? { text: translated, succeeded: true }
+        : { text, succeeded: false };
     }
 
     // Trả `text;` cho caller và kết thúc nhánh hiện tại.
-    return text;
+    return { text, succeeded: false };
   }
 }
 

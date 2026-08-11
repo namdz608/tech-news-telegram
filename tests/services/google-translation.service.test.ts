@@ -11,6 +11,10 @@ describe('GoogleTranslationService', () => {
     const service = new GoogleTranslationService('vi', http as never);
 
     await expect(service.translateDigest('Tech news digest')).resolves.toBe('Bản tin công nghệ mới nhất');
+    await expect(service.translateDigestVerified('Tech news digest')).resolves.toEqual({
+      text: 'Bản tin công nghệ mới nhất',
+      succeeded: true,
+    });
   });
 
   it('returns the original text when response segments are not strings', async () => {
@@ -22,5 +26,9 @@ describe('GoogleTranslationService', () => {
     const service = new GoogleTranslationService('vi', http as never);
 
     await expect(service.translateDigest('Tech news digest')).resolves.toBe('Tech news digest');
+    await expect(service.translateDigestVerified('Tech news digest')).resolves.toEqual({
+      text: 'Tech news digest',
+      succeeded: false,
+    });
   });
 });

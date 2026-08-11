@@ -12,6 +12,10 @@ import {
   createGadgetFlowService,
   isAllGadgetSourcesFailedError,
 } from '../services/gadget-flow.service';
+import {
+  createHealthFlowService,
+  isAllHealthSourcesFailedError,
+} from '../services/health-flow.service';
 import { buildJobsPdf } from '../services/jobs-pdf.service';
 import { SourceService } from '../services/source.service';
 import { TelegramService } from '../services/telegram.service';
@@ -24,6 +28,8 @@ const vnJobsCrawler = new VnJobsCrawler();
 const emailService = new EmailService();
 let gadgetFlowService: ReturnType<typeof createGadgetFlowService> | undefined;
 let gadgetDigestRunning = false;
+let healthFlowService: ReturnType<typeof createHealthFlowService> | undefined;
+let healthDigestRunning = false;
 
 /**
  * Thu thập, biên tập và gửi một đợt message Telegram (tech digest).
@@ -61,6 +67,28 @@ export async function sendGadgets(_req: Request, res: Response) {
     throw error;
   } finally {
     gadgetDigestRunning = false;
+  }
+}
+
+/** Thu thập và gửi bản tin đời sống/sức khỏe bằng bot/chat riêng. */
+export async function sendHealth(_req: Request, res: Response) {
+  if (healthDigestRunning) {
+    res.status(409).json({ error: 'Health digest is already running' });
+    return;
+  }
+
+  healthDigestRunning = true;
+  try {
+    healthFlowService ??= createHealthFlowService();
+    res.json(await healthFlowService.run());
+  } catch (error) {
+    if (isAllHealthSourcesFailedError(error)) {
+      res.status(503).json({ error: 'All health sources failed' });
+      return;
+    }
+    throw error;
+  } finally {
+    healthDigestRunning = false;
   }
 }
 

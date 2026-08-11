@@ -29,7 +29,7 @@ export class SentHistoryStore {
   private async load(): Promise<HistoryDocument> {
     try {
       const parsed: unknown = JSON.parse(await readFile(this.filePath, 'utf8'));
-      if (!isHistoryDocument(parsed)) throw new Error('Invalid gadget history schema');
+      if (!isHistoryDocument(parsed)) throw new Error('Invalid sent history schema');
       return pruneHistory(parsed, this.now(), this.retentionDays);
     } catch (error) {
       if (isMissingFile(error)) return { version: 1, sent: {} };
@@ -37,7 +37,7 @@ export class SentHistoryStore {
       await mkdir(dirname(this.filePath), { recursive: true });
       const corruptPath = `${this.filePath}.corrupt-${this.now().toISOString().replace(/[:.]/g, '-')}`;
       await rename(this.filePath, corruptPath);
-      console.warn(`Invalid gadget history moved to ${corruptPath}`, error);
+      console.warn(`Invalid sent history moved to ${corruptPath}`, error);
       return { version: 1, sent: {} };
     }
   }

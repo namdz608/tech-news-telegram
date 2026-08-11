@@ -24,4 +24,18 @@ describe('CodexArticleEditorialGenerator', () => {
     );
     expect(runner.run.mock.calls[0][0]).toContain('Không bịa');
   });
+
+  it('uses domain-specific instructions when provided', async () => {
+    const runner = { run: vi.fn().mockResolvedValue('{"title":"Tin"}') };
+    const generator = new CodexArticleEditorialGenerator(runner, 12345);
+    const customInput = { ...input, instructions: 'CUSTOM-INSTRUCTIONS' };
+
+    await generator.generate(customInput);
+
+    expect(runner.run).toHaveBeenCalledWith(
+      'CUSTOM-INSTRUCTIONS',
+      JSON.stringify(customInput),
+      12345,
+    );
+  });
 });
