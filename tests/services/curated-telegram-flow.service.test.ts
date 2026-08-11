@@ -1,0 +1,82 @@
+import { describe, expect, it, vi } from 'vitest';
+import { CuratedTelegramFlow } from '../../src/services/curated-telegram-flow.service';
+import type { Article } from '../../src/types/article';
+
+const article: Article = {
+  id: 'a', sourceId: 'source', sourceName: 'Source', title: 'Article',
+  url: 'https://example.com/a', collectedAt: '2026-08-11T00:00:00.000Z', topics: [],
+};
+const entry = { article, topic: 'topic', score: 10 };
+const message = { text: 'message', url: article.url };
+
+function dependencies() {
+  return {
+    collector: { collectLatest: vi.fn() },
+    history: { seenUrls: vi.fn().mockResolvedValue(new Set<string>()) },
+    selector: { select: vi.fn() },
+    messageBuilder: { buildMessages: vi.fn() },
+    delivery: { send: vi.fn().mockResolvedValue(undefined) },
+  };
+}
+
+describe('CuratedTelegramFlow', () => {
+  it('collects, selects, builds, delivers, and returns channel metadata', async () => {
+    const deps = dependencies();
+    deps.collector.collectLatest.mockResolvedValue({
+      articles: [article], successfulSourceCount: 6, failedSourceCount: 1,
+    });
+    deps.selector.select.mockReturnValue({
+      selected: [entry], eligibleCount: 1, skippedSeenCount: 0,
+    });
+    deps.messageBuilder.buildMessages.mockResolvedValue([message]);
+    const flow = new CuratedTelegramFlow(deps, {
+      channel: 'telegram-test',
+      createAllSourcesFailedError: () => new Error('all failed'),
+    });
+
+    await expect(flow.run()).resolves.toEqual({
+      sent: true,
+      messageCount: 1,
+      collectedCount: 1,
+      eligibleCount: 1,
+      skippedSeenCount: 0,
+      language: 'vi',
+      channel: 'telegram-test',
+    });
+    expect(deps.selector.select).toHaveBeenCalledWith([article], new Set());
+    expect(deps.delivery.send).toHaveBeenCalledWith([message]);
+  });
+
+  it('returns no_new_articles without building or sending messages', async () => {
+    const deps = dependencies();
+    deps.collector.collectLatest.mockResolvedValue({
+      articles: [article], successfulSourceCount: 7, failedSourceCount: 0,
+    });
+    deps.selector.select.mockReturnValue({
+      selected: [], eligibleCount: 0, skippedSeenCount: 1,
+    });
+    const flow = new CuratedTelegramFlow(deps, {
+      channel: 'telegram-test',
+      createAllSourcesFailedError: () => new Error('all failed'),
+    });
+
+    await expect(flow.run()).resolves.toMatchObject({
+      sent: false, reason: 'no_new_articles', messageCount: 0,
+    });
+    expect(deps.messageBuilder.buildMessages).not.toHaveBeenCalled();
+    expect(deps.delivery.send).not.toHaveBeenCalled();
+  });
+
+  it('throws the configured domain error when every source fails', async () => {
+    const deps = dependencies();
+    deps.collector.collectLatest.mockResolvedValue({
+      articles: [], successfulSourceCount: 0, failedSourceCount: 7,
+    });
+    const flow = new CuratedTelegramFlow(deps, {
+      channel: 'telegram-test',
+      createAllSourcesFailedError: () => new TypeError('domain failure'),
+    });
+
+    await expect(flow.run()).rejects.toEqual(new TypeError('domain failure'));
+  });
+});
