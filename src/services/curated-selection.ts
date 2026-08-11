@@ -40,16 +40,19 @@ export function pickBalancedCuratedEntries<
   limit: number,
   maxPerTopic = 2,
   maxPerSource = 2,
+  allowTopicOverflowOnBackfill = false,
 ): Array<Omit<TEntry, 'index'>> {
   const selected: TEntry[] = [];
   const urls = new Set<string>();
   const sourceCounts = new Map<string, number>();
   const topicCounts = new Map<TTopic, number>();
-  const tryPick = (entry: TEntry) => {
+  const tryPick = (entry: TEntry, enforceTopicCap = true) => {
     if (selected.length >= limit || urls.has(entry.article.url)) return false;
     const sourceCount = sourceCounts.get(entry.article.sourceId) ?? 0;
     const topicCount = topicCounts.get(entry.topic) ?? 0;
-    if (sourceCount >= maxPerSource || topicCount >= maxPerTopic) return false;
+    if (sourceCount >= maxPerSource || (enforceTopicCap && topicCount >= maxPerTopic)) {
+      return false;
+    }
     selected.push(entry);
     urls.add(entry.article.url);
     sourceCounts.set(entry.article.sourceId, sourceCount + 1);
@@ -64,7 +67,7 @@ export function pickBalancedCuratedEntries<
       if (tryPick(entry)) topicCount += 1;
     }
   }
-  for (const entry of ranked) tryPick(entry);
+  for (const entry of ranked) tryPick(entry, !allowTopicOverflowOnBackfill);
 
   return selected.map(({ index: _index, ...entry }) => entry);
 }

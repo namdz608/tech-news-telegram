@@ -116,4 +116,16 @@ describe('GadgetSelectionService', () => {
       'https://example.com/second',
     ]);
   });
+
+  it('preserves legacy backfill when only one gadget topic has candidates', () => {
+    const input = Array.from({ length: 6 }, (_, index) => article({
+      id: `gpu-${index}`,
+      url: `https://example.com/gpu-${index}`,
+      title: `New GPU model ${index}`,
+      sourceId: `source-${index}`,
+    }));
+
+    expect(new GadgetSelectionService(6, () => now).select(input, new Set()).selected)
+      .toHaveLength(6);
+  });
 });

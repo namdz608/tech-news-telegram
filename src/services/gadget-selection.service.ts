@@ -44,6 +44,7 @@ export class GadgetSelectionService {
         this.maxArticles,
         2,
         2,
+        true,
       ),
       eligibleCount: ranked.length,
       skippedSeenCount,
