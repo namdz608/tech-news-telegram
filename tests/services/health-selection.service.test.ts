@@ -45,6 +45,7 @@ describe('HealthSelectionService', () => {
     ['Nhận biết căng thẳng và lo âu', 'mental-wellbeing'],
     ['Vắc xin và vệ sinh giúp phòng bệnh', 'prevention-daily-life'],
     ['Nghiên cứu thuốc điều trị bệnh thận', 'conditions-medicine-research'],
+    ['FDA recalls a medical device over safety concerns', 'conditions-medicine-research'],
   ])('classifies %s as %s', (title, topic) => {
     const result = service.select([article({ title })], new Set());
     expect(result.selected[0].topic).toBe(topic);

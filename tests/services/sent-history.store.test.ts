@@ -40,12 +40,36 @@ describe('SentHistoryStore', () => {
     expect(await store.seenUrls()).toEqual(new Set(['https://example.com/fresh']));
   });
 
+  it('honors the health retention boundary at exactly seven days', async () => {
+    const healthStore = new SentHistoryStore(
+      historyPath,
+      7,
+      () => new Date('2026-08-11T01:00:00.000Z'),
+    );
+    await writeFile(
+      historyPath,
+      JSON.stringify({
+        version: 1,
+        sent: {
+          'https://example.com/expired': '2026-08-04T00:59:59.999Z',
+          'https://example.com/boundary': '2026-08-04T01:00:00.000Z',
+        },
+      }),
+    );
+
+    expect(await healthStore.seenUrls()).toEqual(new Set(['https://example.com/boundary']));
+  });
+
   it('preserves malformed data under a corrupt suffix and starts empty', async () => {
     await writeFile(historyPath, '{broken');
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     try {
       expect(await store.seenUrls()).toEqual(new Set());
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid sent history moved'),
+        expect.anything(),
+      );
     } finally {
       warn.mockRestore();
     }

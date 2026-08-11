@@ -39,6 +39,16 @@ const evidenceLabels: Record<HealthEvidenceKind, string> = {
   'medical-news': '🔵 TIN Y KHOA',
 };
 
+const internationalSourceIds = new Set([
+  'medlineplus-new',
+  'medlineplus-healthy-living',
+  'fda-medwatch',
+  'niddk-news',
+]);
+const vietnameseCharacterPattern = /[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]/iu;
+const clinicianPattern = /(?:bác sĩ|dược sĩ)/iu;
+const researchLimitationPattern = /(?:sơ bộ|thiết kế nghiên cứu|nghiên cứu quan sát|nghiên cứu động vật|mẫu (?:nhỏ|hạn chế)|chưa (?:đủ|thể|xác định))/iu;
+
 export class HealthMessageService {
   constructor(private readonly editor: HealthArticleEditor = new ArticleEditorialService()) {}
 
@@ -51,26 +61,60 @@ export class HealthMessageService {
         fallbackActionText: topic.fallbackSafeTakeaway,
         instructions: healthEditorialInstructions,
       });
+      const international = internationalSourceIds.has(entry.article.sourceId);
+      const sourceText = `${entry.article.title} ${entry.article.summary ?? ''}`;
       const sourceSummaryFallback = sanitizeHealthEditorialText(
-        entry.article.summary ?? '',
-        'Nguồn chưa cung cấp mô tả chi tiết.',
+        international ? '' : entry.article.summary ?? '',
+        international
+          ? 'Nguồn quốc tế chưa có bản dịch tiếng Việt an toàn.'
+          : 'Nguồn chưa cung cấp mô tả chi tiết.',
+        sourceText,
       );
       const title = truncateArticleMessageText(sanitizeHealthEditorialText(
-        editorial.title,
-        'Bản tin sức khỏe từ nguồn chính thức.',
+        ensureVietnameseHealthText(
+          editorial.title,
+          international ? 'Bản tin sức khỏe từ nguồn quốc tế.' : editorial.title,
+          international,
+        ),
+        international
+          ? 'Bản tin sức khỏe từ nguồn quốc tế.'
+          : 'Bản tin sức khỏe từ nguồn chính thức.',
+        sourceText,
       ), 220);
       const summary = truncateArticleMessageText(
-        sanitizeHealthEditorialText(editorial.summary, sourceSummaryFallback),
+        sanitizeHealthEditorialText(
+          ensureVietnameseHealthText(editorial.summary, sourceSummaryFallback, international),
+          sourceSummaryFallback,
+          sourceText,
+        ),
         520,
       );
-      const safeTakeaway = truncateArticleMessageText(
-        sanitizeHealthEditorialText(editorial.actionText, topic.fallbackSafeTakeaway),
-        320,
+      let safeTakeaway = sanitizeHealthEditorialText(
+        ensureVietnameseHealthText(
+          editorial.actionText,
+          topic.fallbackSafeTakeaway,
+          international,
+        ),
+        topic.fallbackSafeTakeaway,
+        sourceText,
       );
-      const evidenceNote = truncateArticleMessageText(
-        sanitizeHealthEditorialText(editorial.whyImportant, topic.fallbackEvidenceNote),
-        360,
+      if (entry.evidence === 'drug-safety' && !clinicianPattern.test(safeTakeaway)) {
+        safeTakeaway = topic.fallbackSafeTakeaway;
+      }
+      safeTakeaway = truncateArticleMessageText(safeTakeaway, 320);
+      let evidenceNote = sanitizeHealthEditorialText(
+        ensureVietnameseHealthText(
+          editorial.whyImportant,
+          topic.fallbackEvidenceNote,
+          international,
+        ),
+        topic.fallbackEvidenceNote,
+        sourceText,
       );
+      if (entry.evidence === 'research' && !researchLimitationPattern.test(evidenceNote)) {
+        evidenceNote = topic.fallbackEvidenceNote;
+      }
+      evidenceNote = truncateArticleMessageText(evidenceNote, 360);
       const text = [
         `${topic.icon}  <b>${escapeHtml(topic.label.toUpperCase())}</b>`,
         '━━━━━━━━━━━━━━━━',
@@ -103,6 +147,15 @@ export class HealthMessageService {
       };
     }));
   }
+}
+
+function ensureVietnameseHealthText(
+  value: string,
+  fallback: string,
+  required: boolean,
+): string {
+  if (!required || vietnameseCharacterPattern.test(value)) return value;
+  return fallback;
 }
 
 function getHealthTopic(key: HealthTopicKey) {

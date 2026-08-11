@@ -1,12 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { runMock } = vi.hoisted(() => ({ runMock: vi.fn() }));
+const { gadgetRunMock, runMock } = vi.hoisted(() => ({
+  gadgetRunMock: vi.fn(),
+  runMock: vi.fn(),
+}));
 
 vi.mock('../../src/services/health-flow.service', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/services/health-flow.service')>();
   return {
     ...actual,
     createHealthFlowService: () => ({ run: runMock }),
+  };
+});
+
+vi.mock('../../src/services/gadget-flow.service', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/services/gadget-flow.service')>();
+  return {
+    ...actual,
+    createGadgetFlowService: () => ({ run: gadgetRunMock }),
   };
 });
 
@@ -23,7 +34,10 @@ const success = {
 };
 
 describe('POST /telegram/send-health', () => {
-  beforeEach(() => runMock.mockReset());
+  beforeEach(() => {
+    gadgetRunMock.mockReset();
+    runMock.mockReset();
+  });
 
   it('returns the health flow response', async () => {
     runMock.mockResolvedValue(success);
@@ -50,5 +64,25 @@ describe('POST /telegram/send-health', () => {
     expect(second.status).toBe(409);
     release();
     await first;
+  });
+
+  it('does not block the gadget flow while a health run is active', async () => {
+    let release!: () => void;
+    runMock.mockReturnValue(new Promise((resolve) => { release = () => resolve(success); }));
+    gadgetRunMock.mockResolvedValue({
+      ...success,
+      channel: 'telegram-gadgets',
+    });
+    const healthRequest = request(createApp())
+      .post('/telegram/send-health')
+      .then((response) => response);
+    await vi.waitFor(() => expect(runMock).toHaveBeenCalledOnce());
+
+    const gadgetResponse = await request(createApp()).post('/telegram/send-gadgets');
+
+    expect(gadgetResponse.status).toBe(200);
+    expect(gadgetRunMock).toHaveBeenCalledOnce();
+    release();
+    await healthRequest;
   });
 });

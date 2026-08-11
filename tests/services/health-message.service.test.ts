@@ -63,7 +63,11 @@ it('escapes HTML and stays below Telegram text limits', async () => {
   }) };
   const service = new HealthMessageService(editor);
   const [message] = await service.buildMessages([{
-    article: { ...article, sourceName: 'MedlinePlus <Official>' },
+    article: {
+      ...article,
+      sourceId: 'vnexpress-health',
+      sourceName: 'MedlinePlus <Official>',
+    },
     topic: 'sleep-recovery', evidence: 'guidance', score: 100,
   }]);
 
@@ -71,4 +75,58 @@ it('escapes HTML and stays below Telegram text limits', async () => {
   expect(message.text).toContain('&lt;b&gt;Healthy sleep&lt;/b&gt;');
   expect(message.text).toContain('MedlinePlus &lt;Official&gt;');
   expect(message.text.length).toBeLessThanOrEqual(4_096);
+});
+
+it('forces clinician guidance for drug-safety messages', async () => {
+  const editor = { editArticle: vi.fn().mockResolvedValue({
+    title: 'Cảnh báo an toàn thuốc',
+    summary: 'Cơ quan quản lý vừa phát cảnh báo an toàn.',
+    whyImportant: 'Cảnh báo áp dụng cho một số sản phẩm.',
+    actionLevel: 'high' as const,
+    actionText: 'Theo dõi thông báo chính thức.',
+  }) };
+  const service = new HealthMessageService(editor);
+  const [message] = await service.buildMessages([{
+    article: { ...article, sourceId: 'fda-medwatch', sourceName: 'FDA MedWatch' },
+    topic: 'conditions-medicine-research', evidence: 'drug-safety', score: 100,
+  }]);
+
+  expect(message.text).toMatch(/bác sĩ|dược sĩ/iu);
+});
+
+it('forces an evidence limitation for research messages', async () => {
+  const editor = { editArticle: vi.fn().mockResolvedValue({
+    title: 'Nghiên cứu mới về bệnh thận',
+    summary: 'Nghiên cứu ghi nhận một kết quả mới.',
+    whyImportant: 'Kết quả này rất đáng chú ý.',
+    actionLevel: 'monitor' as const,
+    actionText: 'Theo dõi nguồn nghiên cứu chính thức.',
+  }) };
+  const service = new HealthMessageService(editor);
+  const [message] = await service.buildMessages([{
+    article: { ...article, sourceId: 'niddk-news', sourceName: 'NIH/NIDDK' },
+    topic: 'conditions-medicine-research', evidence: 'research', score: 100,
+  }]);
+
+  expect(message.text).toMatch(/sơ bộ|thiết kế nghiên cứu/iu);
+});
+
+it('uses deterministic Vietnamese copy when an international article is not translated', async () => {
+  const editor = { editArticle: vi.fn().mockResolvedValue({
+    title: 'Healthy sleep habits',
+    summary: 'A regular sleep schedule may support health.',
+    whyImportant: 'General guidance may not apply to everyone.',
+    actionLevel: 'monitor' as const,
+    actionText: 'Keep a regular sleep schedule.',
+  }) };
+  const service = new HealthMessageService(editor);
+  const [message] = await service.buildMessages([{
+    article,
+    topic: 'sleep-recovery', evidence: 'guidance', score: 100,
+  }]);
+
+  expect(message.text).not.toContain('Healthy sleep habits');
+  expect(message.text).not.toContain('A regular sleep schedule');
+  expect(message.text).toContain('Bản tin sức khỏe từ nguồn quốc tế');
+  expect(message.text).toContain('chưa có bản dịch tiếng Việt an toàn');
 });

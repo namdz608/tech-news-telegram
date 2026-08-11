@@ -18,6 +18,9 @@ describe('health safety policy', () => {
     'Detox giảm 8 kg trong 7 ngày cam kết hiệu quả',
     'Mua ngay thực phẩm chức năng giảm giá',
     'Uống 500 mg thuốc mỗi ngày để tự điều trị',
+    'Cảnh báo: mua ngay thần dược chữa khỏi mọi bệnh',
+    'Dùng 2 viên mỗi sáng để tự điều trị',
+    'Liều paracetamol 500 mg mỗi ngày',
   ])('rejects unsafe promotional or self-medication title: %s', (title) => {
     expect(isSafeHealthArticle(article(title))).toBe(false);
   });
@@ -45,11 +48,26 @@ describe('health safety policy', () => {
     const fallback = 'Trao đổi với bác sĩ hoặc dược sĩ.';
     expect(sanitizeHealthEditorialText('Uống 500 mg mỗi ngày.', fallback)).toBe(fallback);
     expect(sanitizeHealthEditorialText('Hãy ngừng thuốc ngay.', fallback)).toBe(fallback);
+    expect(sanitizeHealthEditorialText('Thuốc này nên ngừng ngay.', fallback)).toBe(fallback);
+    expect(sanitizeHealthEditorialText('Hãy ngừng điều trị ngay.', fallback)).toBe(fallback);
     expect(sanitizeHealthEditorialText('Bạn mắc bệnh thận.', fallback)).toBe(fallback);
     expect(sanitizeHealthEditorialText('Kê đơn thuốc mới cho bạn.', fallback)).toBe(fallback);
     expect(sanitizeHealthEditorialText(
       'Nghiên cứu chứng minh chắc chắn thuốc này gây khỏi bệnh.',
       fallback,
+    )).toBe(fallback);
+    expect(sanitizeHealthEditorialText(
+      'Nghiên cứu cho thấy cà phê gây ung thư.',
+      fallback,
+    )).toBe(fallback);
+    expect(sanitizeHealthEditorialText(
+      'Nghiên cứu cho thấy cà phê có thể liên quan đến nguy cơ ung thư.',
+      fallback,
+    )).toContain('có thể liên quan');
+    expect(sanitizeHealthEditorialText(
+      'Cà phê giảm nguy cơ ung thư.',
+      fallback,
+      'Coffee may be associated with a lower cancer risk.',
     )).toBe(fallback);
     expect(sanitizeHealthEditorialText('Duy trì giờ ngủ đều.', fallback))
       .toBe('Duy trì giờ ngủ đều.');

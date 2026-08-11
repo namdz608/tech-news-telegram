@@ -6,7 +6,7 @@ const keywordSets = {
   'movement-musculoskeletal': ['exercise', 'fitness', 'walking', 'running', 'muscle', 'joint', 'bone', 'posture', 'vận động', 'tập thể dục', 'đi bộ', 'chạy bộ', 'cơ bắp', 'xương khớp', 'tư thế'],
   'mental-wellbeing': ['mental health', 'stress', 'anxiety', 'depression', 'addiction', 'wellbeing', 'tâm lý', 'sức khỏe tinh thần', 'căng thẳng', 'lo âu', 'trầm cảm', 'nghiện'],
   'prevention-daily-life': ['prevention', 'screening', 'vaccine', 'vaccination', 'hygiene', 'infection', 'outbreak', 'healthy living', 'phòng bệnh', 'tầm soát', 'vắc xin', 'vệ sinh', 'lối sống', 'thói quen', 'dịch bệnh'],
-  'conditions-medicine-research': ['disease', 'cancer', 'heart', 'kidney', 'liver', 'treatment', 'therapy', 'medicine', 'drug', 'clinical trial', 'study', 'research', 'bệnh', 'ung thư', 'tim mạch', 'thận', 'gan', 'điều trị', 'thuốc', 'thử nghiệm', 'nghiên cứu'],
+  'conditions-medicine-research': ['disease', 'cancer', 'heart', 'kidney', 'liver', 'treatment', 'therapy', 'medicine', 'drug', 'medical device', 'device safety', 'clinical trial', 'study', 'research', 'bệnh', 'ung thư', 'tim mạch', 'thận', 'gan', 'điều trị', 'thuốc', 'thiết bị y tế', 'thử nghiệm', 'nghiên cứu'],
 } satisfies Record<HealthTopicKey, string[]>;
 
 export const healthTopics: HealthTopicDefinition[] = [
