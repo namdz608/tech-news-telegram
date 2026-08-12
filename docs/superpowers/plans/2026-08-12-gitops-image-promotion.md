@@ -4,7 +4,7 @@
 
 **Goal:** Publish an immutable commit-SHA Docker tag and automatically record that tag in the `tech-news-telegram` Helm values repository after a successful main-branch build.
 
-**Architecture:** GitHub Actions remains responsible for testing/building and publishing the image. A dependent GitOps job checks out `namdz608/helm-chart` with a narrowly scoped repository token, calls a tested shell helper that changes only the top-level `image.tag`, then commits and pushes the desired-state change for Argo CD to reconcile.
+**Architecture:** GitHub Actions remains responsible for testing/building and publishing the image. A dependent GitOps job checks out `namdz608/helm-chart` with a narrowly scoped repository token, calls a tested shell helper that changes only the top-level `image.tag`, then commits and pushes the desired-state change for Argo CD to reconcile. Main-branch runs are queued rather than canceled after publishing starts, and GitOps pushes retry after a safe rebase when unrelated concurrent commits land.
 
 **Tech Stack:** GitHub Actions, Docker metadata/build actions, Bash/AWK, Vitest, Helm values YAML.
 

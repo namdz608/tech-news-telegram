@@ -8,6 +8,10 @@ const workflow = readFileSync(
 );
 
 describe("Docker publish workflow", () => {
+  it("does not cancel an image promotion after publishing has started", () => {
+    expect(workflow).toContain("cancel-in-progress: false");
+  });
+
   it("publishes the main commit as an immutable image tag", () => {
     expect(workflow).toContain(
       "type=raw,value=${{ github.sha }},enable=${{ github.ref == 'refs/heads/main' }}",
@@ -25,6 +29,8 @@ describe("Docker publish workflow", () => {
       './.github/scripts/update-gitops-image.sh gitops/tech-news-telegram/values.yaml "$GITHUB_SHA"',
     );
     expect(workflow).toContain("git diff --cached --quiet");
+    expect(workflow).toContain("for attempt in 1 2 3; do");
+    expect(workflow).toContain('git pull --rebase origin "$GITOPS_BRANCH"');
     expect(workflow).toContain("git push");
   });
 });

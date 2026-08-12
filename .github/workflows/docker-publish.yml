@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: publish-tech-news-telegram-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -73,6 +73,7 @@ jobs:
         with:
           repository: namdz608/helm-chart
           token: ${{ secrets.GITOPS_REPO_TOKEN }}
+          ref: main
           path: gitops
 
       - name: Update desired image tag
@@ -81,6 +82,7 @@ jobs:
       - name: Commit and push GitOps update
         working-directory: gitops
         env:
+          GITOPS_BRANCH: main
           IMAGE_TAG: ${{ github.sha }}
         run: |
           git config user.name "github-actions[bot]"
@@ -93,4 +95,17 @@ jobs:
           fi
 
           git commit -m "deploy(tech-news-telegram): ${IMAGE_TAG}"
-          git push
+
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:${GITOPS_BRANCH}"; then
+              exit 0
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              echo "Failed to push the GitOps update after ${attempt} attempts" >&2
+              exit 1
+            fi
+
+            echo "GitOps repository changed concurrently; rebasing before retry"
+            git pull --rebase origin "$GITOPS_BRANCH"
+          done
