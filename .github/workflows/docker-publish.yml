@@ -5,11 +5,15 @@ on:
     branches:
       - main
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: publish-tech-news-telegram-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   publish:
@@ -39,6 +43,7 @@ jobs:
           images: brucewayne2610/tech-news-telegram
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ github.sha }},enable=${{ github.ref == 'refs/heads/main' }}
             type=semver,pattern={{raw}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
@@ -53,3 +58,39 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  gitops:
+    if: github.ref == 'refs/heads/main'
+    needs: publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source repository
+        uses: actions/checkout@v6
+
+      - name: Check out GitOps repository
+        uses: actions/checkout@v6
+        with:
+          repository: namdz608/helm-chart
+          token: ${{ secrets.GITOPS_REPO_TOKEN }}
+          path: gitops
+
+      - name: Update desired image tag
+        run: ./.github/scripts/update-gitops-image.sh gitops/tech-news-telegram/values.yaml "$GITHUB_SHA"
+
+      - name: Commit and push GitOps update
+        working-directory: gitops
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tech-news-telegram/values.yaml
+
+          if git diff --cached --quiet; then
+            echo "GitOps repository already references ${IMAGE_TAG}"
+            exit 0
+          fi
+
+          git commit -m "deploy(tech-news-telegram): ${IMAGE_TAG}"
+          git push

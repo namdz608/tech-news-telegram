@@ -245,3 +245,20 @@ Kiểm tra build/test:
 npm test
 npm run build
 ```
+
+## GitOps Deployment
+
+Mỗi lần `main` build thành công, workflow `.github/workflows/docker-publish.yml`:
+
+1. Push image `brucewayne2610/tech-news-telegram:<full-git-sha>` lên Docker Hub.
+2. Checkout repo `namdz608/helm-chart`.
+3. Cập nhật `tech-news-telegram/values.yaml` để `image.tag` bằng đúng Git SHA vừa build.
+4. Commit và push desired state mới; Argo CD phát hiện commit và tự sync vào Kubernetes.
+
+Repository source cần GitHub Actions secret `GITOPS_REPO_TOKEN`. Nên dùng fine-grained
+personal access token hoặc GitHub App token chỉ có quyền **Contents: Read and write**
+trên repo `namdz608/helm-chart`. Không cấp token quyền truy cập Kubernetes hoặc Argo CD.
+
+Tag `latest` vẫn được publish để tiện tra cứu, nhưng workload GitOps luôn deploy bằng
+tag Git SHA bất biến. Push tag release `v*` chỉ publish các tag SemVer và không tự đổi
+desired state đang chạy.
