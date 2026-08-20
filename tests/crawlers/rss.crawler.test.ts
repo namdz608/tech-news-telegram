@@ -142,6 +142,36 @@ describe('RssCrawler', () => {
     });
   });
 
+  it('decodes HTML entities in RSS titles and summaries', async () => {
+    const crawler = new RssCrawler({
+      parseURL: async () => ({
+        items: [
+          {
+            title: 'Nhiều b&aacute;c sĩ giỏi tuyến huyện bỏ l&ecirc;n thành phố',
+            link: 'https://thanhnien.vn/example.htm',
+            contentSnippet: 'Đ&acirc;y l&agrave; nội dung &#039;thử nghiệm&#039;.',
+          },
+        ],
+      }),
+    });
+
+    const articles = await crawler.crawl({
+      id: 'thanhnien-thoi-su',
+      name: 'Thanh Niên Thời sự',
+      kind: 'rss',
+      enabled: true,
+      homepageUrl: 'https://thanhnien.vn/thoi-su.htm',
+      feedUrl: 'https://thanhnien.vn/rss/thoi-su.rss',
+      includeUnmatched: true,
+      enrichArticlePage: false,
+    });
+
+    expect(articles[0]).toMatchObject({
+      title: 'Nhiều bác sĩ giỏi tuyến huyện bỏ lên thành phố',
+      summary: "Đây là nội dung 'thử nghiệm'.",
+    });
+  });
+
   it('uses source default topics for forum feeds with short post titles', async () => {
     const source: RssSourceConfig = {
       id: 'reddit-local-llama',
