@@ -77,6 +77,20 @@ HEALTH_MAX_ARTICLES=12
 HEALTH_HISTORY_RETENTION_DAYS=7
 HEALTH_HISTORY_PATH=data/health-sent-history.json
 
+# Gold and politics Telegram flow (POST /telegram/send-gold-politics)
+GOLD_POLITICS_TELEGRAM_BOT_TOKEN=replace_me
+GOLD_POLITICS_TELEGRAM_CHAT_ID=replace_me
+GOLD_POLITICS_MAX_ARTICLES=15
+GOLD_POLITICS_MAX_GOLD_NEWS=3
+GOLD_POLITICS_MAX_AGE_HOURS=72
+GOLD_POLITICS_MAX_PRICE_AGE_MINUTES=60
+GOLD_POLITICS_HISTORY_RETENTION_DAYS=7
+GOLD_POLITICS_HISTORY_PATH=data/gold-politics-sent-history.json
+GOLD_PRICE_HISTORY_PATH=data/gold-price-history.json
+GOLD_POLITICS_WEB_SEARCH_MAX_QUERIES=8
+BRAVE_SEARCH_API_KEY=
+GOLD_SPOT_API_URL=https://api.gold-api.com/price/XAU
+
 X_BEARER_TOKEN=
 X_SEARCH_QUERY=(AI OR "artificial intelligence" OR LLM OR Kubernetes OR DevOps OR cloud OR security OR CVE) lang:en -is:retweet -is:reply
 X_SEARCH_MAX_RESULTS=20
@@ -200,6 +214,92 @@ HTTP 200 trả kết quả gửi hoặc `reason: "no_new_articles"`; HTTP 409 ng
 luồng sức khỏe đang chạy; HTTP 503 nghĩa là toàn bộ nguồn sức khỏe đều lỗi.
 Gadget và sức khỏe dùng lock, bot/chat, lịch sử và cấu hình độc lập. Volume
 `/app/data` trong lệnh Docker phía trên cũng lưu bền vững lịch sử sức khỏe.
+
+### Bản tin giá vàng và chính trị
+
+`POST /telegram/send-gold-politics` là luồng riêng: one price snapshot plus
+at most 15 news messages (tối đa 15 tin), trong đó maximum three gold-news
+items (tối đa 3 tin vàng). Tin phải nằm trong cửa sổ 72-hour freshness
+(72 giờ). URL tin đã gửi được lưu seven-day URL history (7 ngày) tại
+`GOLD_POLITICS_HISTORY_PATH`. Triggering is API-only: API chỉ chạy khi được
+gọi; ứng dụng không có scheduler và không tự chạy lịch cho endpoint này.
+
+Bot/chat là credential riêng (`GOLD_POLITICS_TELEGRAM_*`), khác tech/gadget/health.
+Ứng dụng không cung cấp endpoint lấy chat ID và không thực hiện handshake;
+hãy gửi tin cho bot rồi lấy chat ID bằng quy trình vận hành của Telegram.
+Missing/placeholder dedicated Telegram credentials (`replace_me`,
+`test-gold-politics-*`, hoặc trống) fail before crawling, trước mọi
+provider/editorial call, hoặc history mutation.
+
+X and Brave are optional when their keys are empty (`X_BEARER_TOKEN`,
+`BRAVE_SEARCH_API_KEY`); direct RSS and Reddit remain available.
+
+```bash
+curl -X POST http://localhost:3000/telegram/send-gold-politics
+```
+
+Snapshot giá gồm SJC, DOJI, PNJ (buy/sell, đơn vị hiển thị `million VND/tael`)
+và XAU/USD (spot, `USD/troy ounce`). Chỉ đổi đơn vị khi nguồn ghi rõ unit.
+Quote **stale** (source timestamp già hơn `GOLD_POLITICS_MAX_PRICE_AGE_MINUTES`)
+vẫn hiện kèm cảnh báo stale. Quote **unavailable** (parse/unit/timestamp lỗi)
+không kèm số. Gold-history failure (`gold-price-history`) suppresses deltas
+nhưng vẫn gửi current quotes và đánh `partial: true`.
+
+Endpoint này **sends messages** và incurs provider use. Có **no application-level authentication** và **no rate limiter**. Chỉ expose sau **private network** hoặc authenticated/rate-limited **reverse proxy**. Output is **not investment advice**.
+
+Public Facebook/TikTok/Telegram links are **web-search discoveries**. Private,
+login, hoặc CAPTCHA access is not attempted.
+
+Huy hiệu xác minh (đặt trước tiêu đề, kèm source attribution):
+
+- `ĐÃ XÁC NHẬN` — confirmed: hồ sơ chính thức/tòa án/primary evidence.
+- `ĐANG ĐƯỢC ĐƯA TIN` — reported: nguồn nhận diện được đưa tin, chưa có kết luận cuối.
+- `CHƯA KIỂM CHỨNG` — unverified: rumor/ẩn danh/thiếu corroboration.
+
+Rumors are not facts. V1's live adapters can currently produce only
+reported/unverified news; the **confirmed badge** is reserved for a future
+vetted **final-record adapter**.
+
+HTTP 200 có thể là full success hoặc **partial** (gửi nội dung còn lại).
+`failedSources` chỉ chứa stable source keys, không raw errors. Ví dụ:
+
+```json
+{
+  "sent": true,
+  "channel": "telegram-gold-politics",
+  "priceMessageCount": 1,
+  "newsMessageCount": 2,
+  "collectedCount": 7,
+  "eligibleCount": 4,
+  "skippedSeenCount": 1,
+  "partial": true,
+  "failedSources": ["pnj", "xau-usd", "gold-price-history", "x-search", "web-search"],
+  "language": "vi"
+}
+```
+
+HTTP **409** `{ "error": "Gold-politics digest is already running" }` nghĩa là
+in-process lock: một lượt gold-politics đang chạy. **409 is not rate limiting.**
+HTTP **503** `{ "error": "All gold-politics sources failed" }` khi mọi price
+provider và mọi news source đều lỗi — không gửi gì.
+
+Sent-history read **fails closed** before sending (không gửi khi không đọc được
+lịch sử). Persistent sentinel `${GOLD_POLITICS_HISTORY_PATH}.blocked` prevents
+later requests from silently reopening after quarantine. A mark failure after
+Telegram acceptance creates **at-least-once** retry semantics (tin đã nhận trên
+Telegram có thể được gửi lại vì URL chưa được mark).
+
+Operator recovery cho sent history:
+
+1. Stop/serialize triggers (đừng gọi endpoint song song).
+2. Inspect the `.corrupt-*` file cạnh JSON lịch sử.
+3. Repair or replace the versioned JSON atomically.
+4. Verify ownership/permissions trên file và thư mục `data/`.
+5. Deliberately remove the `.blocked` sentinel.
+
+Merely recreating the JSON while the sentinel exists must not resume sending.
+Volume `/app/data` cũng lưu `data/gold-politics-sent-history.json` và
+`data/gold-price-history.json`.
 
 Gửi tin tuyển dụng Việt Nam (TopCV, ITviec, VietnamWorks) — **gom 1 PDF gửi email** (không Telegram):
 
