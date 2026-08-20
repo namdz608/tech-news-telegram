@@ -147,6 +147,21 @@ describe('PoliticsClassificationService', () => {
     expect(classified?.geographicScope).toBe('international');
   });
 
+  it('does not treat a foreign parliament mentioned in Vietnamese as Vietnam politics', () => {
+    const classified = service.classify(
+      item({
+        title: 'Ukraine có tân Bộ trưởng Quốc phòng',
+        summary:
+          'Quốc hội Ukraine phê chuẩn ông Yevhen Khmara làm Bộ trưởng Quốc phòng, giữa lúc Tổng thống Zelensky đối mặt sóng gió chính trị.',
+      }),
+    );
+
+    expect(classified?.primaryCategory).toBe('international-politics');
+    expect(classified?.geographicScope).toBe('international');
+    expect(classified?.claimEntities).toContain('parliament');
+    expect(classified?.claimEntities).not.toContain('vietnam-parliament');
+  });
+
   it.each([
     {
       name: 'Vietnamese prime minister controversy',

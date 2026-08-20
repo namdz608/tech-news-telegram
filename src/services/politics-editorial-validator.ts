@@ -7,6 +7,11 @@ interface PoliticsEditorial {
   whyImportant: string;
 }
 
+export type PoliticsEditorialValidationMode =
+  | 'source-grounded'
+  | 'source-facts'
+  | 'translated';
+
 const TITLE_BOUND = 240;
 const SUMMARY_BOUND = 720;
 const WHY_BOUND = 360;
@@ -102,7 +107,7 @@ export function createTranslationFallbackEditorial(candidate: PoliticsCandidate)
       SUMMARY_BOUND,
     ),
     whyImportant: truncateUtf16(
-      `Theo ${compactText(candidate.sourceName)}, ${actor} cho rằng nội dung gốc chưa dịch được; không bịa bản dịch.`,
+      `Theo ${compactText(candidate.sourceName)}, ${actor} cho rằng nội dung gốc chưa dịch được; sự việc đang được đưa tin, chưa phải kết luận cuối; không bịa bản dịch.`,
       WHY_BOUND,
     ),
   };
@@ -162,9 +167,9 @@ function matchingAssertionEffect(candidate: PoliticsCandidate): string {
 }
 
 function needsAllegationFrame(candidate: PoliticsCandidate): boolean {
-  return candidate.verificationState === 'reported'
-    || candidate.verificationState === 'unverified'
+  return candidate.verificationState === 'unverified'
     || candidate.claimModality === 'alleged'
+    || candidate.claimModality === 'possible'
     || candidate.evidentiaryEffect === 'records-claim'
     || matchingAssertionEffect(candidate) === 'records-claim';
 }
@@ -200,8 +205,8 @@ function restatedAllegationAsFact(field: string, candidate: PoliticsCandidate): 
   if (candidate.verificationState === 'confirmed' && candidate.claimModality === 'established') {
     return false;
   }
-  if (ESTABLISHED_FINDING.test(field) || COMPLETED_ACT.test(field)) return true;
   if (!needsAllegationFrame(candidate)) return false;
+  if (ESTABLISHED_FINDING.test(field) || COMPLETED_ACT.test(field)) return true;
   return /đã thực hiện/iu.test(field) && !hasAllegationModality(field, candidate);
 }
 
@@ -257,13 +262,20 @@ function isFieldSafe(
   field: string,
   _role: 'title' | 'summary' | 'whyImportant',
   corpus: string,
+  mode: PoliticsEditorialValidationMode,
 ): boolean {
   const compact = compactText(field);
   if (!compact) return false;
   if (INSTRUCTION_FOLLOWED.test(compact)) return false;
-  if (inventedNumbers(compact, corpus) || inventedNames(compact, corpus) || inventedQuotes(compact, corpus)) {
+  if (
+    mode !== 'translated'
+    && (inventedNumbers(compact, corpus)
+      || inventedNames(compact, corpus)
+      || inventedQuotes(compact, corpus))
+  ) {
     return false;
   }
+  if (mode === 'source-facts') return true;
   if (MOTIVE.test(compact) || hasUnguardedGuiltyLanguage(compact) || restatedAllegationAsFact(compact, candidate)) {
     return false;
   }
@@ -281,29 +293,36 @@ function chooseSafeField(
   fallback: string,
   role: 'title' | 'summary' | 'whyImportant',
   corpus: string,
+  mode: PoliticsEditorialValidationMode,
 ): string {
   const compactGenerated = compactText(generated);
-  if (isFieldSafe(candidate, compactGenerated, role, corpus)) return compactGenerated;
+  if (isFieldSafe(candidate, compactGenerated, role, corpus, mode)) return compactGenerated;
   const compactFallback = compactText(fallback);
-  if (isFieldSafe(candidate, compactFallback, role, corpus)) return compactFallback;
+  if (isFieldSafe(candidate, compactFallback, role, corpus, mode)) return compactFallback;
   return compactFallback;
 }
 
 export class PoliticsEditorialValidator {
-  validate(candidate: PoliticsCandidate, editorial: PoliticsEditorial): PoliticsEditorial {
-    const fallback = candidate.verificationState === 'unverified'
+  validate(
+    candidate: PoliticsCandidate,
+    editorial: PoliticsEditorial,
+    fallbackOverride?: PoliticsEditorial,
+    mode: PoliticsEditorialValidationMode = 'source-grounded',
+  ): PoliticsEditorial {
+    const fallback = fallbackOverride ?? (candidate.verificationState === 'unverified'
       ? createUnverifiedEditorial(candidate)
-      : createProviderFallbackEditorial(candidate);
+      : createProviderFallbackEditorial(candidate));
     const corpus = sourceCorpus(candidate);
     const next: PoliticsEditorial = {
-      title: chooseSafeField(candidate, editorial.title, fallback.title, 'title', corpus),
-      summary: chooseSafeField(candidate, editorial.summary, fallback.summary, 'summary', corpus),
+      title: chooseSafeField(candidate, editorial.title, fallback.title, 'title', corpus, mode),
+      summary: chooseSafeField(candidate, editorial.summary, fallback.summary, 'summary', corpus, mode),
       whyImportant: chooseSafeField(
         candidate,
         editorial.whyImportant,
         fallback.whyImportant,
         'whyImportant',
         corpus,
+        mode,
       ),
     };
 

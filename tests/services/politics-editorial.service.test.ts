@@ -4,6 +4,11 @@ import {
   PoliticsEditorialService,
   type PoliticsEditorial,
 } from '../../src/services/politics-editorial.service';
+import {
+  createProviderFallbackEditorial,
+  createTranslationFallbackEditorial,
+  PoliticsEditorialValidator,
+} from '../../src/services/politics-editorial-validator';
 import type { Article } from '../../src/types/article';
 import type {
   EvidenceAssertion,
@@ -135,24 +140,274 @@ describe('PoliticsEditorialService', () => {
     expect(`${result.title}${result.summary}${result.whyImportant}`).not.toContain('&amp;');
   });
 
-  it('falls back to compact source-grounded copy when the editor fails and keeps the candidate', async () => {
+  it('shows an explicit translation notice when the editor and fallback translation fail', async () => {
     const editorial = {
       editArticle: vi.fn().mockRejectedValue(new Error(SENSITIVE_ERROR_TEXT)),
+    };
+    const translator = {
+      translateDigestVerified: vi.fn(async (text: string) => ({ text, succeeded: false })),
     };
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
     try {
-      const result = await new PoliticsEditorialService(editorial).edit(candidate());
+      const result = await new PoliticsEditorialService(editorial, translator).edit(candidate());
       expect(result.title.length).toBeGreaterThan(0);
+      expect(result.title).toMatch(/chưa dịch|chưa có bản dịch|không dịch được/iu);
       expect(result.summary).toMatch(/cho rằng|cáo buộc|theo /iu);
       expect(result.summary).toContain('Pham Minh Chinh');
       expect(result.whyImportant.length).toBeGreaterThan(0);
       expect(editorial.editArticle).toHaveBeenCalledTimes(1);
+      expect(translator.translateDigestVerified).toHaveBeenCalledTimes(2);
     } finally {
       warn.mockRestore();
       error.mockRestore();
     }
+  });
+
+  it('translates a grounded provider fallback before rendering it', async () => {
+    const input = candidate({
+      sourceName: 'The Guardian World',
+      title: 'NSW police commissioner apologises for miscommunication',
+      summary: 'This live blog is now closed.',
+    });
+    const editorial = {
+      editArticle: vi.fn(async (article: Article) => ({
+        title: article.title,
+        summary: article.summary ?? '',
+        whyImportant: article.summary ?? '',
+        actionLevel: 'monitor' as const,
+        actionText: 'Monitor sources.',
+      })),
+    };
+    const translator = {
+      translateDigestVerified: vi.fn(async (text: string) => ({
+        text: text === input.title
+          ? 'Ủy viên cảnh sát NSW xin lỗi vì trao đổi sai thông tin'
+          : 'Bản tin trực tiếp này hiện kết thúc.',
+        succeeded: true,
+      })),
+    };
+
+    const result = await new PoliticsEditorialService(editorial, translator).edit(input);
+
+    expect(translator.translateDigestVerified.mock.calls).toEqual([
+      [input.title],
+      [input.summary],
+    ]);
+    expect(`${result.title} ${result.summary}`).not.toContain('police commissioner apologises');
+    expect(result.summary).toContain('Bản tin trực tiếp này hiện kết thúc');
+  });
+
+  it('keeps Vietnamese past tense for an ordinary reported article', async () => {
+    const input = candidate({
+      sourceName: 'The Guardian World',
+      title:
+        'President says he plans to meet dictator this year but Kim Yo-jong says Washington remains Pyongyang’s enemy',
+      summary:
+        'Donald Trump has said he is planning to meet North Korea’s Kim Jong-un later this year, though the reclusive leader’s younger sister cast doubt on their communications. Trump had suggested he and Kim were holding secret negotiations on Tuesday.',
+      author: 'Andrew Roth in Washington',
+      originalAuthor: 'Andrew Roth in Washington',
+      originalAccount: 'Andrew Roth in Washington',
+      originAttribution: {
+        url: 'https://www.theguardian.com/world/example',
+        account: 'Andrew Roth in Washington',
+        publishedAt: '2026-08-20T08:00:00.000Z',
+        discoveredAt: '2026-08-20T09:00:00.000Z',
+      },
+      claimStance: 'neutral',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      semanticClaimKey: 'diplomacy|trump',
+      evidenceAssertions: [assertion({
+        semanticClaimKey: 'diplomacy|trump',
+        claimText: 'President says he plans to meet Kim Jong-un this year',
+        stance: 'neutral',
+        modality: 'reported',
+        effect: 'mentions',
+        sourceId: 'guardian-world',
+        sourceUrl: 'https://www.theguardian.com/world/example',
+        evidenceOriginKey: 'theguardian.com',
+      })],
+      verificationState: 'reported',
+      corroborationNote: 'The Guardian đang tường thuật diễn biến ngoại giao.',
+    });
+    const editorial = {
+      editArticle: vi.fn(async (article: Article) => ({
+        title: article.title,
+        summary: article.summary ?? '',
+        whyImportant: article.summary ?? '',
+        actionLevel: 'monitor' as const,
+        actionText: 'Monitor sources.',
+      })),
+    };
+    const translator = {
+      translateDigestVerified: vi.fn(async (text: string) => ({
+        text: text === input.title
+          ? 'Tổng thống nói ông có kế hoạch gặp Kim Jong-un trong năm nay'
+          : 'Donald Trump cho biết ông dự định gặp Kim Jong-un vào cuối năm nay, dù em gái nhà lãnh đạo đã nghi ngờ về thông tin liên lạc. Trump đã gợi ý rằng hai bên đang đàm phán bí mật.',
+        succeeded: true,
+      })),
+    };
+
+    const result = await new PoliticsEditorialService(editorial, translator).edit(input);
+
+    expect(result.summary).toContain('đã nghi ngờ');
+    expect(result.summary).toContain('đã gợi ý');
+    expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
+    expect(result.summary).not.toContain('Donald Trump has said');
+  });
+
+  it('uses an explicit translation fallback override when validation rejects a field', () => {
+    const input = candidate();
+    const fallback = createTranslationFallbackEditorial(input);
+    const result = new PoliticsEditorialValidator().validate(
+      input,
+      { title: '', summary: '', whyImportant: '' },
+      fallback,
+    );
+
+    expect(result).toEqual(fallback);
+  });
+
+  it('accepts a numeric Vietnamese month translated from an English month name', () => {
+    const input = candidate({
+      title: 'Californians will vote on a wealth levy',
+      summary: 'In November, Californians will vote on a one-off 5% levy.',
+      claimStance: 'neutral',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      evidenceAssertions: [assertion({ modality: 'reported', effect: 'mentions' })],
+    });
+    const translated = createProviderFallbackEditorial({
+      ...input,
+      title: 'Người dân California sẽ bỏ phiếu về thuế tài sản',
+      summary: 'Vào tháng 11, người dân California sẽ bỏ phiếu về mức thuế 5% một lần.',
+    });
+
+    const result = new PoliticsEditorialValidator().validate(
+      input,
+      translated,
+      createTranslationFallbackEditorial(input),
+      'translated',
+    );
+
+    expect(result.summary).toContain('tháng 11');
+    expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
+  });
+
+  it('does not compare localized proper names lexically with English source text', () => {
+    const input = candidate({
+      sourceName: 'The Guardian World',
+      title: 'Chinese carmaker plans further UK expansion',
+      summary: 'The Chinese carmaker plans a major centre in England.',
+      claimStance: 'neutral',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      evidenceAssertions: [assertion({ modality: 'reported', effect: 'mentions' })],
+    });
+    const translated = createProviderFallbackEditorial({
+      ...input,
+      title: 'Nhà sản xuất ô tô Trung Quốc lên kế hoạch mở rộng tại Anh',
+      summary: 'Nhà sản xuất ô tô Trung Quốc lên kế hoạch mở một trung tâm lớn tại Anh.',
+    });
+
+    const result = new PoliticsEditorialValidator().validate(
+      input,
+      translated,
+      createTranslationFallbackEditorial(input),
+      'translated',
+    );
+
+    expect(result.summary).toContain('Trung Quốc');
+    expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
+  });
+
+  it('retains certainty checks for translated text', () => {
+    const input = candidate({ verificationState: 'reported' });
+    const fallback = createTranslationFallbackEditorial(input);
+    const result = new PoliticsEditorialValidator().validate(
+      input,
+      {
+        title: 'Chắc chắn quan chức đã được xác nhận có tội',
+        summary: 'Chắc chắn đây là kết luận chính thức.',
+        whyImportant: 'Đã xác nhận thông tin.',
+      },
+      fallback,
+      'translated',
+    );
+
+    expect(result).toEqual(fallback);
+  });
+
+  it('retains name and number grounding checks before translation', () => {
+    const input = candidate();
+    const fallback = createProviderFallbackEditorial(input);
+    const result = new PoliticsEditorialValidator().validate(
+      input,
+      {
+        title: 'Tran Van B reported a new allegation',
+        summary: 'Tran Van B reported an unsupported payment of 99 billion dong.',
+        whyImportant: 'Tran Van B supplied 99 records.',
+      },
+      fallback,
+      'source-facts',
+    );
+
+    expect(result).toEqual(fallback);
+  });
+
+  it('keeps the Alex Daniel Guardian fallback fully Vietnamese', async () => {
+    const input = candidate({
+      sourceName: 'The Guardian World',
+      title:
+        'Owner of firm behind ‘Temu Range Rover’ will open facility in Bedfordshire in autumn',
+      summary:
+        'The Chinese carmaker behind the irreverently nicknamed “Temu Range Rover” is plotting further UK expansion with a major research and development centre in England. Chery makes the Jaecoo and Omoda car brands.',
+      author: 'Alex Daniel',
+      originalAuthor: 'Alex Daniel',
+      originalAccount: 'Alex Daniel',
+      originAttribution: {
+        url: 'https://www.theguardian.com/business/example',
+        account: 'Alex Daniel',
+        publishedAt: '2026-08-20T08:00:00.000Z',
+        discoveredAt: '2026-08-20T09:00:00.000Z',
+      },
+      claimStance: 'neutral',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      semanticClaimKey: 'expansion|chery',
+      evidenceAssertions: [assertion({
+        semanticClaimKey: 'expansion|chery',
+        claimText: 'Chery plans further UK expansion',
+        stance: 'neutral',
+        modality: 'reported',
+        effect: 'mentions',
+      })],
+    });
+    const editorial = {
+      editArticle: vi.fn(async (article: Article) => ({
+        title: article.title,
+        summary: article.summary ?? '',
+        whyImportant: article.summary ?? '',
+        actionLevel: 'monitor' as const,
+        actionText: 'Monitor sources.',
+      })),
+    };
+    const translator = {
+      translateDigestVerified: vi.fn(async (text: string) => ({
+        text: text === input.title
+          ? "Chủ sở hữu công ty đứng sau 'Temu Range Rover' sẽ mở cơ sở tại Bedfordshire vào mùa thu"
+          : 'Nhà sản xuất ô tô Trung Quốc đứng sau biệt danh “Temu Range Rover” đang lên kế hoạch mở rộng tại Anh. Chery sản xuất các thương hiệu xe Jaecoo và Omoda.',
+        succeeded: true,
+      })),
+    };
+
+    const result = await new PoliticsEditorialService(editorial, translator).edit(input);
+
+    expect(result.summary).toContain('Trung Quốc');
+    expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
+    expect(result.summary).not.toContain('The Chinese carmaker');
   });
 
   it('translates English editorial output to verified Vietnamese before validation', async () => {

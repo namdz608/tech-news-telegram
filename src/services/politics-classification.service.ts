@@ -22,8 +22,8 @@ const SYNONYMS: readonly SynonymPair[] = [
   ['ngan hang trung uong', 'central-bank'],
   ['ngan hang nha nuoc', 'central-bank'],
   ['central bank', 'central-bank'],
-  ['national assembly', 'vietnam-parliament'],
-  ['quoc hoi', 'vietnam-parliament'],
+  ['national assembly', 'parliament'],
+  ['quoc hoi', 'parliament'],
   ['parliament', 'parliament'],
   ['prime minister', 'prime-minister'],
   ['thu tuong', 'prime-minister'],
@@ -339,11 +339,12 @@ const VIETNAM_GEO = [
   'sjc',
   'doji',
   'pnj',
-  'vietnam-parliament',
   'pham-minh-chinh',
   'chief-justice',
   'supreme-court',
 ];
+
+const LOCAL_ASSEMBLY_GEO = ['quoc hoi', 'national assembly'] as const;
 
 const INTERNATIONAL_GEO = [
   'uk',
@@ -506,8 +507,13 @@ function buildSemanticClaimKey(titleSyn: string, summarySyn: string, entities: r
   return [...tokens].sort().join('|');
 }
 
-function decideGeography(synonymized: string): GeographicScope {
-  const vietnam = hasAny(synonymized, VIETNAM_GEO);
+function hasVietnamGeography(synonymized: string, foldedOriginal: string): boolean {
+  if (hasAny(synonymized, VIETNAM_GEO)) return true;
+  return !hasAny(synonymized, INTERNATIONAL_GEO) && hasAny(foldedOriginal, LOCAL_ASSEMBLY_GEO);
+}
+
+function decideGeography(synonymized: string, foldedOriginal: string): GeographicScope {
+  const vietnam = hasVietnamGeography(synonymized, foldedOriginal);
   const international = hasAny(synonymized, INTERNATIONAL_GEO);
   if (vietnam && international) {
     return 'mixed';
@@ -521,13 +527,13 @@ function decideGeography(synonymized: string): GeographicScope {
   return 'international';
 }
 
-function decideCategory(synonymized: string): PoliticsCategory | undefined {
+function decideCategory(synonymized: string, foldedOriginal: string): PoliticsCategory | undefined {
   const inScope = hasAny(synonymized, IN_SCOPE_TERMS);
   const controversy = hasAny(synonymized, CONTROVERSY_TERMS);
   if (inScope && controversy) {
     return 'leader-controversy';
   }
-  const vn = hasAny(synonymized, VIETNAM_POLITICS_TERMS) && hasAny(synonymized, VIETNAM_GEO);
+  const vn = hasAny(synonymized, VIETNAM_POLITICS_TERMS) && hasVietnamGeography(synonymized, foldedOriginal);
   const intlPolitics = hasAny(synonymized, INTERNATIONAL_POLITICS_TERMS) && hasAny(synonymized, INTERNATIONAL_GEO);
   const gold = hasAny(synonymized, GOLD_TERMS);
   if (vn) {
@@ -598,12 +604,12 @@ export class PoliticsClassificationService {
     const summarySyn = applySynonyms(foldedSummary);
     const combinedSyn = compactWhitespace(`${titleSyn} ${summarySyn}`);
 
-    const category = decideCategory(combinedSyn);
+    const category = decideCategory(combinedSyn, foldedCombined);
     if (isOutOfScope(foldedCombined, combinedSyn, category) || !category) {
       return undefined;
     }
 
-    const geographicScope = decideGeography(combinedSyn);
+    const geographicScope = decideGeography(combinedSyn, foldedCombined);
     const claimEntities = extractEntities(combinedSyn);
     const semanticClaimKey = buildSemanticClaimKey(titleSyn, summarySyn, claimEntities);
     const claimStance = detectStance(foldedCombined);

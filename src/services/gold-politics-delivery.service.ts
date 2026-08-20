@@ -30,7 +30,12 @@ export class GoldPoliticsDeliveryService {
     }
     for (const message of newsMessages) {
       try {
-        await this.telegram.sendDigest(message.text, message.url, undefined, '🔎 Xem nguồn gốc');
+        await this.telegram.sendDigest(
+          message.text,
+          message.url,
+          message.imageUrl,
+          '🔎 Xem nguồn gốc',
+        );
       } catch (error) {
         logSafeDeliveryFailure('Gold politics Telegram send failed', error);
         throw new GoldPoliticsDeliveryError('telegram-send-failed');

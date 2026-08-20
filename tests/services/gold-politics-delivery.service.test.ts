@@ -73,6 +73,10 @@ function assertSafeDiagnosticLog(
 
 describe('GoldPoliticsDeliveryService', () => {
   it('sends price first then each news with the source button and marks only news urls', async () => {
+    const newsWithImages = [
+      { ...news[0], imageUrl: 'https://images.example/one.jpg' },
+      { ...news[1], imageUrl: 'https://images.example/two.jpg' },
+    ] as PoliticsMessage[];
     const telegram = {
       sendDigest: vi.fn().mockResolvedValue(undefined),
       sendMessages: vi.fn(),
@@ -80,12 +84,12 @@ describe('GoldPoliticsDeliveryService', () => {
     const history = { mark: vi.fn().mockResolvedValue(undefined) };
     const service = new GoldPoliticsDeliveryService(telegram, history);
 
-    await service.send('price html', news);
+    await service.send('price html', newsWithImages);
 
     expect(telegram.sendDigest.mock.calls).toEqual([
       ['price html'],
-      ['news one', 'https://one.example/story', undefined, '🔎 Xem nguồn gốc'],
-      ['news two', 'https://two.example/story', undefined, '🔎 Xem nguồn gốc'],
+      ['news one', 'https://one.example/story', 'https://images.example/one.jpg', '🔎 Xem nguồn gốc'],
+      ['news two', 'https://two.example/story', 'https://images.example/two.jpg', '🔎 Xem nguồn gốc'],
     ]);
     expect(history.mark.mock.calls).toEqual([
       ['https://one.example/story'],

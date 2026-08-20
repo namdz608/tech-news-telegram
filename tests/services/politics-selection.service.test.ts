@@ -335,6 +335,59 @@ describe('PoliticsSelectionService constructor options', () => {
 });
 
 describe('PoliticsSelectionService eligibility, history, and scoring', () => {
+  it('replays one seen Vietnamese and one seen international anchor but never seen gold', () => {
+    const vietnam = vnControversy();
+    const international = intControversy();
+    const gold = goldVietnam();
+    const result = createService({ maxArticles: 3, maxGoldNews: 1, maxPerSource: 3 }).select(
+      [vietnam, international, gold],
+      new Set([vietnam.url, international.url, gold.url]),
+    );
+
+    expect(result.eligibleCount).toBe(0);
+    expect(result.skippedSeenCount).toBe(3);
+    expect(result.selected).toHaveLength(2);
+    expect(result.selected.some(vnAnchor)).toBe(true);
+    expect(result.selected.some(intAnchor)).toBe(true);
+    expect(result.selected.some((candidate) => candidate.primaryCategory === 'gold-market')).toBe(false);
+  });
+
+  it('keeps a fresh Vietnamese anchor and replays only the missing international scope', () => {
+    const vietnam = vnControversy();
+    const international = intControversy();
+    const result = createService({ maxArticles: 2, maxGoldNews: 0, maxPerSource: 3 }).select(
+      [vietnam, international],
+      new Set([international.url]),
+    );
+
+    expect(result.eligibleCount).toBe(1);
+    expect(result.skippedSeenCount).toBe(1);
+    expect(result.selected.map((candidate) => candidate.claimOriginUrl)).toEqual([
+      vietnam.url,
+      international.url,
+    ]);
+  });
+
+  it('replays a distinct seen anchor when one fresh mixed event matches both scopes', () => {
+    const mixed = item({
+      url: 'https://www.ft.com/fresh-mixed-leader',
+      sourceQuotaKey: 'ft.com',
+      evidenceOriginKey: 'ft.com',
+      title: 'Prime Minister Pham Minh Chinh and Donald Trump face a joint scandal',
+      summary: 'Corruption controversy links Hanoi and the United States.',
+    });
+    const international = intOther();
+    const result = createService({ maxArticles: 2, maxGoldNews: 0, maxPerSource: 3 }).select(
+      [mixed, international],
+      new Set([international.url]),
+    );
+
+    expect(result.selected).toHaveLength(2);
+    expect(new Set(result.selected.map((candidate) => candidate.eventFingerprint)).size).toBe(2);
+    expect(result.selected.some(vnAnchor)).toBe(true);
+    expect(result.selected.some(intAnchor)).toBe(true);
+  });
+
   it('classifies and clusters before suppressing a seen original plus unseen reposts', () => {
     const original = vnControversy();
     const repostA = item({
@@ -365,6 +418,7 @@ describe('PoliticsSelectionService eligibility, history, and scoring', () => {
 
     expect(result.skippedSeenCount).toBe(1);
     expect(result.selected.map((candidate) => candidate.claimOriginUrl)).toEqual([
+      'https://vnexpress.net/pm-bribe',
       'https://www.eu.europa.eu/diplomacy',
     ]);
     expect(result.eligibleCount).toBe(1);
@@ -401,7 +455,8 @@ describe('PoliticsSelectionService eligibility, history, and scoring', () => {
 
     const quotedSeen = createService().select([quoted], new Set(['https://origin.example/fisheries']));
     expect(quotedSeen.skippedSeenCount).toBe(1);
-    expect(quotedSeen.selected).toEqual([]);
+    expect(quotedSeen.selected).toHaveLength(1);
+    expect(quotedSeen.selected.some(intAnchor)).toBe(true);
     expect(quotedSeen.eligibleCount).toBe(0);
 
     const attributedSeen = createService().select(
@@ -409,6 +464,8 @@ describe('PoliticsSelectionService eligibility, history, and scoring', () => {
       new Set(['https://canonical.example/budget?fbclid=1']),
     );
     expect(attributedSeen.skippedSeenCount).toBe(1);
+    expect(attributedSeen.selected).toHaveLength(1);
+    expect(attributedSeen.selected.some(vnAnchor)).toBe(true);
     expect(attributedSeen.eligibleCount).toBe(0);
   });
 
@@ -421,7 +478,8 @@ describe('PoliticsSelectionService eligibility, history, and scoring', () => {
     const result = createService().select([vnControversy(), gossip], new Set(['https://vnexpress.net/pm-bribe']));
     expect(result.skippedSeenCount).toBe(1);
     expect(result.eligibleCount).toBe(0);
-    expect(result.selected).toEqual([]);
+    expect(result.selected).toHaveLength(1);
+    expect(result.selected.some(vnAnchor)).toBe(true);
   });
 
   it('assesses verification before scoring and emits one stable nonzero reason per score row', () => {
@@ -884,7 +942,9 @@ describe('PoliticsSelectionService constraint order', () => {
     expect(result.skippedSeenCount).toBe(1);
     expect(result.eligibleCount).toBeGreaterThan(result.selected.length);
     expect(result.selected.length).toBeLessThanOrEqual(2);
-    expect(result.selected.filter((candidate) => candidate.primaryCategory === 'gold-market')).toHaveLength(1);
+    expect(result.selected.some(vnAnchor)).toBe(true);
+    expect(result.selected.some(intAnchor)).toBe(true);
+    expect(result.selected.filter((candidate) => candidate.primaryCategory === 'gold-market')).toHaveLength(0);
     expect(result.selected.filter((candidate) => candidate.sourceQuotaKey === 'bullion.example').length).toBeLessThanOrEqual(1);
   });
 });

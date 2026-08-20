@@ -9,6 +9,7 @@ import {
 import { GoogleTranslationService } from './google-translation.service';
 import { compactText } from '../utils/text';
 import {
+  type PoliticsEditorialValidationMode,
   PoliticsEditorialValidator,
   createProviderFallbackEditorial,
   createTranslationFallbackEditorial,
@@ -25,7 +26,12 @@ interface VerifiedPoliticsTranslator {
 }
 
 interface PoliticsEditorialValidatorLike {
-  validate(candidate: PoliticsCandidate, editorial: PoliticsEditorial): PoliticsEditorial;
+  validate(
+    candidate: PoliticsCandidate,
+    editorial: PoliticsEditorial,
+    fallbackOverride?: PoliticsEditorial,
+    mode?: PoliticsEditorialValidationMode,
+  ): PoliticsEditorial;
 }
 
 export interface PoliticsEditorial {
@@ -92,18 +98,69 @@ export class PoliticsEditorialService {
     try {
       generated = await this.editorial.editArticle(article, topic);
     } catch {
-      return this.validator.validate(candidate, createProviderFallbackEditorial(candidate));
+      return this.translateFallback(candidate, createProviderFallbackEditorial);
     }
 
     if (isGroundedDump(generated, article.summary ?? '')) {
-      return this.validator.validate(candidate, createProviderFallbackEditorial(candidate));
+      return this.translateFallback(candidate, createProviderFallbackEditorial);
     }
 
-    const translated = await this.toVietnameseFields(candidate, generated);
-    if (isGroundedDump(translated, article.summary ?? '')) {
-      return this.validator.validate(candidate, createProviderFallbackEditorial(candidate));
+    let generatedForTranslation = generated;
+    if (generated[verifiedVietnameseEditorial] !== true) {
+      const sourceGrounded = this.validator.validate(
+        candidate,
+        {
+          title: toPlainEditorial(generated.title),
+          summary: toPlainEditorial(generated.summary),
+          whyImportant: toPlainEditorial(generated.whyImportant),
+        },
+        createProviderFallbackEditorial(candidate),
+        'source-facts',
+      );
+      generatedForTranslation = { ...generated, ...sourceGrounded };
     }
-    return this.validator.validate(candidate, translated);
+
+    const translated = await this.toVietnameseFields(candidate, generatedForTranslation);
+    if (isGroundedDump(translated, article.summary ?? '')) {
+      return this.translateFallback(candidate, createProviderFallbackEditorial);
+    }
+    return this.validator.validate(
+      candidate,
+      translated,
+      createTranslationFallbackEditorial(candidate),
+      'translated',
+    );
+  }
+
+  private async translateFallback(
+    candidate: PoliticsCandidate,
+    factory: (translated: PoliticsCandidate) => PoliticsEditorial,
+  ): Promise<PoliticsEditorial> {
+    const conservative = createTranslationFallbackEditorial(candidate);
+    try {
+      const [title, summary] = await Promise.all([
+        this.translator.translateDigestVerified(compactText(candidate.title)),
+        candidate.summary
+          ? this.translator.translateDigestVerified(compactText(candidate.summary))
+          : Promise.resolve({ text: '', succeeded: true }),
+      ]);
+      if (!title.succeeded || !summary.succeeded) {
+        return this.validator.validate(candidate, conservative, conservative);
+      }
+      const translatedCandidate: PoliticsCandidate = {
+        ...candidate,
+        title: toPlainEditorial(title.text),
+        summary: summary.text ? toPlainEditorial(summary.text) : undefined,
+      };
+      return this.validator.validate(
+        candidate,
+        factory(translatedCandidate),
+        conservative,
+        'translated',
+      );
+    } catch {
+      return this.validator.validate(candidate, conservative, conservative);
+    }
   }
 
   private async toVietnameseFields(

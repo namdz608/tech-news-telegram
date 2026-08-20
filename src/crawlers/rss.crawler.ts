@@ -181,9 +181,9 @@ export class RssCrawler implements NewsCrawler<RssSourceConfig> {
     const articles = items
       .filter((item) => item.title && item.link)
       .map((item) => {
-        const title = compactText(item.title ?? '');
+        const title = normalizeRssText(item.title ?? '');
         const summary = boundNormalizedSummary(
-          compactText(item.contentSnippet ?? item.content ?? ''),
+          normalizeRssText(item.contentSnippet ?? item.content ?? ''),
           source.boundedFeedFetch === true,
         );
         const url = normalizeUrl(item.link ?? '');
@@ -478,6 +478,10 @@ function boundNormalizedSummary(summary: string, bounded: boolean): string {
     return summary;
   }
   return summary.slice(0, MAX_NORMALIZED_SUMMARY_CHARS).trimEnd();
+}
+
+function normalizeRssText(value: string): string {
+  return compactText(cheerio.load(value, undefined, false).text());
 }
 
 function assertPublicFeedUrl(value: string): void {
