@@ -198,6 +198,65 @@ describe('PoliticsEditorialService', () => {
     expect(result.summary).toContain('Bản tin trực tiếp này hiện kết thúc');
   });
 
+  it('keeps Vietnamese past tense for an ordinary reported article', async () => {
+    const input = candidate({
+      sourceName: 'The Guardian World',
+      title:
+        'President says he plans to meet dictator this year but Kim Yo-jong says Washington remains Pyongyang’s enemy',
+      summary:
+        'Donald Trump has said he is planning to meet North Korea’s Kim Jong-un later this year, though the reclusive leader’s younger sister cast doubt on their communications. Trump had suggested he and Kim were holding secret negotiations on Tuesday.',
+      author: 'Andrew Roth in Washington',
+      originalAuthor: 'Andrew Roth in Washington',
+      originalAccount: 'Andrew Roth in Washington',
+      originAttribution: {
+        url: 'https://www.theguardian.com/world/example',
+        account: 'Andrew Roth in Washington',
+        publishedAt: '2026-08-20T08:00:00.000Z',
+        discoveredAt: '2026-08-20T09:00:00.000Z',
+      },
+      claimStance: 'neutral',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      semanticClaimKey: 'diplomacy|trump',
+      evidenceAssertions: [assertion({
+        semanticClaimKey: 'diplomacy|trump',
+        claimText: 'President says he plans to meet Kim Jong-un this year',
+        stance: 'neutral',
+        modality: 'reported',
+        effect: 'mentions',
+        sourceId: 'guardian-world',
+        sourceUrl: 'https://www.theguardian.com/world/example',
+        evidenceOriginKey: 'theguardian.com',
+      })],
+      verificationState: 'reported',
+      corroborationNote: 'The Guardian đang tường thuật diễn biến ngoại giao.',
+    });
+    const editorial = {
+      editArticle: vi.fn(async (article: Article) => ({
+        title: article.title,
+        summary: article.summary ?? '',
+        whyImportant: article.summary ?? '',
+        actionLevel: 'monitor' as const,
+        actionText: 'Monitor sources.',
+      })),
+    };
+    const translator = {
+      translateDigestVerified: vi.fn(async (text: string) => ({
+        text: text === input.title
+          ? 'Tổng thống nói ông có kế hoạch gặp Kim Jong-un trong năm nay'
+          : 'Donald Trump cho biết ông dự định gặp Kim Jong-un vào cuối năm nay, dù em gái nhà lãnh đạo đã nghi ngờ về thông tin liên lạc. Trump đã gợi ý rằng hai bên đang đàm phán bí mật.',
+        succeeded: true,
+      })),
+    };
+
+    const result = await new PoliticsEditorialService(editorial, translator).edit(input);
+
+    expect(result.summary).toContain('đã nghi ngờ');
+    expect(result.summary).toContain('đã gợi ý');
+    expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
+    expect(result.summary).not.toContain('Donald Trump has said');
+  });
+
   it('uses an explicit translation fallback override when validation rejects a field', () => {
     const input = candidate();
     const fallback = createTranslationFallbackEditorial(input);

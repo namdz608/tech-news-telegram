@@ -162,9 +162,9 @@ function matchingAssertionEffect(candidate: PoliticsCandidate): string {
 }
 
 function needsAllegationFrame(candidate: PoliticsCandidate): boolean {
-  return candidate.verificationState === 'reported'
-    || candidate.verificationState === 'unverified'
+  return candidate.verificationState === 'unverified'
     || candidate.claimModality === 'alleged'
+    || candidate.claimModality === 'possible'
     || candidate.evidentiaryEffect === 'records-claim'
     || matchingAssertionEffect(candidate) === 'records-claim';
 }
@@ -200,8 +200,8 @@ function restatedAllegationAsFact(field: string, candidate: PoliticsCandidate): 
   if (candidate.verificationState === 'confirmed' && candidate.claimModality === 'established') {
     return false;
   }
-  if (ESTABLISHED_FINDING.test(field) || COMPLETED_ACT.test(field)) return true;
   if (!needsAllegationFrame(candidate)) return false;
+  if (ESTABLISHED_FINDING.test(field) || COMPLETED_ACT.test(field)) return true;
   return /đã thực hiện/iu.test(field) && !hasAllegationModality(field, candidate);
 }
 
