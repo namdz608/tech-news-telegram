@@ -158,13 +158,18 @@ export class TelegramService {
    * - `tests/services/telegram.service.test.ts`
    */
   // Mở method `sendDigest` để gửi dữ liệu ra Telegram theo đúng thứ tự.
-  async sendDigest(message: string, url?: string, imageUrl?: string): Promise<void> {
+  async sendDigest(
+    message: string,
+    url?: string,
+    imageUrl?: string,
+    buttonText = '🔎 Xem bài gốc',
+  ): Promise<void> {
     // Nếu `imageUrl && message.length > this.photoCaptionMaxLength` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
     if (imageUrl && message.length > this.photoCaptionMaxLength) {
       // Chờ `this.sendPhotoOnly(imageUrl);` hoàn tất để giữ đúng thứ tự side effect.
       await this.sendPhotoOnly(imageUrl);
-      // Chờ `this.sendDigest(message, url);` hoàn tất để giữ đúng thứ tự side effect.
-      await this.sendDigest(message, url);
+      // Chờ `this.sendDigest(message, url, undefined, buttonText);` hoàn tất để giữ đúng thứ tự side effect.
+      await this.sendDigest(message, url, undefined, buttonText);
       // Trả quyền điều khiển cho caller và kết thúc nhánh hiện tại.
       return;
     }
@@ -180,8 +185,13 @@ export class TelegramService {
     for (let index = 0; index < chunks.length; index += 1) {
       // Tính `isLastChunk` từ `index === chunks.length - 1;` và giữ bất biến trong phạm vi hiện tại.
       const isLastChunk = index === chunks.length - 1;
-      // Chờ `this.sendChunk(chunks[index], isLastChunk ? url : undefined, isLastChunk ? imageUrl : u…` hoàn tất để giữ đúng thứ tự side effect.
-      await this.sendChunk(chunks[index], isLastChunk ? url : undefined, isLastChunk ? imageUrl : undefined);
+      // Chờ `this.sendChunk(..., isLastChunk ? url : undefined, isLastChunk ? imageUrl : undefined, buttonText)` hoàn tất để giữ đúng thứ tự side effect.
+      await this.sendChunk(
+        chunks[index],
+        isLastChunk ? url : undefined,
+        isLastChunk ? imageUrl : undefined,
+        buttonText,
+      );
     }
   }
 
@@ -256,7 +266,12 @@ export class TelegramService {
    * - `src/services/telegram.service.ts`
    */
   // Mở method `sendChunk` để gửi dữ liệu ra Telegram theo đúng thứ tự.
-  private async sendChunk(chunk: string, url?: string, imageUrl?: string): Promise<void> {
+  private async sendChunk(
+    chunk: string,
+    url?: string,
+    imageUrl?: string,
+    buttonText = '🔎 Xem bài gốc',
+  ): Promise<void> {
     // Khởi tạo biến cục bộ `baseOptions` kiểu `SendMessageOptions` từ `{`.
     const baseOptions: SendMessageOptions = {
       // Gán field `parse_mode` từ `'HTML',` để object khớp contract.
@@ -269,8 +284,8 @@ export class TelegramService {
     if (url) {
       // Cập nhật `baseOptions.reply_markup` bằng `{` cho bước kế tiếp.
       baseOptions.reply_markup = {
-        // Gán field `inline_keyboard` từ `[[{ text: '🔎 Xem bài gốc', url }]],` để object khớp contract.
-        inline_keyboard: [[{ text: '🔎 Xem bài gốc', url }]],
+        // Gán field `inline_keyboard` từ `[[{ text: buttonText, url }]],` để object khớp contract.
+        inline_keyboard: [[{ text: buttonText, url }]],
       };
     }
 
@@ -344,8 +359,21 @@ export class TelegramService {
   }
 }
 
-export function createTelegramService(botToken: string, chatId: string): TelegramService {
-  return new TelegramService(new Telegraf(botToken) as unknown as TelegramClientLike, chatId);
+export interface TelegramServiceFactoryOptions {
+  messageEffectId?: string;
+}
+
+export function createTelegramService(
+  botToken: string,
+  chatId: string,
+  options: TelegramServiceFactoryOptions = {},
+): TelegramService {
+  return new TelegramService(
+    new Telegraf(botToken) as unknown as TelegramClientLike,
+    chatId,
+    3900,
+    options.messageEffectId ?? env.TELEGRAM_MESSAGE_EFFECT_ID,
+  );
 }
 
 /**

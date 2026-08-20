@@ -27,6 +27,31 @@ import { compactText } from '../utils/text';
 // Nạp { NewsCrawler } từ `./crawler.types` để dùng đúng dependency/type thay vì tự triển khai lại.
 import type { NewsCrawler } from './crawler.types';
 
+const MAX_FEED_BODY_BYTES = 512 * 1024;
+const MAX_NORMALIZED_SUMMARY_CHARS = 4000;
+const ALLOWED_FEED_MEDIA_TYPES = new Set([
+  'application/rss+xml',
+  'application/atom+xml',
+  'application/xml',
+  'text/xml',
+]);
+const ALLOWED_FEED_CHARSETS = new Set(['utf-8', 'utf8', 'us-ascii', 'ascii']);
+const RSS_ACCEPT = 'application/rss+xml, application/xml;q=0.9, */*;q=0.8';
+
+function createDefaultFeedHttpClient(): FeedHttpClientLike {
+  return axios.create({
+    timeout: env.REQUEST_TIMEOUT_MS,
+    headers: {
+      'User-Agent': env.USER_AGENT,
+      Accept: RSS_ACCEPT,
+    },
+    responseType: 'text',
+    maxRedirects: 0,
+    maxContentLength: MAX_FEED_BODY_BYTES,
+    maxBodyLength: MAX_FEED_BODY_BYTES,
+  }) as FeedHttpClientLike;
+}
+
 /**
  * Interface `RssItemLike` giới hạn hình dạng dữ liệu/dependency mà module chấp nhận, giúp test có thể inject fake đúng contract.
  *
@@ -77,6 +102,14 @@ interface RssItemLike {
 // Mở khai báo `interface RssParserLike` để compiler kiểm tra contract cho mọi consumer.
 interface RssParserLike {
   parseURL(url: string): Promise<{ items: RssItemLike[] }>;
+  parseString(xml: string): Promise<{ items: RssItemLike[] }>;
+}
+
+interface FeedHttpClientLike {
+  get(url: string): Promise<{
+    data: string;
+    headers: Readonly<Record<string, string | undefined>>;
+  }>;
 }
 
 /**
@@ -106,7 +139,7 @@ export class RssCrawler implements NewsCrawler<RssSourceConfig> {
         // Gán field `User-Agent` từ `env.USER_AGENT,` để object khớp contract.
         'User-Agent': env.USER_AGENT,
         // Gán field `Accept` từ `'application/rss+xml, application/xml;q=0.9, */*;q=0.8',` để object khớp contract.
-        Accept: 'application/rss+xml, application/xml;q=0.9, */*;q=0.8',
+        Accept: RSS_ACCEPT,
       },
       // Gán field `requestOptions` từ `{` để object khớp contract.
       requestOptions: {
@@ -127,6 +160,7 @@ export class RssCrawler implements NewsCrawler<RssSourceConfig> {
       // Gán field `httpsAgent` từ `redditHttpsAgent,` để object khớp contract.
       httpsAgent: redditHttpsAgent,
     }),
+    private readonly feedHttp: FeedHttpClientLike = createDefaultFeedHttpClient(),
   ) {}
 
   /**
@@ -138,60 +172,60 @@ export class RssCrawler implements NewsCrawler<RssSourceConfig> {
    */
   // Mở method `crawl` để tải dữ liệu nguồn và chuẩn hóa thành Article[].
   async crawl(source: RssSourceConfig): Promise<Article[]> {
-    // Tính `feed` từ `await this.parser.parseURL(source.feedUrl);` và giữ bất biến trong phạm vi hiện tại.
-    const feed = await this.parser.parseURL(source.feedUrl);
+    const feed = source.boundedFeedFetch
+      ? await this.fetchBoundedFeed(source.feedUrl)
+      : await this.parser.parseURL(source.feedUrl);
+    const items =
+      typeof source.maxItems === 'number' ? feed.items.slice(0, source.maxItems) : feed.items;
 
-    // Tính `articles` từ `feed.items` và giữ bất biến trong phạm vi hiện tại.
-    const articles = feed.items
-      // Áp dụng `filter` để tiếp tục biến đổi kết quả trung gian mà không đổi input gốc.
+    const articles = items
       .filter((item) => item.title && item.link)
-      // Áp dụng `map` để tiếp tục biến đổi kết quả trung gian mà không đổi input gốc.
       .map((item) => {
-        // Tính `title` từ `compactText(item.title ?? '');` và giữ bất biến trong phạm vi hiện tại.
         const title = compactText(item.title ?? '');
-        // Tính `summary` từ `compactText(item.contentSnippet ?? item.content ?? '');` và giữ bất biến trong phạm vi hiện tại.
-        const summary = compactText(item.contentSnippet ?? item.content ?? '');
-        // Tính `url` từ `normalizeUrl(item.link ?? '');` và giữ bất biến trong phạm vi hiện tại.
+        const summary = boundNormalizedSummary(
+          compactText(item.contentSnippet ?? item.content ?? ''),
+          source.boundedFeedFetch === true,
+        );
         const url = normalizeUrl(item.link ?? '');
-        // Tính `topics` từ `[...new Set([...(source.defaultTopics ?? []), ...matchTopics({ title, summary })])];` và giữ bất biến trong phạm vi hiện tại.
         const topics = [...new Set([...(source.defaultTopics ?? []), ...matchTopics({ title, summary })])];
 
-        // Trả `{` cho caller và kết thúc nhánh hiện tại.
         return {
-          // Gán field `article` từ `{` để object khớp contract.
           article: {
-            // Gán field `id` từ `url,` để object khớp contract.
             id: url,
-            // Gán field `sourceId` từ `source.id,` để object khớp contract.
             sourceId: source.id,
-            // Gán field `sourceName` từ `source.name,` để object khớp contract.
             sourceName: source.name,
-            // Đưa giá trị `title` vào field cùng tên của object đang tạo.
             title,
-            // Đưa giá trị `url` vào field cùng tên của object đang tạo.
             url,
-            // Đưa giá trị `summary` vào field cùng tên của object đang tạo.
             summary,
-            // Gán field `imageUrl` từ `extractImageUrl(item),` để object khớp contract.
             imageUrl: extractImageUrl(item),
-            // Gán field `author` từ `item.creator,` để object khớp contract.
             author: item.creator,
-            // Gán field `publishedAt` từ `item.isoDate,` để object khớp contract.
             publishedAt: item.isoDate,
-            // Gán field `collectedAt` từ `new Date().toISOString(),` để object khớp contract.
             collectedAt: new Date().toISOString(),
-            // Đưa giá trị `topics` vào field cùng tên của object đang tạo.
             topics,
           },
-          // Đưa giá trị `item` vào field cùng tên của object đang tạo.
           item,
         };
       })
-      // Áp dụng `filter` để tiếp tục biến đổi kết quả trung gian mà không đổi input gốc.
       .filter(({ article }) => source.includeUnmatched || article.topics.length > 0);
 
-    // Trả `Promise.all(articles.map(({ article, item }) => this.withArticlePageImage(article, item…` cho caller và kết thúc nhánh hiện tại.
+    if (source.enrichArticlePage === false) {
+      return articles.map(({ article }) => article);
+    }
+
     return Promise.all(articles.map(({ article, item }) => this.withArticlePageImage(article, item)));
+  }
+
+  private async fetchBoundedFeed(feedUrl: string): Promise<{ items: RssItemLike[] }> {
+    assertPublicFeedUrl(feedUrl);
+    const response = await this.feedHttp.get(feedUrl);
+    assertFeedContentType(response.headers);
+    if (typeof response.data !== 'string') {
+      throw new Error('rss-feed');
+    }
+    if (Buffer.byteLength(response.data, 'utf8') > MAX_FEED_BODY_BYTES) {
+      throw new Error('rss-feed');
+    }
+    return this.parser.parseString(response.data);
   }
 
   /**
@@ -437,4 +471,67 @@ function normalizeImageUrl(imageUrl?: string, baseUrl?: string): string | undefi
     // Trả `undefined;` cho caller và kết thúc nhánh hiện tại.
     return undefined;
   }
+}
+
+function boundNormalizedSummary(summary: string, bounded: boolean): string {
+  if (!bounded || summary.length <= MAX_NORMALIZED_SUMMARY_CHARS) {
+    return summary;
+  }
+  return summary.slice(0, MAX_NORMALIZED_SUMMARY_CHARS).trimEnd();
+}
+
+function assertPublicFeedUrl(value: string): void {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error('rss-feed');
+  }
+  if ((url.protocol !== 'http:' && url.protocol !== 'https:') || url.username || url.password) {
+    throw new Error('rss-feed');
+  }
+}
+
+function assertFeedContentType(headers?: Readonly<Record<string, string | undefined>>): void {
+  if (!headers) {
+    throw new Error('rss-feed');
+  }
+  const { mediaType, charset } = parseContentType(headerValue(headers, 'content-type'));
+  if (!ALLOWED_FEED_MEDIA_TYPES.has(mediaType)) {
+    throw new Error('rss-feed');
+  }
+  if (charset && !ALLOWED_FEED_CHARSETS.has(charset)) {
+    throw new Error('rss-feed');
+  }
+}
+
+function headerValue(
+  headers: Readonly<Record<string, string | undefined>>,
+  name: string,
+): string {
+  const record = headers as Record<string, unknown>;
+  const direct = record[name] ?? record[name.toLowerCase()];
+  if (typeof direct === 'string') {
+    return direct;
+  }
+  const getter = (headers as { get?: (headerName: string) => unknown }).get;
+  if (typeof getter === 'function') {
+    const value = getter.call(headers, name);
+    if (typeof value === 'string') {
+      return value;
+    }
+  }
+  return '';
+}
+
+function parseContentType(value: string): { mediaType: string; charset?: string } {
+  const [rawMedia, ...params] = value.split(';');
+  const mediaType = (rawMedia ?? '').trim().toLowerCase();
+  let charset: string | undefined;
+  for (const param of params) {
+    const [rawName, ...rawValue] = param.split('=');
+    if (rawName?.trim().toLowerCase() !== 'charset') continue;
+    charset = rawValue.join('=').trim().replace(/^["']|["']$/g, '').toLowerCase();
+  }
+  return { mediaType, charset };
 }

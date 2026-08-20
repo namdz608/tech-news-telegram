@@ -1,0 +1,23 @@
+{
+  "unit": "Nghìn VND/chỉ",
+  "data": [
+    {
+      "materialCode": "03",
+      "materialName": "VÀNG NHẪN 999.9",
+      "priceDojiBuyIn": 12000,
+      "priceDojiSellOut": 12200,
+      "updateDate": "2026-08-20T03:32:28.6002852Z",
+      "type": "G",
+      "isActive": true
+    },
+    {
+      "materialCode": "01",
+      "materialName": "VÀNG MIẾNG SJC",
+      "priceDojiBuyIn": 14300,
+      "priceDojiSellOut": 14600,
+      "updateDate": "2026-08-20T03:32:28.6002852Z",
+      "type": "G",
+      "isActive": true
+    }
+  ]
+}

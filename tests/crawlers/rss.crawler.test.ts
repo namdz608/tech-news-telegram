@@ -1,7 +1,50 @@
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { describe, expect, it } from 'vitest';
 import { RssCrawler } from '../../src/crawlers/rss.crawler';
 import type { RssSourceConfig } from '../../src/types/source';
 import { redditHttpsAgent } from '../../src/utils/reddit-dns';
+
+const MAX_FEED_BODY_BYTES = 512 * 1024;
+const MAX_NORMALIZED_SUMMARY_CHARS = 4000;
+
+function politicsRssSource(overrides: Partial<RssSourceConfig> = {}): RssSourceConfig {
+  return {
+    id: 'vnexpress-thoi-su',
+    name: 'VnExpress Thời sự',
+    kind: 'rss',
+    enabled: true,
+    homepageUrl: 'https://vnexpress.net/thoi-su',
+    feedUrl: 'https://vnexpress.net/rss/thoi-su.rss',
+    includeUnmatched: true,
+    boundedFeedFetch: true,
+    enrichArticlePage: false,
+    maxItems: 20,
+    ...overrides,
+  };
+}
+
+async function withServer(
+  handler: (req: http.IncomingMessage, res: http.ServerResponse) => void,
+  run: (ctx: { origin: string; requests: string[] }) => Promise<void>,
+): Promise<void> {
+  const requests: string[] = [];
+  const server = http.createServer((req, res) => {
+    requests.push(`${req.method ?? 'GET'} ${req.url ?? '/'}`);
+    handler(req, res);
+  });
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', () => resolve());
+  });
+  const { port } = server.address() as AddressInfo;
+  try {
+    await run({ origin: `http://127.0.0.1:${port}`, requests });
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+}
 
 describe('RssCrawler', () => {
   it('retains unmatched articles only when the RSS source opts in', async () => {
@@ -197,7 +240,7 @@ describe('RssCrawler', () => {
 
   it('extracts an Open Graph image from the article page when the RSS item has no image', async () => {
     const parser = {
-      parseURL: async () => ({
+      parseURL: vi.fn().mockResolvedValue({
         items: [
           {
             title: 'External secrets for Kubernetes',
@@ -207,9 +250,10 @@ describe('RssCrawler', () => {
           },
         ],
       }),
+      parseString: vi.fn(),
     };
     const http = {
-      get: async () => ({
+      get: vi.fn().mockResolvedValue({
         data: `
           <html>
             <head>
@@ -219,8 +263,9 @@ describe('RssCrawler', () => {
         `,
       }),
     };
+    const feedHttp = { get: vi.fn() };
 
-    const articles = await new RssCrawler(parser, http).crawl({
+    const articles = await new RssCrawler(parser, http, feedHttp).crawl({
       id: 'rss-one',
       name: 'RSS One',
       kind: 'rss',
@@ -229,6 +274,12 @@ describe('RssCrawler', () => {
       feedUrl: 'https://example.com/feed.xml',
     });
 
+    expect(parser.parseURL).toHaveBeenCalledTimes(1);
+    expect(parser.parseURL).toHaveBeenCalledWith('https://example.com/feed.xml');
+    expect(parser.parseString).not.toHaveBeenCalled();
+    expect(feedHttp.get).not.toHaveBeenCalled();
+    expect(http.get).toHaveBeenCalledTimes(1);
+    expect(http.get).toHaveBeenCalledWith('https://example.com/kubernetes-secrets');
     expect(articles[0].imageUrl).toBe('https://example.com/article-diagram.jpg');
   });
 
@@ -431,5 +482,252 @@ describe('RssCrawler', () => {
 
     expect(requestedUrls).toEqual(['https://example.com/post']);
     expect(articles[0].imageUrl).toBe('https://example.com/source-page.jpg');
+  });
+
+  it('configures bounded feed HTTP with RSS headers, no redirects, and a 512 KiB cap', () => {
+    const crawler = new RssCrawler();
+    const feedHttp = (
+      crawler as unknown as {
+        feedHttp: {
+          defaults?: {
+            timeout?: number;
+            maxRedirects?: number;
+            maxContentLength?: number;
+            maxBodyLength?: number;
+            responseType?: string;
+            headers?: Record<string, string>;
+          };
+        };
+      }
+    ).feedHttp;
+
+    expect(feedHttp.defaults?.timeout).toBeGreaterThan(0);
+    expect(feedHttp.defaults?.maxRedirects).toBe(0);
+    expect(feedHttp.defaults?.maxContentLength).toBe(MAX_FEED_BODY_BYTES);
+    expect(feedHttp.defaults?.maxBodyLength).toBe(MAX_FEED_BODY_BYTES);
+    expect(feedHttp.defaults?.responseType).toBe('text');
+    expect(feedHttp.defaults?.headers?.['User-Agent']).toBeTruthy();
+    expect(feedHttp.defaults?.headers?.Accept).toContain('application/rss+xml');
+  });
+
+  it('fetches politics feeds once through the injected feed client and skips article-page enrichment', async () => {
+    const xml = '<rss><channel><item><title>Budget</title></item></channel></rss>';
+    const parser = {
+      parseURL: vi.fn(),
+      parseString: vi.fn().mockResolvedValue({
+        items: [
+          {
+            title: 'Parliament debates the gold-reserve policy',
+            link: 'https://vnexpress.net/politics/budget',
+            contentSnippet: 'National assembly budget hearing',
+            isoDate: '2026-08-19T00:00:00.000Z',
+            creator: 'Hà Nội desk',
+          },
+        ],
+      }),
+    };
+    const articleHttp = { get: vi.fn() };
+    const feedHttp = {
+      get: vi.fn().mockResolvedValue({
+        data: xml,
+        headers: { 'content-type': 'application/rss+xml; charset=utf-8' },
+      }),
+    };
+
+    const articles = await new RssCrawler(parser, articleHttp, feedHttp).crawl(politicsRssSource());
+
+    expect(feedHttp.get).toHaveBeenCalledTimes(1);
+    expect(feedHttp.get).toHaveBeenCalledWith('https://vnexpress.net/rss/thoi-su.rss');
+    expect(parser.parseString).toHaveBeenCalledTimes(1);
+    expect(parser.parseString).toHaveBeenCalledWith(xml);
+    expect(parser.parseURL).not.toHaveBeenCalled();
+    expect(articleHttp.get).not.toHaveBeenCalled();
+    expect(articles).toEqual([
+      expect.objectContaining({
+        title: 'Parliament debates the gold-reserve policy',
+        url: 'https://vnexpress.net/politics/budget',
+        author: 'Hà Nội desk',
+        publishedAt: '2026-08-19T00:00:00.000Z',
+      }),
+    ]);
+  });
+
+  it('rejects non-HTTP(S) and credentialed feed URLs without fetching', async () => {
+    const parser = { parseURL: vi.fn(), parseString: vi.fn() };
+    const articleHttp = { get: vi.fn() };
+    const feedHttp = { get: vi.fn() };
+    const crawler = new RssCrawler(parser, articleHttp, feedHttp);
+
+    await expect(
+      crawler.crawl(politicsRssSource({ feedUrl: 'file:///etc/passwd' })),
+    ).rejects.toThrow();
+    await expect(
+      crawler.crawl(politicsRssSource({ feedUrl: 'ftp://example.com/feed.xml' })),
+    ).rejects.toThrow();
+    await expect(
+      crawler.crawl(politicsRssSource({ feedUrl: 'https://user:pass@vnexpress.net/rss/thoi-su.rss' })),
+    ).rejects.toThrow();
+
+    expect(feedHttp.get).not.toHaveBeenCalled();
+    expect(parser.parseURL).not.toHaveBeenCalled();
+    expect(parser.parseString).not.toHaveBeenCalled();
+    expect(articleHttp.get).not.toHaveBeenCalled();
+  });
+
+  it('rejects a 3xx feed response after one request and never contacts the Location target', async () => {
+    const parser = { parseURL: vi.fn(), parseString: vi.fn() };
+    const articleHttp = { get: vi.fn() };
+
+    await withServer(
+      (req, res) => {
+        const path = (req.url ?? '/').split('?', 1)[0];
+        if (path === '/feed.xml') {
+          res.writeHead(302, { Location: '/secret-target' });
+          res.end('redirect-body');
+          return;
+        }
+        res.writeHead(200, { 'content-type': 'application/rss+xml' });
+        res.end('<rss></rss>');
+      },
+      async ({ origin, requests }) => {
+        const crawler = new RssCrawler(parser, articleHttp);
+        await expect(
+          crawler.crawl(politicsRssSource({ feedUrl: `${origin}/feed.xml` })),
+        ).rejects.toThrow();
+        expect(requests).toEqual(['GET /feed.xml']);
+        expect(parser.parseURL).not.toHaveBeenCalled();
+        expect(parser.parseString).not.toHaveBeenCalled();
+        expect(articleHttp.get).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  it('rejects an oversize feed body after one request', async () => {
+    const parser = { parseURL: vi.fn(), parseString: vi.fn() };
+    const articleHttp = { get: vi.fn() };
+
+    await withServer(
+      (_req, res) => {
+        const body = Buffer.alloc(MAX_FEED_BODY_BYTES + 1, 97);
+        res.writeHead(200, {
+          'content-type': 'application/rss+xml; charset=utf-8',
+          'content-length': String(body.length),
+        });
+        res.end(body);
+      },
+      async ({ origin }) => {
+        const crawler = new RssCrawler(parser, articleHttp);
+        await expect(
+          crawler.crawl(politicsRssSource({ feedUrl: `${origin}/feed.xml` })),
+        ).rejects.toThrow();
+        expect(parser.parseURL).not.toHaveBeenCalled();
+        expect(parser.parseString).not.toHaveBeenCalled();
+        expect(articleHttp.get).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  it('rejects the wrong feed MIME type after one fetch', async () => {
+    const parser = { parseURL: vi.fn(), parseString: vi.fn() };
+    const articleHttp = { get: vi.fn() };
+    const feedHttp = {
+      get: vi.fn().mockResolvedValue({
+        data: '<html>not-a-feed</html>',
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      }),
+    };
+
+    await expect(
+      new RssCrawler(parser, articleHttp, feedHttp).crawl(politicsRssSource()),
+    ).rejects.toThrow();
+    expect(feedHttp.get).toHaveBeenCalledTimes(1);
+    expect(parser.parseString).not.toHaveBeenCalled();
+    expect(parser.parseURL).not.toHaveBeenCalled();
+    expect(articleHttp.get).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid XML after one feed fetch', async () => {
+    const parser = {
+      parseURL: vi.fn(),
+      parseString: vi.fn().mockRejectedValue(new Error('Invalid XML')),
+    };
+    const articleHttp = { get: vi.fn() };
+    const feedHttp = {
+      get: vi.fn().mockResolvedValue({
+        data: '<not-xml',
+        headers: { 'content-type': 'application/xml; charset=utf-8' },
+      }),
+    };
+
+    await expect(
+      new RssCrawler(parser, articleHttp, feedHttp).crawl(politicsRssSource()),
+    ).rejects.toThrow('Invalid XML');
+    expect(feedHttp.get).toHaveBeenCalledTimes(1);
+    expect(parser.parseString).toHaveBeenCalledTimes(1);
+    expect(parser.parseURL).not.toHaveBeenCalled();
+    expect(articleHttp.get).not.toHaveBeenCalled();
+  });
+
+  it('returns only the first 20 items from a 1,000-item politics feed in feed order', async () => {
+    const items = Array.from({ length: 1000 }, (_, index) => ({
+      title: `Politics item ${index + 1}`,
+      link: `https://vnexpress.net/item-${index + 1}`,
+      contentSnippet: 'National assembly update',
+      isoDate: '2026-08-19T00:00:00.000Z',
+    }));
+    const parser = {
+      parseURL: vi.fn(),
+      parseString: vi.fn().mockResolvedValue({ items }),
+    };
+    const articleHttp = { get: vi.fn() };
+    const feedHttp = {
+      get: vi.fn().mockResolvedValue({
+        data: '<rss></rss>',
+        headers: { 'content-type': 'application/atom+xml; charset=us-ascii' },
+      }),
+    };
+
+    const articles = await new RssCrawler(parser, articleHttp, feedHttp).crawl(politicsRssSource());
+
+    expect(articles).toHaveLength(20);
+    expect(articles.map((article) => article.title)).toEqual(
+      Array.from({ length: 20 }, (_, index) => `Politics item ${index + 1}`),
+    );
+    expect(articleHttp.get).not.toHaveBeenCalled();
+  });
+
+  it('bounds a near-512-KiB item summary before it leaves source normalization', async () => {
+    const hugeSummary = `Gold reserve ${'x'.repeat(MAX_FEED_BODY_BYTES - 32)}`;
+    expect(Buffer.byteLength(hugeSummary, 'utf8')).toBeGreaterThan(MAX_FEED_BODY_BYTES - 16_384);
+    expect(Buffer.byteLength(hugeSummary, 'utf8')).toBeLessThanOrEqual(MAX_FEED_BODY_BYTES);
+
+    const parser = {
+      parseURL: vi.fn(),
+      parseString: vi.fn().mockResolvedValue({
+        items: [
+          {
+            title: 'Central bank discusses gold policy',
+            link: 'https://vnexpress.net/gold-policy',
+            contentSnippet: hugeSummary,
+            isoDate: '2026-08-19T00:00:00.000Z',
+          },
+        ],
+      }),
+    };
+    const articleHttp = { get: vi.fn() };
+    const feedHttp = {
+      get: vi.fn().mockResolvedValue({
+        data: '<rss></rss>',
+        headers: { 'content-type': 'text/xml; charset=ascii' },
+      }),
+    };
+
+    const articles = await new RssCrawler(parser, articleHttp, feedHttp).crawl(politicsRssSource());
+
+    expect(articles).toHaveLength(1);
+    expect(articles[0].summary).toBeTruthy();
+    expect(articles[0].summary!.length).toBeLessThan(hugeSummary.length);
+    expect(articles[0].summary!.length).toBeLessThanOrEqual(MAX_NORMALIZED_SUMMARY_CHARS);
+    expect(articleHttp.get).not.toHaveBeenCalled();
   });
 });
