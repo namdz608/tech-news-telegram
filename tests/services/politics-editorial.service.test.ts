@@ -5,6 +5,7 @@ import {
   type PoliticsEditorial,
 } from '../../src/services/politics-editorial.service';
 import {
+  createProviderFallbackEditorial,
   createTranslationFallbackEditorial,
   PoliticsEditorialValidator,
 } from '../../src/services/politics-editorial-validator';
@@ -267,6 +268,31 @@ describe('PoliticsEditorialService', () => {
     );
 
     expect(result).toEqual(fallback);
+  });
+
+  it('accepts a numeric Vietnamese month translated from an English month name', () => {
+    const input = candidate({
+      title: 'Californians will vote on a wealth levy',
+      summary: 'In November, Californians will vote on a one-off 5% levy.',
+      claimStance: 'neutral',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      evidenceAssertions: [assertion({ modality: 'reported', effect: 'mentions' })],
+    });
+    const translated = createProviderFallbackEditorial({
+      ...input,
+      title: 'Người dân California sẽ bỏ phiếu về thuế tài sản',
+      summary: 'Vào tháng 11, người dân California sẽ bỏ phiếu về mức thuế 5% một lần.',
+    });
+
+    const result = new PoliticsEditorialValidator().validate(
+      input,
+      translated,
+      createTranslationFallbackEditorial(input),
+    );
+
+    expect(result.summary).toContain('tháng 11');
+    expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
   });
 
   it('translates English editorial output to verified Vietnamese before validation', async () => {

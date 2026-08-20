@@ -21,6 +21,20 @@ const CONFLICT = /mâu thuẫn|xung đột|phủ nhận|conflicting/iu;
 const INSTRUCTION_FOLLOWED =
   /ignore previous instructions.{0,40}(?:tuân theo|followed|obeyed)|(?:tuân theo|followed).{0,40}ignore previous instructions/iu;
 const NUMBER = /\d+(?:[.,]\d+)?/gu;
+const ENGLISH_MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
 const PROPER_NAME = /\b[A-Z][a-z]+(?:\s+[A-Z][a-zA-Z]+)+\b/g;
 const ESTABLISHED_FINDING =
   /sự thật đã được xác lập|đã được xác lập|là sự thật|kết luận đã được xác lập|không còn là cáo buộc|established finding|established fact/iu;
@@ -133,9 +147,18 @@ function numbersIn(value: string): string[] {
   return value.match(NUMBER) ?? [];
 }
 
+function removeEquivalentTranslatedMonths(field: string, corpus: string): string {
+  return ENGLISH_MONTHS.reduce((value, month, index) => {
+    if (!corpus.includes(month)) return value;
+    const monthNumber = index + 1;
+    return value.replace(new RegExp(`\\btháng\\s+0?${monthNumber}\\b`, 'giu'), '');
+  }, field);
+}
+
 function inventedNumbers(field: string, corpus: string): boolean {
   const allowed = new Set(numbersIn(corpus));
-  return numbersIn(field).some((value) => !allowed.has(value));
+  const comparableField = removeEquivalentTranslatedMonths(field, corpus);
+  return numbersIn(comparableField).some((value) => !allowed.has(value));
 }
 
 const NAME_STOP = new Set(['theo', 'according', 'reported', 'nguon', 'nguồn', 'tai', 'khoan']);
