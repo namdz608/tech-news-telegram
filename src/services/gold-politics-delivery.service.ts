@@ -26,7 +26,6 @@ export class GoldPoliticsDeliveryService {
       await this.telegram.sendDigest(priceMessage);
     } catch (error) {
       logSafeDeliveryFailure('Gold politics Telegram send failed', error);
-      // eslint-disable-next-line preserve-caught-error -- do not leak Telegram transport details
       throw new GoldPoliticsDeliveryError('telegram-send-failed');
     }
     for (const message of newsMessages) {
@@ -34,14 +33,12 @@ export class GoldPoliticsDeliveryService {
         await this.telegram.sendDigest(message.text, message.url, undefined, '🔎 Xem nguồn gốc');
       } catch (error) {
         logSafeDeliveryFailure('Gold politics Telegram send failed', error);
-        // eslint-disable-next-line preserve-caught-error -- do not leak Telegram transport details
         throw new GoldPoliticsDeliveryError('telegram-send-failed');
       }
       try {
         await this.history.mark(message.url);
       } catch (error) {
         logSafeDeliveryFailure('Gold politics history mark failed', error);
-        // eslint-disable-next-line preserve-caught-error -- do not leak history store details
         throw new GoldPoliticsDeliveryError('sent-history-mark-failed');
       }
     }
