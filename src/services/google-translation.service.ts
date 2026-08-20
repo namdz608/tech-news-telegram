@@ -69,9 +69,8 @@ export class GoogleTranslationService implements DigestTranslator {
         ? { text, succeeded: true }
         : { text: digest, succeeded: false };
     // Bắt lỗi từ khối try, không để một dependency ngoài làm hỏng toàn bộ đợt xử lý.
-    } catch (error) {
-      // Ghi sự kiện `console.error('Google Translate failed', error);` phục vụ chẩn đoán mà không đổi kết quả nghiệp vụ.
-      console.error('Google Translate failed', error);
+    } catch {
+      console.error('Google Translate failed');
       return { text: digest, succeeded: false };
     }
   }

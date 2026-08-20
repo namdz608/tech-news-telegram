@@ -114,9 +114,8 @@ export class ArticleEditorialService {
         ? { ...editorial, [verifiedVietnameseEditorial]: true }
         : editorial;
     // Bắt lỗi từ khối try, không để một dependency ngoài làm hỏng toàn bộ đợt xử lý.
-    } catch (error) {
-      // Ghi sự kiện `console.warn('Article editorial generation failed, using fallback', error);` phục vụ chẩn đoán mà không đổi kết quả nghiệp vụ.
-      console.warn('Article editorial generation failed, using fallback', error);
+    } catch {
+      console.warn('Article editorial generation failed, using fallback');
       // Trả `fallback;` cho caller và kết thúc nhánh hiện tại.
       return fallback;
     }

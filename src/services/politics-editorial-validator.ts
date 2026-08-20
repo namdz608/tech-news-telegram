@@ -1,0 +1,245 @@
+import { compactText } from '../utils/text';
+import type { PoliticsCandidate } from '../types/gold-politics';
+
+interface PoliticsEditorial {
+  title: string;
+  summary: string;
+  whyImportant: string;
+}
+
+const TITLE_BOUND = 240;
+const SUMMARY_BOUND = 720;
+const WHY_BOUND = 360;
+const CLAIM_BOUND = 280;
+
+const ATTRIBUTION = /cho rằng|cáo buộc|theo |tài khoản|nguồn |allegedly|reported|according to/iu;
+const CERTAINTY = /chắc chắn|đã xác nhận|được xác nhận|ĐÃ XÁC NHẬN|definitely|proven|confirms that|kết luận chính thức/iu;
+const GUILTY = /phạm tội|có tội|tội phạm|đã thực hiện|convicted|guilty|thú nhận|admitted guilt/iu;
+const MOTIVE = /vì muốn|động cơ|in order to|because he wanted/iu;
+const NEGATION = /\bnot\b|không|chưa|phủ nhận|did not|was not|do not|does not/iu;
+const LIMITATION = /chưa đầy đủ|chưa truy cập|không đầy đủ|giới hạn/iu;
+const CONFLICT = /mâu thuẫn|xung đột|phủ nhận|conflicting/iu;
+const INSTRUCTION_FOLLOWED =
+  /ignore previous instructions.{0,40}(?:tuân theo|followed|obeyed)|(?:tuân theo|followed).{0,40}ignore previous instructions/iu;
+const NUMBER = /\d+(?:[.,]\d+)?/gu;
+const PROPER_NAME = /\b[A-Z][a-z]+(?:\s+[A-Z][a-zA-Z]+)+\b/g;
+
+export function truncateUtf16(value: string, max: number): string {
+  if (max <= 0) return '';
+  if (value.length <= max) return value;
+  let end = max;
+  const last = value.charCodeAt(end - 1);
+  if (last >= 0xd800 && last <= 0xdbff) end -= 1;
+  return value.slice(0, end);
+}
+
+export function actorLabel(candidate: PoliticsCandidate): string {
+  const name = compactText(
+    candidate.originAttribution.account
+      || candidate.originalAccount
+      || candidate.originalAuthor
+      || candidate.author
+      || '',
+  );
+  return name ? `Tài khoản ${name}` : 'Tài khoản chưa xác định';
+}
+
+function boundClaim(candidate: PoliticsCandidate, max = CLAIM_BOUND): string {
+  return truncateUtf16(compactText(candidate.title || candidate.summary || ''), max);
+}
+
+export function createUnverifiedEditorial(candidate: PoliticsCandidate): PoliticsEditorial {
+  const actor = actorLabel(candidate);
+  const attributed = `${actor} cho rằng ${boundClaim(candidate)}`;
+  return {
+    title: truncateUtf16(attributed, TITLE_BOUND),
+    summary: truncateUtf16(
+      `${attributed}. Đây là thông tin chưa được kiểm chứng, không phải kết luận sự thật.`,
+      SUMMARY_BOUND,
+    ),
+    whyImportant: truncateUtf16(
+      `Thông tin này chưa được kiểm chứng. Chỉ ghi nhận nội dung do ${actor} đưa ra.`,
+      WHY_BOUND,
+    ),
+  };
+}
+
+export function createProviderFallbackEditorial(candidate: PoliticsCandidate): PoliticsEditorial {
+  if (candidate.verificationState === 'unverified') {
+    return createUnverifiedEditorial(candidate);
+  }
+  const actor = actorLabel(candidate);
+  const attributed = `Theo ${compactText(candidate.sourceName)}, ${actor} cho rằng ${boundClaim(candidate)}`;
+  const summaryParts = [
+    attributed,
+    compactText(candidate.summary ?? ''),
+    candidate.conflictNote ? compactText(candidate.conflictNote) : '',
+  ].filter(Boolean);
+  const whyParts = [
+    compactText(candidate.corroborationNote),
+    candidate.sourceTextStatus === 'incomplete' ? 'Nội dung nguồn chưa đầy đủ.' : '',
+  ].filter(Boolean);
+  return {
+    title: truncateUtf16(attributed, TITLE_BOUND),
+    summary: truncateUtf16(summaryParts.join(' '), SUMMARY_BOUND),
+    whyImportant: truncateUtf16(
+      whyParts.join(' ') || 'Sự việc đang được các nguồn ghi nhận, chưa phải kết luận cuối.',
+      WHY_BOUND,
+    ),
+  };
+}
+
+export function createTranslationFallbackEditorial(candidate: PoliticsCandidate): PoliticsEditorial {
+  const actor = actorLabel(candidate);
+  const originalTitle = truncateUtf16(compactText(candidate.title), CLAIM_BOUND);
+  const originalSummary = truncateUtf16(compactText(candidate.summary ?? candidate.title), SUMMARY_BOUND - 80);
+  return {
+    title: truncateUtf16(`Chưa dịch được tiêu đề. ${actor} cho rằng: ${originalTitle}`, TITLE_BOUND),
+    summary: truncateUtf16(
+      `Chưa có bản dịch tiếng Việt đã xác minh. ${actor} cho rằng: ${originalSummary}`,
+      SUMMARY_BOUND,
+    ),
+    whyImportant: truncateUtf16(
+      'Giữ nguyên nội dung nguồn vì bản dịch chưa xác minh được; không bịa bản dịch.',
+      WHY_BOUND,
+    ),
+  };
+}
+
+function sourceCorpus(candidate: PoliticsCandidate): string {
+  return [
+    candidate.title,
+    candidate.summary ?? '',
+    candidate.sourceName,
+    candidate.author ?? '',
+    candidate.originalAuthor ?? '',
+    candidate.originalAccount ?? '',
+    candidate.originAttribution.account ?? '',
+    candidate.corroborationNote,
+    candidate.conflictNote ?? '',
+    candidate.semanticClaimKey,
+    candidate.claimEntities.join(' '),
+    ...candidate.evidenceAssertions.map((assertion) => assertion.claimText),
+  ].join('\n');
+}
+
+function normalize(value: string): string {
+  return value.normalize('NFC').toLowerCase().replace(/-/g, ' ');
+}
+
+function numbersIn(value: string): string[] {
+  return value.match(NUMBER) ?? [];
+}
+
+function inventedNumbers(field: string, corpus: string): boolean {
+  const allowed = new Set(numbersIn(corpus));
+  return numbersIn(field).some((value) => !allowed.has(value));
+}
+
+const NAME_STOP = new Set(['theo', 'according', 'reported', 'nguon', 'nguồn', 'tai', 'khoan']);
+
+function inventedNames(field: string, corpus: string): boolean {
+  const normalizedCorpus = normalize(corpus);
+  return (field.match(PROPER_NAME) ?? []).some((name) => {
+    if (normalizedCorpus.includes(normalize(name))) return false;
+    const parts = normalize(name).split(/\s+/).filter((part) => part.length > 1 && !NAME_STOP.has(part));
+    return parts.some((part) => !normalizedCorpus.includes(part));
+  });
+}
+
+function inventedQuotes(field: string, corpus: string): boolean {
+  const normalizedCorpus = normalize(corpus);
+  return [...field.matchAll(/"([^"]+)"/g)].some((match) => !normalizedCorpus.includes(normalize(match[1] ?? '')));
+}
+
+function restatedAllegationAsFact(field: string, corpus: string): boolean {
+  if (!/cáo buộc|allegedly|alleged|cho rằng/iu.test(corpus)) return false;
+  return /đã thực hiện/iu.test(field) && !ATTRIBUTION.test(field);
+}
+
+function swappedRoles(field: string, candidate: PoliticsCandidate): boolean {
+  const claimant = normalize(
+    candidate.originAttribution.account || candidate.originalAccount || '',
+  );
+  const subject = normalize(candidate.claimEntities[0] ?? '');
+  if (!claimant || !subject) return false;
+  const text = normalize(field);
+  const swap = new RegExp(
+    `${escapeRegExp(subject)}.{0,48}(?:buộc tội|cáo buộc|accused).{0,48}${escapeRegExp(claimant)}`,
+    'iu',
+  );
+  return swap.test(text);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function lostNegation(field: string, candidate: PoliticsCandidate, corpus: string): boolean {
+  if (candidate.claimStance !== 'denies' && !NEGATION.test(corpus)) return false;
+  if (candidate.claimStance === 'denies') return !NEGATION.test(field);
+  return false;
+}
+
+function lostModality(field: string, candidate: PoliticsCandidate): boolean {
+  if (candidate.claimModality !== 'alleged' && candidate.verificationState === 'confirmed') {
+    return false;
+  }
+  if (candidate.claimModality !== 'alleged' && candidate.verificationState !== 'reported') {
+    return false;
+  }
+  return !ATTRIBUTION.test(field);
+}
+
+function isFieldSafe(
+  candidate: PoliticsCandidate,
+  field: string,
+  role: 'title' | 'summary' | 'whyImportant',
+  corpus: string,
+): boolean {
+  const compact = compactText(field);
+  if (!compact) return false;
+  if (INSTRUCTION_FOLLOWED.test(compact)) return false;
+  if (inventedNumbers(compact, corpus) || inventedNames(compact, corpus) || inventedQuotes(compact, corpus)) {
+    return false;
+  }
+  if (MOTIVE.test(compact) || GUILTY.test(compact) || restatedAllegationAsFact(compact, corpus)) {
+    return false;
+  }
+  if (candidate.verificationState !== 'confirmed' && CERTAINTY.test(compact)) return false;
+  if (swappedRoles(compact, candidate)) return false;
+  if ((role === 'title' || role === 'summary') && lostNegation(compact, candidate, corpus)) return false;
+  if (role === 'title' && (candidate.verificationState === 'reported' || candidate.verificationState === 'unverified')) {
+    if (!ATTRIBUTION.test(compact)) return false;
+    if (lostModality(compact, candidate)) return false;
+  }
+  return true;
+}
+
+export class PoliticsEditorialValidator {
+  validate(candidate: PoliticsCandidate, editorial: PoliticsEditorial): PoliticsEditorial {
+    const fallback = candidate.verificationState === 'unverified'
+      ? createUnverifiedEditorial(candidate)
+      : createProviderFallbackEditorial(candidate);
+    const corpus = sourceCorpus(candidate);
+    const next: PoliticsEditorial = {
+      title: isFieldSafe(candidate, editorial.title, 'title', corpus)
+        ? compactText(editorial.title)
+        : fallback.title,
+      summary: isFieldSafe(candidate, editorial.summary, 'summary', corpus)
+        ? compactText(editorial.summary)
+        : fallback.summary,
+      whyImportant: isFieldSafe(candidate, editorial.whyImportant, 'whyImportant', corpus)
+        ? compactText(editorial.whyImportant)
+        : fallback.whyImportant,
+    };
+
+    if (candidate.sourceTextStatus === 'incomplete' && !LIMITATION.test(`${next.title} ${next.summary} ${next.whyImportant}`)) {
+      next.whyImportant = truncateUtf16(`${next.whyImportant} Nội dung nguồn chưa đầy đủ.`.trim(), WHY_BOUND);
+    }
+    if (candidate.conflictNote && !CONFLICT.test(`${next.title} ${next.summary} ${next.whyImportant}`)) {
+      next.summary = truncateUtf16(`${next.summary} ${compactText(candidate.conflictNote)}`.trim(), SUMMARY_BOUND);
+    }
+    return next;
+  }
+}

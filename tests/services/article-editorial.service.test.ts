@@ -94,6 +94,32 @@ describe('ArticleEditorialService', () => {
     }
   });
 
+  it('logs only a constant message when generation fails with a sensitive error', async () => {
+    const sensitive = new Error(
+      'Authorization: Bearer 123456:ABC-TOKEN chat_id=-100123 allegation: received bribes BRAVE_KEY=search-secret',
+    );
+    const service = new ArticleEditorialService({ generate: vi.fn().mockRejectedValue(sensitive) });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    try {
+      await expect(service.editArticle(article, 'security')).resolves.toMatchObject({
+        title: article.title,
+        summary: article.summary,
+        actionLevel: 'monitor',
+      });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith('Article editorial generation failed, using fallback');
+      const logged = JSON.stringify(warn.mock.calls);
+      expect(logged).not.toContain('123456:ABC-TOKEN');
+      expect(logged).not.toContain('-100123');
+      expect(logged).not.toContain('Authorization');
+      expect(logged).not.toContain('BRAVE_KEY');
+      expect(logged).not.toContain('received bribes');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it('uses a custom gadget editorial context without changing tech topics', async () => {
     const service = new ArticleEditorialService({ generate: vi.fn().mockResolvedValue('{}') });
 
