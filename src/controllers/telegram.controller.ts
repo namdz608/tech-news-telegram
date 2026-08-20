@@ -13,6 +13,10 @@ import {
   isAllGadgetSourcesFailedError,
 } from '../services/gadget-flow.service';
 import {
+  createGoldPoliticsFlowService,
+  isAllGoldPoliticsSourcesFailedError,
+} from '../services/gold-politics-flow.service';
+import {
   createHealthFlowService,
   isAllHealthSourcesFailedError,
 } from '../services/health-flow.service';
@@ -30,6 +34,8 @@ let gadgetFlowService: ReturnType<typeof createGadgetFlowService> | undefined;
 let gadgetDigestRunning = false;
 let healthFlowService: ReturnType<typeof createHealthFlowService> | undefined;
 let healthDigestRunning = false;
+let goldPoliticsFlowService: ReturnType<typeof createGoldPoliticsFlowService> | undefined;
+let goldPoliticsDigestRunning = false;
 
 /**
  * Thu thập, biên tập và gửi một đợt message Telegram (tech digest).
@@ -89,6 +95,28 @@ export async function sendHealth(_req: Request, res: Response) {
     throw error;
   } finally {
     healthDigestRunning = false;
+  }
+}
+
+/** Thu thập và gửi bản tin vàng/chính trị bằng bot/chat riêng. */
+export async function sendGoldPolitics(_req: Request, res: Response) {
+  if (goldPoliticsDigestRunning) {
+    res.status(409).json({ error: 'Gold-politics digest is already running' });
+    return;
+  }
+
+  goldPoliticsDigestRunning = true;
+  try {
+    goldPoliticsFlowService ??= createGoldPoliticsFlowService();
+    res.json(await goldPoliticsFlowService.run());
+  } catch (error) {
+    if (isAllGoldPoliticsSourcesFailedError(error)) {
+      res.status(503).json({ error: 'All gold-politics sources failed' });
+      return;
+    }
+    throw error;
+  } finally {
+    goldPoliticsDigestRunning = false;
   }
 }
 
