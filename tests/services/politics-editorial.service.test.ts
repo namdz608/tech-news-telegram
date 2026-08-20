@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ArticleEditorialService } from '../../src/services/article-editorial.service';
 import { verifiedVietnameseEditorial } from '../../src/services/article-editorial.types';
 import {
   PoliticsEditorialService,
+  shouldSkipPoliticsModelEditor,
   type PoliticsEditorial,
 } from '../../src/services/politics-editorial.service';
 import {
@@ -138,6 +140,61 @@ describe('PoliticsEditorialService', () => {
     expect(result.whyImportant).toContain('đang được đưa tin');
     expect(result.title).not.toMatch(/<[^>]+>/);
     expect(`${result.title}${result.summary}${result.whyImportant}`).not.toContain('&amp;');
+  });
+
+  it('skips Google machine-editorial so grounded dumps are not sent to translate', async () => {
+    const generate = vi.fn();
+    const editorial = new ArticleEditorialService({ generate } as never);
+    const input = candidate({
+      sourceName: 'The Guardian Politics',
+      title: 'All power to the UK competition watchdog’s war on ‘drip pricing’',
+      summary:
+        'Trainline, Virgin Atlantic and Red Driving School face investigation for various forms of alleged “drip pricing”.',
+      originalAccount: 'Nils Pratley',
+      originAttribution: {
+        url: 'https://www.theguardian.com/business/nils-pratley-on-finance',
+        account: 'Nils Pratley',
+        publishedAt: '2026-08-20T00:39:00.000Z',
+        discoveredAt: '2026-08-20T10:16:00.000Z',
+      },
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      evidenceAssertions: [assertion({
+        semanticClaimKey: 'cma|drip-pricing',
+        claimText: 'The CMA is investigating alleged drip pricing',
+        modality: 'reported',
+        effect: 'mentions',
+      })],
+      semanticClaimKey: 'cma|drip-pricing',
+      claimEntities: ['cma'],
+    });
+    const translator = {
+      translateDigestVerified: vi.fn(async (text: string) => ({
+        text: text === input.title
+          ? 'Toàn quyền cho cuộc chiến của cơ quan cạnh tranh Anh chống định giá nhỏ giọt'
+          : 'Trainline, Virgin Atlantic và Red Driving School bị điều tra vì nhiều hình thức cáo buộc “drip pricing”.',
+        succeeded: true,
+      })),
+    };
+
+    expect(shouldSkipPoliticsModelEditor(editorial, 'google')).toBe(true);
+    expect(shouldSkipPoliticsModelEditor({ editArticle: vi.fn() }, 'google')).toBe(false);
+
+    const result = await new PoliticsEditorialService(
+      editorial,
+      translator,
+      new PoliticsEditorialValidator(),
+      { skipModelEditor: true },
+    ).edit(input);
+
+    expect(generate).not.toHaveBeenCalled();
+    expect(translator.translateDigestVerified).toHaveBeenCalledTimes(2);
+    expect(translator.translateDigestVerified).toHaveBeenNthCalledWith(1, input.title);
+    expect(translator.translateDigestVerified).toHaveBeenNthCalledWith(2, input.summary);
+    expect(result.title).toContain('Toàn quyền cho cuộc chiến');
+    expect(result.summary).toContain('drip pricing');
+    expect(result.title).not.toMatch(/chưa dịch|Chưa có bản dịch/iu);
+    expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
   });
 
   it('shows an explicit translation notice when the editor and fallback translation fail', async () => {

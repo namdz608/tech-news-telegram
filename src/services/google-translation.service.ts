@@ -4,12 +4,26 @@
  * Comment trong file mô tả từng bước biến đổi dữ liệu, nhánh lỗi/fallback
  * và nơi các class/hàm hiện được tham chiếu trong `src/` cùng `tests/`.
  */
-// Nạp axios từ `axios` để dùng đúng dependency/type thay vì tự triển khai lại.
 import axios from 'axios';
-// Nạp { env } từ `../config/env` để dùng đúng dependency/type thay vì tự triển khai lại.
 import { env } from '../config/env';
-// Nạp { DigestTranslator } từ `./translation.types` để dùng đúng dependency/type thay vì tự triển khai lại.
 import type { DigestTranslator } from './translation.types';
+
+const TRANSLATE_ENDPOINT = 'https://translate.googleapis.com/translate_a/single';
+const GET_QUERY_CHAR_LIMIT = 1_500;
+const TRANSLATE_USER_AGENT =
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
+
+interface TranslateHttp {
+  get(url: string, config?: unknown): Promise<{ data: unknown }>;
+  post?(url: string, data?: unknown, config?: unknown): Promise<{ data: unknown }>;
+}
+
+export interface GoogleTranslationServiceOptions {
+  retries?: number;
+  retryDelayMs?: number;
+  maxConcurrent?: number;
+  sleep?: (ms: number) => Promise<void>;
+}
 
 /**
  * Class `GoogleTranslationService` sở hữu vòng đời dependency và điều phối các bước google translation service.
@@ -20,22 +34,28 @@ import type { DigestTranslator } from './translation.types';
  * - `tests/services/google-translation.service.test.ts`
  * - `tests/services/translation.service.test.ts`
  */
-// Mở khai báo `export class GoogleTranslationService implements DigestTranslator` để compiler kiểm tra contract cho mọi consumer.
 export class GoogleTranslationService implements DigestTranslator {
+  private readonly retries: number;
+  private readonly retryDelayMs: number;
+  private readonly sleep: (ms: number) => Promise<void>;
+  private readonly limit: ConcurrencyLimit;
+
   constructor(
     private readonly targetLanguage = env.TRANSLATION_TARGET_LANGUAGE,
-    private readonly http = axios.create({ timeout: env.REQUEST_TIMEOUT_MS })
-  ) {}
+    private readonly http: TranslateHttp = axios.create({
+      timeout: env.REQUEST_TIMEOUT_MS,
+      headers: { 'User-Agent': TRANSLATE_USER_AGENT },
+    }),
+    options: GoogleTranslationServiceOptions = {},
+  ) {
+    this.retries = options.retries ?? 2;
+    this.retryDelayMs = options.retryDelayMs ?? 250;
+    this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    }));
+    this.limit = new ConcurrencyLimit(options.maxConcurrent ?? 2);
+  }
 
-  /**
-   * Hàm `translateDigest` dịch nội dung và giữ fallback khi provider lỗi; kết quả được trả cho caller theo kiểu khai báo.
-   *
-   * Được sử dụng tại:
-   * - `tests/services/google-translation.service.test.ts`
-   * - `src/services/translation.service.ts`
-   * - `src/services/google-article-editorial.generator.ts`
-   */
-  // Mở method `translateDigest` để dịch nội dung và giữ fallback khi provider lỗi.
   async translateDigest(digest: string): Promise<string> {
     return (await this.translateDigestVerified(digest)).text;
   }
@@ -43,22 +63,15 @@ export class GoogleTranslationService implements DigestTranslator {
   async translateDigestVerified(
     digest: string,
   ): Promise<{ text: string; succeeded: boolean }> {
-    // Nếu `!digest.trim()` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
     if (!digest.trim()) {
       return { text: digest, succeeded: true };
     }
 
-    // Cô lập thao tác có thể lỗi để module còn cơ hội log và trả fallback an toàn.
     try {
-      // Tính `chunks` từ `splitDigestForTranslation(digest, 4000);` và giữ bất biến trong phạm vi hiện tại.
       const chunks = splitDigestForTranslation(digest, 4000);
-      // Tính `translatedChunks` từ `await Promise.all(` và giữ bất biến trong phạm vi hiện tại.
       const translatedChunks = await Promise.all(
-        // Gọi `chunks.map` với `chunk => this.translateText(chunk)` để hoàn tất side effect/bước xử lý hiện tại.
-        chunks.map(chunk => this.translateText(chunk))
+        chunks.map((chunk) => this.translateText(chunk)),
       );
-      
-      // Tính `translated` từ `translatedChunks.map((chunk) => chunk.trim()).filter(Boolean).join('\n\n');` và giữ bất biến trong phạm vi hiện tại.
       const succeeded = translatedChunks.every((chunk) => chunk.succeeded);
       const translated = translatedChunks
         .map((chunk) => chunk.text.trim())
@@ -68,60 +81,109 @@ export class GoogleTranslationService implements DigestTranslator {
       return succeeded && text
         ? { text, succeeded: true }
         : { text: digest, succeeded: false };
-    // Bắt lỗi từ khối try, không để một dependency ngoài làm hỏng toàn bộ đợt xử lý.
     } catch {
       console.error('Google Translate failed');
       return { text: digest, succeeded: false };
     }
   }
 
-  /**
-   * Hàm `translateText` gọi Google Translate cho đúng một chunk; lỗi HTTP được propagate lên `translateDigest` để fallback toàn digest; kết quả được trả cho caller theo kiểu khai báo.
-   *
-   * Được sử dụng tại:
-   * - `src/services/google-translation.service.ts`
-   */
-  // Mở method `translateText` để gọi Google Translate cho đúng một chunk; lỗi HTTP được propagate lên `translateDigest` để fallback toàn digest.
   private async translateText(text: string): Promise<{ text: string; succeeded: boolean }> {
-    // Tính `response` từ `await this.http.get('https://translate.googleapis.com/translate_a/single', {` và giữ bất biến trong phạm vi hiện tại.
-    const response = await this.http.get('https://translate.googleapis.com/translate_a/single', {
-      // Gán field `params` từ `{` để object khớp contract.
-      params: {
-        // Gán field `client` từ `'gtx',` để object khớp contract.
-        client: 'gtx',
-        // Gán field `sl` từ `'auto',` để object khớp contract.
-        sl: 'auto',
-        // Gán field `tl` từ `this.targetLanguage,` để object khớp contract.
-        tl: this.targetLanguage,
-        // Gán field `dt` từ `'t',` để object khớp contract.
-        dt: 't',
-        // Gán field `q` từ `text,` để object khớp contract.
-        q: text,
-      },
-    });
+    return this.limit.run(() => this.translateTextWithRetry(text));
+  }
 
-    // Khởi tạo biến cục bộ `data` kiểu `unknown` từ `response.data;`.
-    const data: unknown = response.data;
+  private async translateTextWithRetry(
+    text: string,
+  ): Promise<{ text: string; succeeded: boolean }> {
+    let lastError: unknown;
+    let lastResult: { text: string; succeeded: boolean } = { text, succeeded: false };
 
-    // Nếu `Array.isArray(data) && Array.isArray(data[0])` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
-    if (Array.isArray(data) && Array.isArray(data[0])) {
-      // Tính `translated` từ `data[0]` và giữ bất biến trong phạm vi hiện tại.
-      const translated = data[0]
-        // Áp dụng `map` để tiếp tục biến đổi kết quả trung gian mà không đổi input gốc.
-        .map((segment: unknown) =>
-          Array.isArray(segment) && typeof segment[0] === 'string' ? segment[0] : '',
-        )
-        // Áp dụng `join` để tiếp tục biến đổi kết quả trung gian mà không đổi input gốc.
-        .join('');
-
-      // Trả `translated || text;` cho caller và kết thúc nhánh hiện tại.
-      return translated
-        ? { text: translated, succeeded: true }
-        : { text, succeeded: false };
+    for (let attempt = 0; attempt <= this.retries; attempt += 1) {
+      try {
+        lastResult = await this.translateTextOnce(text);
+        if (lastResult.succeeded) return lastResult;
+        lastError = undefined;
+      } catch (error) {
+        lastError = error;
+        lastResult = { text, succeeded: false };
+      }
+      if (attempt < this.retries) {
+        await this.sleep(this.retryDelayMs * (attempt + 1));
+      }
     }
 
-    // Trả `text;` cho caller và kết thúc nhánh hiện tại.
-    return { text, succeeded: false };
+    if (lastError) throw lastError;
+    return lastResult;
+  }
+
+  private async translateTextOnce(
+    text: string,
+  ): Promise<{ text: string; succeeded: boolean }> {
+    const params = {
+      client: 'gtx',
+      sl: 'auto',
+      tl: this.targetLanguage,
+      dt: 't',
+    };
+    const response = text.length > GET_QUERY_CHAR_LIMIT && this.http.post
+      ? await this.http.post(TRANSLATE_ENDPOINT, new URLSearchParams({ q: text }).toString(), {
+        params,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      })
+      : await this.http.get(TRANSLATE_ENDPOINT, { params: { ...params, q: text } });
+
+    return parseTranslatedSegments(response.data, text);
+  }
+}
+
+function parseTranslatedSegments(
+  data: unknown,
+  original: string,
+): { text: string; succeeded: boolean } {
+  if (Array.isArray(data) && Array.isArray(data[0])) {
+    const translated = data[0]
+      .map((segment: unknown) =>
+        Array.isArray(segment) && typeof segment[0] === 'string' ? segment[0] : '',
+      )
+      .join('');
+    return translated
+      ? { text: translated, succeeded: true }
+      : { text: original, succeeded: false };
+  }
+  return { text: original, succeeded: false };
+}
+
+class ConcurrencyLimit {
+  private active = 0;
+  private readonly waiters: Array<() => void> = [];
+
+  constructor(private readonly max: number) {}
+
+  async run<T>(work: () => Promise<T>): Promise<T> {
+    await this.acquire();
+    try {
+      return await work();
+    } finally {
+      this.release();
+    }
+  }
+
+  private acquire(): Promise<void> {
+    if (this.active < this.max) {
+      this.active += 1;
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      this.waiters.push(() => {
+        this.active += 1;
+        resolve();
+      });
+    });
+  }
+
+  private release(): void {
+    this.active -= 1;
+    const next = this.waiters.shift();
+    if (next) next();
   }
 }
 
@@ -131,61 +193,40 @@ export class GoogleTranslationService implements DigestTranslator {
  * Được sử dụng tại:
  * - `src/services/google-translation.service.ts`
  */
-// Mở thân hàm `splitDigestForTranslation` với input/output được TypeScript kiểm tra.
 function splitDigestForTranslation(digest: string, maxChars: number): string[] {
-  // Nếu `digest.length <= maxChars` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
   if (digest.length <= maxChars) {
-    // Trả `[digest];` cho caller và kết thúc nhánh hiện tại.
     return [digest];
   }
 
-  // Khởi tạo biến cục bộ `chunks` kiểu `string[]` từ `[];`.
   const chunks: string[] = [];
-  // Khởi tạo trạng thái `current`; các nhánh bên dưới sẽ cập nhật nó có kiểm soát.
   let current = '';
 
-  // Lặp theo `const block of digest.split(/\n{2,}/)` để xử lý đủ từng phần tử/trạng thái.
   for (const block of digest.split(/\n{2,}/)) {
-    // Tính `candidate` từ `current ? `${current}\n\n${block}` : block;` và giữ bất biến trong phạm vi hiện tại.
     const candidate = current ? `${current}\n\n${block}` : block;
 
-    // Nếu `candidate.length <= maxChars` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
     if (candidate.length <= maxChars) {
-      // Cập nhật `current` bằng `candidate;` cho bước kế tiếp.
       current = candidate;
-      // Dùng `continue;` để bỏ qua/kết thúc vòng lặp sau khi điều kiện hiện tại đã rõ.
       continue;
     }
 
-    // Nếu `current` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
     if (current) {
-      // Gọi `chunks.push` với `current` để hoàn tất side effect/bước xử lý hiện tại.
       chunks.push(current);
-      // Cập nhật `current` bằng `'';` cho bước kế tiếp.
       current = '';
     }
 
-    // Nếu `block.length <= maxChars` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
     if (block.length <= maxChars) {
-      // Cập nhật `current` bằng `block;` cho bước kế tiếp.
       current = block;
-      // Dùng `continue;` để bỏ qua/kết thúc vòng lặp sau khi điều kiện hiện tại đã rõ.
       continue;
     }
 
-    // Lặp theo `let index = 0; index < block.length; index += maxChars` để xử lý đủ từng phần tử/trạng thái.
     for (let index = 0; index < block.length; index += maxChars) {
-      // Gọi `chunks.push` với `block.slice(index, index + maxChars)` để hoàn tất side effect/bước xử lý hiện tại.
       chunks.push(block.slice(index, index + maxChars));
     }
   }
 
-  // Nếu `current` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
   if (current) {
-    // Gọi `chunks.push` với `current` để hoàn tất side effect/bước xử lý hiện tại.
     chunks.push(current);
   }
 
-  // Trả `chunks;` cho caller và kết thúc nhánh hiện tại.
   return chunks;
 }
