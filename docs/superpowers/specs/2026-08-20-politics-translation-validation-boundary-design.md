@@ -16,14 +16,15 @@ The current validator compares translated Vietnamese text directly with the Engl
 
 ## Design
 
-Split `PoliticsEditorialValidator` into two explicit modes:
+Split `PoliticsEditorialValidator` into three explicit profiles across two validation phases:
 
-- `source-grounded` applies lexical grounding checks for names, numbers, and quotes plus all semantic safety checks.
+- `source-grounded` remains the strict default and applies both lexical grounding and semantic safety checks.
+- `source-facts` applies only source-language instruction and lexical grounding checks before translation.
 - `translated` skips only cross-language lexical grounding checks and retains checks for invented motives, guilt/certainty, allegation modality, claimant roles, negation, and records-claim framing.
 
 `PoliticsEditorialService` uses the modes at provenance boundaries:
 
-- Non-verified editor output is validated as `source-grounded` before translation. Rejected fields become deterministic source fallbacks before being translated.
+- Non-verified editor output is validated as `source-facts` before translation. Rejected fields become deterministic source fallbacks before being translated; semantic checks run after translation so translated attribution wording is evaluated in its final form.
 - Output verified as Vietnamese by the deterministic Google translation generator uses `translated` validation.
 - The deterministic grounded/provider fallback translates source fields and uses `translated` validation, so valid localized names and dates are not compared byte-for-byte with English.
 - Translation failure still returns the explicit `Chưa có bản dịch tiếng Việt đã xác minh` notice.

@@ -4,7 +4,7 @@
 
 **Goal:** Keep valid Vietnamese Politics translations while preserving strict source-fact and allegation safety checks.
 
-**Architecture:** Add explicit `source-grounded` and `translated` validation modes. Validate untrusted editorial facts against the source before translation, then validate translated output with language-independent semantic rules so legitimate localization does not look like invented data.
+**Architecture:** Add strict `source-grounded`, lexical-only `source-facts`, and semantic-only `translated` validation profiles. Validate untrusted editorial facts against the source before translation, then validate translated output with language-independent semantic rules so legitimate localization does not look like invented data.
 
 **Tech Stack:** TypeScript, Vitest, Google Translation service
 
@@ -86,7 +86,10 @@ Expected: FAIL because `validate` has no validation-mode argument and the Alex D
 In `src/services/politics-editorial-validator.ts`, define and thread the mode through field validation:
 
 ```ts
-export type PoliticsEditorialValidationMode = 'source-grounded' | 'translated';
+export type PoliticsEditorialValidationMode =
+  | 'source-grounded'
+  | 'source-facts'
+  | 'translated';
 
 function isFieldSafe(
   candidate: PoliticsCandidate,
@@ -99,13 +102,14 @@ function isFieldSafe(
   if (!compact) return false;
   if (INSTRUCTION_FOLLOWED.test(compact)) return false;
   if (
-    mode === 'source-grounded'
+    mode !== 'translated'
     && (inventedNumbers(compact, corpus)
       || inventedNames(compact, corpus)
       || inventedQuotes(compact, corpus))
   ) {
     return false;
   }
+  if (mode === 'source-facts') return true;
   if (MOTIVE.test(compact) || hasUnguardedGuiltyLanguage(compact) || restatedAllegationAsFact(compact, candidate)) {
     return false;
   }
@@ -157,7 +161,7 @@ if (generated[verifiedVietnameseEditorial] !== true) {
       whyImportant: toPlainEditorial(generated.whyImportant),
     },
     createProviderFallbackEditorial(candidate),
-    'source-grounded',
+    'source-facts',
   );
   generatedForTranslation = { ...generated, ...sourceGrounded };
 }

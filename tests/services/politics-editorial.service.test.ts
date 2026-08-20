@@ -289,10 +289,125 @@ describe('PoliticsEditorialService', () => {
       input,
       translated,
       createTranslationFallbackEditorial(input),
+      'translated',
     );
 
     expect(result.summary).toContain('tháng 11');
     expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
+  });
+
+  it('does not compare localized proper names lexically with English source text', () => {
+    const input = candidate({
+      sourceName: 'The Guardian World',
+      title: 'Chinese carmaker plans further UK expansion',
+      summary: 'The Chinese carmaker plans a major centre in England.',
+      claimStance: 'neutral',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      evidenceAssertions: [assertion({ modality: 'reported', effect: 'mentions' })],
+    });
+    const translated = createProviderFallbackEditorial({
+      ...input,
+      title: 'Nhà sản xuất ô tô Trung Quốc lên kế hoạch mở rộng tại Anh',
+      summary: 'Nhà sản xuất ô tô Trung Quốc lên kế hoạch mở một trung tâm lớn tại Anh.',
+    });
+
+    const result = new PoliticsEditorialValidator().validate(
+      input,
+      translated,
+      createTranslationFallbackEditorial(input),
+      'translated',
+    );
+
+    expect(result.summary).toContain('Trung Quốc');
+    expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
+  });
+
+  it('retains certainty checks for translated text', () => {
+    const input = candidate({ verificationState: 'reported' });
+    const fallback = createTranslationFallbackEditorial(input);
+    const result = new PoliticsEditorialValidator().validate(
+      input,
+      {
+        title: 'Chắc chắn quan chức đã được xác nhận có tội',
+        summary: 'Chắc chắn đây là kết luận chính thức.',
+        whyImportant: 'Đã xác nhận thông tin.',
+      },
+      fallback,
+      'translated',
+    );
+
+    expect(result).toEqual(fallback);
+  });
+
+  it('retains name and number grounding checks before translation', () => {
+    const input = candidate();
+    const fallback = createProviderFallbackEditorial(input);
+    const result = new PoliticsEditorialValidator().validate(
+      input,
+      {
+        title: 'Tran Van B reported a new allegation',
+        summary: 'Tran Van B reported an unsupported payment of 99 billion dong.',
+        whyImportant: 'Tran Van B supplied 99 records.',
+      },
+      fallback,
+      'source-facts',
+    );
+
+    expect(result).toEqual(fallback);
+  });
+
+  it('keeps the Alex Daniel Guardian fallback fully Vietnamese', async () => {
+    const input = candidate({
+      sourceName: 'The Guardian World',
+      title:
+        'Owner of firm behind ‘Temu Range Rover’ will open facility in Bedfordshire in autumn',
+      summary:
+        'The Chinese carmaker behind the irreverently nicknamed “Temu Range Rover” is plotting further UK expansion with a major research and development centre in England. Chery makes the Jaecoo and Omoda car brands.',
+      author: 'Alex Daniel',
+      originalAuthor: 'Alex Daniel',
+      originalAccount: 'Alex Daniel',
+      originAttribution: {
+        url: 'https://www.theguardian.com/business/example',
+        account: 'Alex Daniel',
+        publishedAt: '2026-08-20T08:00:00.000Z',
+        discoveredAt: '2026-08-20T09:00:00.000Z',
+      },
+      claimStance: 'neutral',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      semanticClaimKey: 'expansion|chery',
+      evidenceAssertions: [assertion({
+        semanticClaimKey: 'expansion|chery',
+        claimText: 'Chery plans further UK expansion',
+        stance: 'neutral',
+        modality: 'reported',
+        effect: 'mentions',
+      })],
+    });
+    const editorial = {
+      editArticle: vi.fn(async (article: Article) => ({
+        title: article.title,
+        summary: article.summary ?? '',
+        whyImportant: article.summary ?? '',
+        actionLevel: 'monitor' as const,
+        actionText: 'Monitor sources.',
+      })),
+    };
+    const translator = {
+      translateDigestVerified: vi.fn(async (text: string) => ({
+        text: text === input.title
+          ? "Chủ sở hữu công ty đứng sau 'Temu Range Rover' sẽ mở cơ sở tại Bedfordshire vào mùa thu"
+          : 'Nhà sản xuất ô tô Trung Quốc đứng sau biệt danh “Temu Range Rover” đang lên kế hoạch mở rộng tại Anh. Chery sản xuất các thương hiệu xe Jaecoo và Omoda.',
+        succeeded: true,
+      })),
+    };
+
+    const result = await new PoliticsEditorialService(editorial, translator).edit(input);
+
+    expect(result.summary).toContain('Trung Quốc');
+    expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
+    expect(result.summary).not.toContain('The Chinese carmaker');
   });
 
   it('translates English editorial output to verified Vietnamese before validation', async () => {

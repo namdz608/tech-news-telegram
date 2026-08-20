@@ -9,6 +9,7 @@ import {
 import { GoogleTranslationService } from './google-translation.service';
 import { compactText } from '../utils/text';
 import {
+  type PoliticsEditorialValidationMode,
   PoliticsEditorialValidator,
   createProviderFallbackEditorial,
   createTranslationFallbackEditorial,
@@ -29,6 +30,7 @@ interface PoliticsEditorialValidatorLike {
     candidate: PoliticsCandidate,
     editorial: PoliticsEditorial,
     fallbackOverride?: PoliticsEditorial,
+    mode?: PoliticsEditorialValidationMode,
   ): PoliticsEditorial;
 }
 
@@ -103,7 +105,22 @@ export class PoliticsEditorialService {
       return this.translateFallback(candidate, createProviderFallbackEditorial);
     }
 
-    const translated = await this.toVietnameseFields(candidate, generated);
+    let generatedForTranslation = generated;
+    if (generated[verifiedVietnameseEditorial] !== true) {
+      const sourceGrounded = this.validator.validate(
+        candidate,
+        {
+          title: toPlainEditorial(generated.title),
+          summary: toPlainEditorial(generated.summary),
+          whyImportant: toPlainEditorial(generated.whyImportant),
+        },
+        createProviderFallbackEditorial(candidate),
+        'source-facts',
+      );
+      generatedForTranslation = { ...generated, ...sourceGrounded };
+    }
+
+    const translated = await this.toVietnameseFields(candidate, generatedForTranslation);
     if (isGroundedDump(translated, article.summary ?? '')) {
       return this.translateFallback(candidate, createProviderFallbackEditorial);
     }
@@ -111,6 +128,7 @@ export class PoliticsEditorialService {
       candidate,
       translated,
       createTranslationFallbackEditorial(candidate),
+      'translated',
     );
   }
 
@@ -134,7 +152,12 @@ export class PoliticsEditorialService {
         title: toPlainEditorial(title.text),
         summary: summary.text ? toPlainEditorial(summary.text) : undefined,
       };
-      return this.validator.validate(candidate, factory(translatedCandidate), conservative);
+      return this.validator.validate(
+        candidate,
+        factory(translatedCandidate),
+        conservative,
+        'translated',
+      );
     } catch {
       return this.validator.validate(candidate, conservative, conservative);
     }

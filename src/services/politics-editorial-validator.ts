@@ -7,6 +7,11 @@ interface PoliticsEditorial {
   whyImportant: string;
 }
 
+export type PoliticsEditorialValidationMode =
+  | 'source-grounded'
+  | 'source-facts'
+  | 'translated';
+
 const TITLE_BOUND = 240;
 const SUMMARY_BOUND = 720;
 const WHY_BOUND = 360;
@@ -21,20 +26,6 @@ const CONFLICT = /mâu thuẫn|xung đột|phủ nhận|conflicting/iu;
 const INSTRUCTION_FOLLOWED =
   /ignore previous instructions.{0,40}(?:tuân theo|followed|obeyed)|(?:tuân theo|followed).{0,40}ignore previous instructions/iu;
 const NUMBER = /\d+(?:[.,]\d+)?/gu;
-const ENGLISH_MONTHS = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-] as const;
 const PROPER_NAME = /\b[A-Z][a-z]+(?:\s+[A-Z][a-zA-Z]+)+\b/g;
 const ESTABLISHED_FINDING =
   /sự thật đã được xác lập|đã được xác lập|là sự thật|kết luận đã được xác lập|không còn là cáo buộc|established finding|established fact/iu;
@@ -147,18 +138,9 @@ function numbersIn(value: string): string[] {
   return value.match(NUMBER) ?? [];
 }
 
-function removeEquivalentTranslatedMonths(field: string, corpus: string): string {
-  return ENGLISH_MONTHS.reduce((value, month, index) => {
-    if (!corpus.includes(month)) return value;
-    const monthNumber = index + 1;
-    return value.replace(new RegExp(`\\btháng\\s+0?${monthNumber}\\b`, 'giu'), '');
-  }, field);
-}
-
 function inventedNumbers(field: string, corpus: string): boolean {
   const allowed = new Set(numbersIn(corpus));
-  const comparableField = removeEquivalentTranslatedMonths(field, corpus);
-  return numbersIn(comparableField).some((value) => !allowed.has(value));
+  return numbersIn(field).some((value) => !allowed.has(value));
 }
 
 const NAME_STOP = new Set(['theo', 'according', 'reported', 'nguon', 'nguồn', 'tai', 'khoan']);
@@ -280,13 +262,20 @@ function isFieldSafe(
   field: string,
   _role: 'title' | 'summary' | 'whyImportant',
   corpus: string,
+  mode: PoliticsEditorialValidationMode,
 ): boolean {
   const compact = compactText(field);
   if (!compact) return false;
   if (INSTRUCTION_FOLLOWED.test(compact)) return false;
-  if (inventedNumbers(compact, corpus) || inventedNames(compact, corpus) || inventedQuotes(compact, corpus)) {
+  if (
+    mode !== 'translated'
+    && (inventedNumbers(compact, corpus)
+      || inventedNames(compact, corpus)
+      || inventedQuotes(compact, corpus))
+  ) {
     return false;
   }
+  if (mode === 'source-facts') return true;
   if (MOTIVE.test(compact) || hasUnguardedGuiltyLanguage(compact) || restatedAllegationAsFact(compact, candidate)) {
     return false;
   }
@@ -304,11 +293,12 @@ function chooseSafeField(
   fallback: string,
   role: 'title' | 'summary' | 'whyImportant',
   corpus: string,
+  mode: PoliticsEditorialValidationMode,
 ): string {
   const compactGenerated = compactText(generated);
-  if (isFieldSafe(candidate, compactGenerated, role, corpus)) return compactGenerated;
+  if (isFieldSafe(candidate, compactGenerated, role, corpus, mode)) return compactGenerated;
   const compactFallback = compactText(fallback);
-  if (isFieldSafe(candidate, compactFallback, role, corpus)) return compactFallback;
+  if (isFieldSafe(candidate, compactFallback, role, corpus, mode)) return compactFallback;
   return compactFallback;
 }
 
@@ -317,20 +307,22 @@ export class PoliticsEditorialValidator {
     candidate: PoliticsCandidate,
     editorial: PoliticsEditorial,
     fallbackOverride?: PoliticsEditorial,
+    mode: PoliticsEditorialValidationMode = 'source-grounded',
   ): PoliticsEditorial {
     const fallback = fallbackOverride ?? (candidate.verificationState === 'unverified'
       ? createUnverifiedEditorial(candidate)
       : createProviderFallbackEditorial(candidate));
     const corpus = sourceCorpus(candidate);
     const next: PoliticsEditorial = {
-      title: chooseSafeField(candidate, editorial.title, fallback.title, 'title', corpus),
-      summary: chooseSafeField(candidate, editorial.summary, fallback.summary, 'summary', corpus),
+      title: chooseSafeField(candidate, editorial.title, fallback.title, 'title', corpus, mode),
+      summary: chooseSafeField(candidate, editorial.summary, fallback.summary, 'summary', corpus, mode),
       whyImportant: chooseSafeField(
         candidate,
         editorial.whyImportant,
         fallback.whyImportant,
         'whyImportant',
         corpus,
+        mode,
       ),
     };
 
