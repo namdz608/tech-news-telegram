@@ -252,6 +252,38 @@ describe('GoldPriceHistoryStore', () => {
     });
   });
 
+  it('does not overwrite a newer baseline with an older Vietnamese source timestamp', async () => {
+    await store.record([
+      buySellObservation({
+        buy: 150,
+        sell: 154,
+        sourceTimestamp: '20/08/2026 10:40:00',
+      }),
+    ]);
+
+    const previous = await store.record([
+      buySellObservation({
+        buy: 100,
+        sell: 110,
+        sourceTimestamp: '20/08/2026 10:10:00',
+      }),
+    ]);
+
+    expect(previous.get('sjc:sjc-1l:buy-sell')).toMatchObject({
+      buy: 150,
+      sell: 154,
+      sourceTimestamp: '20/08/2026 10:40:00',
+    });
+    const document = JSON.parse(await readFile(historyPath, 'utf8')) as {
+      quotes: Record<string, StoredGoldQuote>;
+    };
+    expect(document.quotes['sjc:sjc-1l:buy-sell']).toMatchObject({
+      buy: 150,
+      sell: 154,
+      sourceTimestamp: '20/08/2026 10:40:00',
+    });
+  });
+
   it('keeps the stored unit when an observation is incompatible so later movement is unit-mismatch, not a numeric delta', async () => {
     await store.record([buySellObservation({ sourceUnit: 'thousand-vnd-per-tael', buy: 143, sell: 146 })]);
 

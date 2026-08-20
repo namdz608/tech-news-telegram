@@ -430,6 +430,37 @@ describe('GoldPriceService', () => {
     });
   });
 
+  it('reports source-regression for an older Vietnamese timestamp against a newer stored baseline', async () => {
+    const history = createHistory(
+      new Map([
+        [
+          'sjc:sjc-1l:buy-sell',
+          {
+            ...sjcSource,
+            sourceUnit: 'thousand-vnd-per-tael' as const,
+            sourceTimestamp: '20/08/2026 10:40:00',
+            quoteKind: 'buy-sell' as const,
+            buy: 150,
+            sell: 154,
+            recordedAt: '2026-08-20T03:45:00.000Z',
+          },
+        ],
+      ]),
+    );
+
+    const snapshot = await createService(
+      [adapter(sjcSource, async () => buySellQuote('thousand-vnd-per-tael', 143000, 146000, '20/08/2026 10:10:00'))],
+      history,
+    ).collect();
+
+    expect(snapshot.quotes[0]).toMatchObject({
+      status: 'fresh',
+      sourceTimestamp: '20/08/2026 10:10:00',
+      buy: 143,
+      movement: { status: 'not-available', reason: 'source-regression' },
+    });
+  });
+
   it('prefers source-regression over unit-mismatch when both apply', async () => {
     const history = createHistory(
       new Map([

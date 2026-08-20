@@ -55,7 +55,7 @@ export class GoldPriceHistoryStore implements GoldPriceHistoryLike {
       if (!isPersistableObservation(observation)) continue;
       const key = historyKey(observation);
       const stored = previous.get(key);
-      if (stored && isStrictlyOlder(observation.sourceTimestamp, stored.sourceTimestamp)) {
+      if (stored && isGoldSourceTimestampStrictlyOlder(observation.sourceTimestamp, stored.sourceTimestamp)) {
         continue;
       }
       document.quotes[key] = toStoredQuote(observation, recordedAt);
@@ -160,11 +160,42 @@ function toStoredQuote(observation: NormalizedGoldObservation, recordedAt: strin
   };
 }
 
-function isStrictlyOlder(candidate: string, stored: string): boolean {
-  const incoming = Date.parse(candidate);
-  const baseline = Date.parse(stored);
-  if (!Number.isFinite(incoming) || !Number.isFinite(baseline)) return false;
+export function isGoldSourceTimestampStrictlyOlder(candidate: string, stored: string): boolean {
+  const incoming = parseGoldSourceTimestamp(candidate);
+  const baseline = parseGoldSourceTimestamp(stored);
+  if (incoming === undefined || baseline === undefined) return false;
   return incoming < baseline;
+}
+
+export function parseGoldSourceTimestamp(value: string): number | undefined {
+  const vietnam = /^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2}):(\d{2})$/.exec(value);
+  if (vietnam) {
+    const day = Number(vietnam[1]);
+    const month = Number(vietnam[2]);
+    const year = Number(vietnam[3]);
+    const hour = Number(vietnam[4]);
+    const minute = Number(vietnam[5]);
+    const second = Number(vietnam[6]);
+    if (month < 1 || month > 12 || day < 1 || hour > 23 || minute > 59 || second > 59) {
+      return undefined;
+    }
+    const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second) - 7 * 60 * 60 * 1000);
+    const plus7 = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+    if (
+      plus7.getUTCFullYear() !== year
+      || plus7.getUTCMonth() + 1 !== month
+      || plus7.getUTCDate() !== day
+      || plus7.getUTCHours() !== hour
+      || plus7.getUTCMinutes() !== minute
+      || plus7.getUTCSeconds() !== second
+    ) {
+      return undefined;
+    }
+    return date.getTime();
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function isHistoryDocument(value: unknown): value is HistoryDocument {
