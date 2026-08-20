@@ -202,3 +202,153 @@ Expected: all commands pass without errors or warnings introduced by this change
 git add src/services/gold-politics-delivery.service.ts tests/services/gold-politics-delivery.service.test.ts
 git commit -m "fix: forward politics images to Telegram"
 ```
+
+### Task 4: Translate Politics fallback content
+
+**Files:**
+- Modify: `src/services/politics-editorial.service.ts:77-135`
+- Modify: `src/services/politics-editorial-validator.ts:292-305`
+- Test: `tests/services/politics-editorial.service.test.ts`
+
+- [ ] **Step 1: Write failing fallback tests**
+
+Add a Guardian candidate whose editor returns the grounded article unchanged. Require the translator to receive the original English title and summary, then assert the result contains their Vietnamese translations and no raw English sentences. Add a validator test proving an explicit “Chưa dịch được” override is used when a field is rejected.
+
+```ts
+it('translates a grounded provider fallback before rendering it', async () => {
+  const input = candidate({
+    sourceName: 'The Guardian World',
+    title: 'NSW police commissioner apologises for miscommunication',
+    summary: 'This live blog is now closed.',
+  });
+  const editorial = {
+    editArticle: vi.fn(async (article: Article) => ({
+      title: article.title,
+      summary: article.summary ?? '',
+      whyImportant: article.summary ?? '',
+      actionLevel: 'monitor' as const,
+      actionText: 'Monitor sources.',
+    })),
+  };
+  const translator = {
+    translateDigestVerified: vi.fn(async (text: string) => ({
+      text: text === input.title
+        ? 'Ủy viên cảnh sát NSW xin lỗi vì trao đổi sai thông tin'
+        : 'Bản tin trực tiếp này đã kết thúc.',
+      succeeded: true,
+    })),
+  };
+
+  const result = await new PoliticsEditorialService(editorial, translator).edit(input);
+
+  expect(translator.translateDigestVerified.mock.calls).toEqual([
+    [input.title],
+    [input.summary],
+  ]);
+  expect(`${result.title} ${result.summary}`).not.toContain('police commissioner apologises');
+  expect(result.summary).toContain('Bản tin trực tiếp này đã kết thúc');
+});
+
+it('uses an explicit translation fallback override when validation rejects a field', () => {
+  const input = candidate();
+  const fallback = createTranslationFallbackEditorial(input);
+  const result = new PoliticsEditorialValidator().validate(
+    input,
+    { title: '', summary: '', whyImportant: '' },
+    fallback,
+  );
+  expect(result).toEqual(fallback);
+});
+```
+
+- [ ] **Step 2: Verify RED**
+
+Run: `npm test -- tests/services/politics-editorial.service.test.ts`
+
+Expected: FAIL because grounded fallbacks skip translation and the validator ignores an override.
+
+- [ ] **Step 3: Translate source fields before building fallback**
+
+Add a helper that calls `translateDigestVerified` for `candidate.title` and `candidate.summary`. On success, build `createProviderFallbackEditorial` or `createUnverifiedEditorial` from a candidate copy containing the translated fields. On failure, return `createTranslationFallbackEditorial(candidate)`.
+
+Extend `PoliticsEditorialValidator.validate` with an optional `fallbackOverride` and use it instead of constructing the raw provider fallback when supplied. Normal translated output and translated fallback paths pass `createTranslationFallbackEditorial(candidate)` as this override.
+
+```ts
+interface PoliticsEditorialValidatorLike {
+  validate(
+    candidate: PoliticsCandidate,
+    editorial: PoliticsEditorial,
+    fallbackOverride?: PoliticsEditorial,
+  ): PoliticsEditorial;
+}
+
+private async translateFallback(
+  candidate: PoliticsCandidate,
+  factory: (translated: PoliticsCandidate) => PoliticsEditorial,
+): Promise<PoliticsEditorial> {
+  const conservative = createTranslationFallbackEditorial(candidate);
+  try {
+    const [title, summary] = await Promise.all([
+      this.translator.translateDigestVerified(compactText(candidate.title)),
+      candidate.summary
+        ? this.translator.translateDigestVerified(compactText(candidate.summary))
+        : Promise.resolve({ text: '', succeeded: true }),
+    ]);
+    if (!title.succeeded || !summary.succeeded) {
+      return this.validator.validate(candidate, conservative, conservative);
+    }
+    const translatedCandidate: PoliticsCandidate = {
+      ...candidate,
+      title: toPlainEditorial(title.text),
+      summary: summary.text ? toPlainEditorial(summary.text) : undefined,
+    };
+    return this.validator.validate(candidate, factory(translatedCandidate), conservative);
+  } catch {
+    return this.validator.validate(candidate, conservative, conservative);
+  }
+}
+```
+
+Use `translateFallback` for unverified, editor-error, and grounded-dump branches. Validate normal translated output with:
+
+```ts
+return this.validator.validate(
+  candidate,
+  translated,
+  createTranslationFallbackEditorial(candidate),
+);
+```
+
+Update the real validator signature and fallback selection:
+
+```ts
+validate(
+  candidate: PoliticsCandidate,
+  editorial: PoliticsEditorial,
+  fallbackOverride?: PoliticsEditorial,
+): PoliticsEditorial {
+  const fallback = fallbackOverride ?? (candidate.verificationState === 'unverified'
+    ? createUnverifiedEditorial(candidate)
+    : createProviderFallbackEditorial(candidate));
+```
+
+- [ ] **Step 4: Verify GREEN and the full suite**
+
+Run:
+
+```bash
+npm test -- tests/services/politics-editorial.service.test.ts
+npm test
+npm run lint
+npm run build
+git diff --check
+```
+
+Expected: all commands pass.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/services/politics-editorial.service.ts src/services/politics-editorial-validator.ts tests/services/politics-editorial.service.test.ts docs/superpowers/specs/2026-08-20-politics-rss-text-images-design.md docs/superpowers/plans/2026-08-20-politics-rss-text-images.md
+git commit -m "fix: translate politics editorial fallbacks"
+```
