@@ -4,6 +4,10 @@ import {
   PoliticsEditorialService,
   type PoliticsEditorial,
 } from '../../src/services/politics-editorial.service';
+import {
+  createTranslationFallbackEditorial,
+  PoliticsEditorialValidator,
+} from '../../src/services/politics-editorial-validator';
 import type { Article } from '../../src/types/article';
 import type {
   EvidenceAssertion,
@@ -135,24 +139,75 @@ describe('PoliticsEditorialService', () => {
     expect(`${result.title}${result.summary}${result.whyImportant}`).not.toContain('&amp;');
   });
 
-  it('falls back to compact source-grounded copy when the editor fails and keeps the candidate', async () => {
+  it('shows an explicit translation notice when the editor and fallback translation fail', async () => {
     const editorial = {
       editArticle: vi.fn().mockRejectedValue(new Error(SENSITIVE_ERROR_TEXT)),
+    };
+    const translator = {
+      translateDigestVerified: vi.fn(async (text: string) => ({ text, succeeded: false })),
     };
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
     try {
-      const result = await new PoliticsEditorialService(editorial).edit(candidate());
+      const result = await new PoliticsEditorialService(editorial, translator).edit(candidate());
       expect(result.title.length).toBeGreaterThan(0);
+      expect(result.title).toMatch(/chưa dịch|chưa có bản dịch|không dịch được/iu);
       expect(result.summary).toMatch(/cho rằng|cáo buộc|theo /iu);
       expect(result.summary).toContain('Pham Minh Chinh');
       expect(result.whyImportant.length).toBeGreaterThan(0);
       expect(editorial.editArticle).toHaveBeenCalledTimes(1);
+      expect(translator.translateDigestVerified).toHaveBeenCalledTimes(2);
     } finally {
       warn.mockRestore();
       error.mockRestore();
     }
+  });
+
+  it('translates a grounded provider fallback before rendering it', async () => {
+    const input = candidate({
+      sourceName: 'The Guardian World',
+      title: 'NSW police commissioner apologises for miscommunication',
+      summary: 'This live blog is now closed.',
+    });
+    const editorial = {
+      editArticle: vi.fn(async (article: Article) => ({
+        title: article.title,
+        summary: article.summary ?? '',
+        whyImportant: article.summary ?? '',
+        actionLevel: 'monitor' as const,
+        actionText: 'Monitor sources.',
+      })),
+    };
+    const translator = {
+      translateDigestVerified: vi.fn(async (text: string) => ({
+        text: text === input.title
+          ? 'Ủy viên cảnh sát NSW xin lỗi vì trao đổi sai thông tin'
+          : 'Bản tin trực tiếp này hiện kết thúc.',
+        succeeded: true,
+      })),
+    };
+
+    const result = await new PoliticsEditorialService(editorial, translator).edit(input);
+
+    expect(translator.translateDigestVerified.mock.calls).toEqual([
+      [input.title],
+      [input.summary],
+    ]);
+    expect(`${result.title} ${result.summary}`).not.toContain('police commissioner apologises');
+    expect(result.summary).toContain('Bản tin trực tiếp này hiện kết thúc');
+  });
+
+  it('uses an explicit translation fallback override when validation rejects a field', () => {
+    const input = candidate();
+    const fallback = createTranslationFallbackEditorial(input);
+    const result = new PoliticsEditorialValidator().validate(
+      input,
+      { title: '', summary: '', whyImportant: '' },
+      fallback,
+    );
+
+    expect(result).toEqual(fallback);
   });
 
   it('translates English editorial output to verified Vietnamese before validation', async () => {

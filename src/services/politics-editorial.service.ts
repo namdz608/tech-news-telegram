@@ -25,7 +25,11 @@ interface VerifiedPoliticsTranslator {
 }
 
 interface PoliticsEditorialValidatorLike {
-  validate(candidate: PoliticsCandidate, editorial: PoliticsEditorial): PoliticsEditorial;
+  validate(
+    candidate: PoliticsCandidate,
+    editorial: PoliticsEditorial,
+    fallbackOverride?: PoliticsEditorial,
+  ): PoliticsEditorial;
 }
 
 export interface PoliticsEditorial {
@@ -92,18 +96,48 @@ export class PoliticsEditorialService {
     try {
       generated = await this.editorial.editArticle(article, topic);
     } catch {
-      return this.validator.validate(candidate, createProviderFallbackEditorial(candidate));
+      return this.translateFallback(candidate, createProviderFallbackEditorial);
     }
 
     if (isGroundedDump(generated, article.summary ?? '')) {
-      return this.validator.validate(candidate, createProviderFallbackEditorial(candidate));
+      return this.translateFallback(candidate, createProviderFallbackEditorial);
     }
 
     const translated = await this.toVietnameseFields(candidate, generated);
     if (isGroundedDump(translated, article.summary ?? '')) {
-      return this.validator.validate(candidate, createProviderFallbackEditorial(candidate));
+      return this.translateFallback(candidate, createProviderFallbackEditorial);
     }
-    return this.validator.validate(candidate, translated);
+    return this.validator.validate(
+      candidate,
+      translated,
+      createTranslationFallbackEditorial(candidate),
+    );
+  }
+
+  private async translateFallback(
+    candidate: PoliticsCandidate,
+    factory: (translated: PoliticsCandidate) => PoliticsEditorial,
+  ): Promise<PoliticsEditorial> {
+    const conservative = createTranslationFallbackEditorial(candidate);
+    try {
+      const [title, summary] = await Promise.all([
+        this.translator.translateDigestVerified(compactText(candidate.title)),
+        candidate.summary
+          ? this.translator.translateDigestVerified(compactText(candidate.summary))
+          : Promise.resolve({ text: '', succeeded: true }),
+      ]);
+      if (!title.succeeded || !summary.succeeded) {
+        return this.validator.validate(candidate, conservative, conservative);
+      }
+      const translatedCandidate: PoliticsCandidate = {
+        ...candidate,
+        title: toPlainEditorial(title.text),
+        summary: summary.text ? toPlainEditorial(summary.text) : undefined,
+      };
+      return this.validator.validate(candidate, factory(translatedCandidate), conservative);
+    } catch {
+      return this.validator.validate(candidate, conservative, conservative);
+    }
   }
 
   private async toVietnameseFields(
