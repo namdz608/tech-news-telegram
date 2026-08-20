@@ -67,6 +67,20 @@ describe('PoliticsClassificationService', () => {
       category: 'gold-market',
       geography: 'vietnam',
     },
+    {
+      name: 'UK gold prices without politics',
+      title: 'Gold prices in the UK rise',
+      summary: 'Bullion trades higher in Britain.',
+      category: 'gold-market',
+      geography: 'international',
+    },
+    {
+      name: 'China gold prices without politics',
+      title: 'Gold prices in China rise',
+      summary: 'Bullion trades higher in Shanghai.',
+      category: 'gold-market',
+      geography: 'international',
+    },
   ] as const)('classifies gold-market when politics precedence does not apply: $name', ({ title, summary, category, geography }) => {
     const classified = service.classify(item({ title, summary }));
     expect(classified?.primaryCategory).toBe(category);

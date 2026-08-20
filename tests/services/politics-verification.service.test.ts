@@ -297,6 +297,37 @@ describe('PoliticsVerificationService', () => {
     expect(assessment.conflictNote).toBeUndefined();
   });
 
+  it('does not emit a conflict note when an X adapter tags have-not-denied as effect denies', () => {
+    const report = classifier.classify(
+      source({
+        url: 'https://vnexpress.net/pm-bribe',
+        title: 'Thủ tướng Phạm Minh Chính bị cáo buộc nhận hối lộ',
+        summary: 'Bê bối tham nhũng tại Hà Nội.',
+        evidenceOriginKey: 'vnexpress.net',
+      }),
+    )!;
+    const xSilence = classifier.classify(
+      source({
+        url: 'https://x.com/user/status/silence',
+        title: 'Officials have not denied the allegation about Pham Minh Chinh bribes',
+        summary: 'Prime Minister Pham Minh Chinh allegedly accepted bribes. Officials have not denied the allegation.',
+        discoveryChannel: 'x',
+        evidenceKind: 'social-claim',
+        evidentiaryEffect: 'denies',
+        originalAccount: 'user',
+        evidenceOriginKey: 'x:user',
+      }),
+    )!;
+    expect(report.claimStance).not.toBe('denies');
+    expect(xSilence.claimStance).toBe('neutral');
+    expect(xSilence.evidentiaryEffect).toBe('denies');
+    expect(xSilence.evidenceAssertions[0]?.effect).toBe('denies');
+    expect(xSilence.evidenceAssertions[0]?.stance).toBe('neutral');
+    expect(report.semanticClaimKey).toBe(xSilence.semanticClaimKey);
+    const assessment = verifier.assess(eventFrom([report, xSilence]));
+    expect(assessment.conflictNote).toBeUndefined();
+  });
+
   it('records a neutral conflict note and keeps the conservative state', () => {
     const support = classified({
       url: 'https://vnexpress.net/pm-bribe',

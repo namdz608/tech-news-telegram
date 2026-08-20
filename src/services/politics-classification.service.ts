@@ -538,7 +538,21 @@ function decideCategory(synonymized: string): PoliticsCategory | undefined {
   }
   if (intlPolitics && gold) {
     const goldWithoutCentralBankUsd = hasAny(synonymized, ['gold-price', 'sjc', 'doji', 'pnj', 'xau', 'bullion']);
-    const politicalIntl = hasAny(synonymized, ['nato', 'un', 'war', 'conflict', 'election', 'ukraine', 'sanction', 'britain', 'british', 'uk']);
+    const politicalIntl = hasAny(synonymized, [
+      'nato',
+      'un',
+      'imf',
+      'world-bank',
+      'eu',
+      'war',
+      'conflict',
+      'ceasefire',
+      'election',
+      'sanction',
+      'government',
+      'diplomacy',
+      'parliament',
+    ]);
     if (politicalIntl) {
       return 'international-politics';
     }

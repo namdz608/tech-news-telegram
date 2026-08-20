@@ -141,10 +141,8 @@ function stateFromAssertion(
 }
 
 function hasConflict(assertions: readonly EvidenceAssertion[]): boolean {
-  const denied = assertions.some((assertion) => assertion.stance === 'denies' || assertion.effect === 'denies');
-  const otherAccount = assertions.some(
-    (assertion) => assertion.stance !== 'denies' && assertion.effect !== 'denies',
-  );
+  const denied = assertions.some((assertion) => assertion.stance === 'denies');
+  const otherAccount = assertions.some((assertion) => assertion.stance !== 'denies');
   return denied && otherAccount;
 }
 
