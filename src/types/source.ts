@@ -70,6 +70,7 @@ export interface XSearchSourceConfig extends BaseSourceConfig {
   bearerToken: string;
   query: string;
   maxResults: number;
+  includeUnmatched?: boolean;
 }
 
 /**

@@ -27,7 +27,29 @@ import type { NewsCrawler } from './crawler.types';
  */
 // Mở khai báo `interface HttpClientLike` để compiler kiểm tra contract cho mọi consumer.
 interface HttpClientLike {
-  get(url: string, config: { headers: Record<string, string>; params: Record<string, string | number> }): Promise<{ data: XSearchResponse }>;
+  get(
+    url: string,
+    config: { headers: Record<string, string>; params: Record<string, string | number> },
+  ): Promise<{
+    data: unknown;
+    headers?: Readonly<Record<string, string | undefined>>;
+  }>;
+}
+
+const X_SEARCH_URL = 'https://api.x.com/2/tweets/search/recent';
+const MAX_BODY_BYTES = 512 * 1024;
+const STABLE_ERROR = 'x-search';
+
+function createDefaultHttpClient(): HttpClientLike {
+  return axios.create({
+    timeout: env.REQUEST_TIMEOUT_MS,
+    maxRedirects: 0,
+    maxContentLength: MAX_BODY_BYTES,
+    maxBodyLength: MAX_BODY_BYTES,
+    headers: {
+      'User-Agent': env.USER_AGENT,
+    },
+  }) as HttpClientLike;
 }
 
 /**
@@ -98,15 +120,8 @@ interface XUser {
 // Mở khai báo `export class XSearchCrawler implements NewsCrawler<XSearchSourceConfig>` để compiler kiểm tra contract cho mọi consumer.
 export class XSearchCrawler implements NewsCrawler<XSearchSourceConfig> {
   constructor(
-    private readonly http: HttpClientLike = axios.create({
-      // Gán field `timeout` từ `env.REQUEST_TIMEOUT_MS,` để object khớp contract.
-      timeout: env.REQUEST_TIMEOUT_MS,
-      // Gán field `headers` từ `{` để object khớp contract.
-      headers: {
-        // Gán field `User-Agent` từ `env.USER_AGENT,` để object khớp contract.
-        'User-Agent': env.USER_AGENT,
-      },
-    }),
+    private readonly http: HttpClientLike = createDefaultHttpClient(),
+    private readonly searchUrl = X_SEARCH_URL,
   ) {}
 
   /**
@@ -124,71 +139,50 @@ export class XSearchCrawler implements NewsCrawler<XSearchSourceConfig> {
       return [];
     }
 
-    // Tính `response` từ `await this.http.get('https://api.x.com/2/tweets/search/recent', {` và giữ bất biến trong phạm vi hiện tại.
-    const response = await this.http.get('https://api.x.com/2/tweets/search/recent', {
-      // Gán field `headers` từ `{` để object khớp contract.
-      headers: {
-        // Gán field `Authorization` từ ``Bearer ${source.bearerToken}`,` để object khớp contract.
-        Authorization: `Bearer ${source.bearerToken}`,
-      },
-      // Gán field `params` từ `{` để object khớp contract.
-      params: {
-        // Gán field `query` từ `source.query,` để object khớp contract.
-        query: source.query,
-        // Gán field `max_results` từ `source.maxResults,` để object khớp contract.
-        max_results: source.maxResults,
-        // Gán field `expansions` từ `'author_id',` để object khớp contract.
-        expansions: 'author_id',
-        // Gán field `tweet.fields` từ `'author_id,created_at,public_metrics,lang',` để object khớp contract.
-        'tweet.fields': 'author_id,created_at,public_metrics,lang',
-        // Gán field `user.fields` từ `'name,username',` để object khớp contract.
-        'user.fields': 'name,username',
-      },
-    });
-    // Tính `usersById` từ `new Map((response.data.includes?.users ?? []).map((user) => [user.id, user]));` và giữ bất biến trong phạm vi hiện tại.
-    const usersById = new Map((response.data.includes?.users ?? []).map((user) => [user.id, user]));
+    try {
+      const response = await this.http.get(this.searchUrl, {
+        headers: {
+          Authorization: `Bearer ${source.bearerToken}`,
+        },
+        params: {
+          query: source.query,
+          max_results: source.maxResults,
+          expansions: 'author_id',
+          'tweet.fields': 'author_id,created_at,public_metrics,lang',
+          'user.fields': 'name,username',
+        },
+      });
+      assertJsonContentType(response.headers);
+      const payload = parseXSearchResponse(readJsonBody(response.data));
+      const usersById = new Map((payload.includes?.users ?? []).map((user) => [user.id, user]));
 
-    // Trả `(response.data.data ?? [])` cho caller và kết thúc nhánh hiện tại.
-    return (response.data.data ?? [])
-      // Áp dụng `map` để tiếp tục biến đổi kết quả trung gian mà không đổi input gốc.
-      .map((post) => {
-        // Tính `text` từ `compactText(post.text);` và giữ bất biến trong phạm vi hiện tại.
-        const text = compactText(post.text);
-        // Tính `topics` từ `matchTopics({ title: text, summary: text });` và giữ bất biến trong phạm vi hiện tại.
-        const topics = matchTopics({ title: text, summary: text });
-        // Tính `user` từ `post.author_id ? usersById.get(post.author_id) : undefined;` và giữ bất biến trong phạm vi hiện tại.
-        const user = post.author_id ? usersById.get(post.author_id) : undefined;
-        // Tính `author` từ `formatAuthor(user);` và giữ bất biến trong phạm vi hiện tại.
-        const author = formatAuthor(user);
-        // Tính `url` từ ``https://x.com/i/web/status/${post.id}`;` và giữ bất biến trong phạm vi hiện tại.
-        const url = `https://x.com/i/web/status/${post.id}`;
+      return (payload.data ?? [])
+        .map((post) => {
+          const text = compactText(post.text);
+          const topics = matchTopics({ title: text, summary: text });
+          const user = post.author_id ? usersById.get(post.author_id) : undefined;
+          const author = formatAuthor(user);
+          const url = `https://x.com/i/web/status/${post.id}`;
+          const engagement = mapEngagement(post.public_metrics);
 
-        // Trả `{` cho caller và kết thúc nhánh hiện tại.
-        return {
-          // Gán field `id` từ `url,` để object khớp contract.
-          id: url,
-          // Gán field `sourceId` từ `source.id,` để object khớp contract.
-          sourceId: source.id,
-          // Gán field `sourceName` từ `source.name,` để object khớp contract.
-          sourceName: source.name,
-          // Gán field `title` từ `truncateText(text, 160),` để object khớp contract.
-          title: truncateText(text, 160),
-          // Đưa giá trị `url` vào field cùng tên của object đang tạo.
-          url,
-          // Gán field `summary` từ `formatSummary(text, author, post.public_metrics),` để object khớp contract.
-          summary: formatSummary(text, author, post.public_metrics),
-          // Đưa giá trị `author` vào field cùng tên của object đang tạo.
-          author,
-          // Gán field `publishedAt` từ `post.created_at,` để object khớp contract.
-          publishedAt: post.created_at,
-          // Gán field `collectedAt` từ `new Date().toISOString(),` để object khớp contract.
-          collectedAt: new Date().toISOString(),
-          // Đưa giá trị `topics` vào field cùng tên của object đang tạo.
-          topics,
-        };
-      })
-      // Áp dụng `filter` để tiếp tục biến đổi kết quả trung gian mà không đổi input gốc.
-      .filter((article) => article.topics.length > 0);
+          return {
+            id: url,
+            sourceId: source.id,
+            sourceName: source.name,
+            title: truncateText(text, 160),
+            url,
+            summary: formatSummary(text, author, post.public_metrics),
+            author,
+            publishedAt: post.created_at,
+            collectedAt: new Date().toISOString(),
+            topics,
+            ...(engagement ? { engagement } : {}),
+          };
+        })
+        .filter((article) => source.includeUnmatched || article.topics.length > 0);
+    } catch (error) {
+      throw stabilizeXSearchError(error);
+    }
   }
 }
 
@@ -253,4 +247,80 @@ function truncateText(value: string, maxLength: number): string {
 
   // Trả ``${value.slice(0, maxLength - 1).trimEnd()}…`;` cho caller và kết thúc nhánh hiện tại.
   return `${value.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function mapEngagement(metrics?: XPost['public_metrics']): Article['engagement'] | undefined {
+  const likes = typeof metrics?.like_count === 'number' ? metrics.like_count : undefined;
+  const shares = typeof metrics?.retweet_count === 'number' ? metrics.retweet_count : undefined;
+  if (likes === undefined && shares === undefined) {
+    return undefined;
+  }
+  return {
+    ...(likes !== undefined ? { likes } : {}),
+    ...(shares !== undefined ? { shares } : {}),
+  };
+}
+
+function headerValue(
+  headers: Readonly<Record<string, string | undefined>>,
+  name: string,
+): string {
+  const record = headers as Record<string, unknown>;
+  const direct = record[name] ?? record[name.toLowerCase()];
+  if (typeof direct === 'string') {
+    return direct;
+  }
+  const getter = (headers as { get?: (headerName: string) => unknown }).get;
+  if (typeof getter === 'function') {
+    const value = getter.call(headers, name);
+    if (typeof value === 'string') {
+      return value;
+    }
+  }
+  return '';
+}
+
+function assertJsonContentType(headers?: Readonly<Record<string, string | undefined>>): void {
+  if (!headers) {
+    return;
+  }
+  const mime = headerValue(headers, 'content-type').split(';', 1)[0].trim().toLowerCase();
+  if (mime !== 'application/json') {
+    throw new Error(STABLE_ERROR);
+  }
+}
+
+function readJsonBody(data: unknown): unknown {
+  if (typeof data === 'string') {
+    try {
+      return JSON.parse(data) as unknown;
+    } catch {
+      throw new Error(STABLE_ERROR);
+    }
+  }
+  return data;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(STABLE_ERROR);
+  }
+  return value as Record<string, unknown>;
+}
+
+function parseXSearchResponse(payload: unknown): XSearchResponse {
+  const record = asRecord(payload);
+  if (record.data !== undefined && !Array.isArray(record.data)) {
+    throw new Error(STABLE_ERROR);
+  }
+  if (record.includes !== undefined) {
+    asRecord(record.includes);
+  }
+  return record as XSearchResponse;
+}
+
+function stabilizeXSearchError(error: unknown): Error {
+  return error instanceof Error && error.message === STABLE_ERROR
+    ? error
+    : new Error(STABLE_ERROR);
 }
