@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TelegramService } from '../../src/services/telegram.service';
+import { env } from '../../src/config/env';
+import { createTelegramService, TelegramService } from '../../src/services/telegram.service';
 import { redditHttpsAgent } from '../../src/utils/reddit-dns';
 
 describe('TelegramService', () => {
@@ -383,5 +384,198 @@ describe('TelegramService', () => {
     for (const call of sendMessage.mock.calls) {
       expect(call[1].length).toBeLessThanOrEqual(20);
     }
+  });
+
+  it('still uses the default article button when sendDigest is called with three arguments', async () => {
+    const sendMessage = vi.fn().mockResolvedValue({});
+    const sendPhoto = vi.fn().mockResolvedValue({});
+    const http = {
+      get: vi.fn().mockResolvedValue({
+        data: imageBuffer,
+      }),
+    };
+    const service = new TelegramService(
+      {
+        telegram: {
+          sendMessage,
+          sendPhoto,
+        },
+      },
+      'chat-id',
+      3900,
+      '',
+      http,
+    );
+
+    await service.sendDigest('hello', 'https://example.com/a', 'https://example.com/image.png');
+
+    expect(sendPhoto).toHaveBeenCalledWith('chat-id', { source: imageBuffer, filename: 'image.png' }, {
+      caption: 'hello',
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [[{ text: '🔎 Xem bài gốc', url: 'https://example.com/a' }]],
+      },
+    });
+  });
+
+  it('renders a custom button label when sendDigest is given a fourth argument', async () => {
+    const sendMessage = vi.fn().mockResolvedValue({});
+    const sendPhoto = vi.fn().mockResolvedValue({});
+    const http = {
+      get: vi.fn().mockResolvedValue({
+        data: imageBuffer,
+      }),
+    };
+    const service = new TelegramService(
+      {
+        telegram: {
+          sendMessage,
+          sendPhoto,
+        },
+      },
+      'chat-id',
+      3900,
+      '',
+      http,
+    );
+
+    await service.sendDigest(
+      'hello',
+      'https://example.com/a',
+      'https://example.com/image.png',
+      '🔎 Xem nguồn gốc',
+    );
+
+    expect(sendPhoto).toHaveBeenCalledWith('chat-id', { source: imageBuffer, filename: 'image.png' }, {
+      caption: 'hello',
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [[{ text: '🔎 Xem nguồn gốc', url: 'https://example.com/a' }]],
+      },
+    });
+  });
+
+  it('keeps a custom button label when a long photo caption is sent as photo then text', async () => {
+    const sendMessage = vi.fn().mockResolvedValue({});
+    const sendPhoto = vi.fn().mockResolvedValue({});
+    const http = {
+      get: vi.fn().mockResolvedValue({
+        data: imageBuffer,
+      }),
+    };
+    const service = new TelegramService(
+      {
+        telegram: {
+          sendMessage,
+          sendPhoto,
+        },
+      },
+      'chat-id',
+      3900,
+      '',
+      http,
+    );
+    const message = [
+      '🛠️ <b>DEVOPS</b>',
+      '━━━━━━━━━━━━━━',
+      '',
+      `<b>${'A'.repeat(1200)}</b>`,
+      '',
+      `<blockquote expandable>📝 ${'B'.repeat(1000)}</blockquote>`,
+      '',
+      '📰 <i>Blog CNCF</i>',
+    ].join('\n');
+
+    await service.sendDigest(
+      message,
+      'https://example.com/a',
+      'https://example.com/image.png',
+      '🔎 Xem nguồn gốc',
+    );
+
+    expect(sendPhoto).toHaveBeenCalledWith('chat-id', { source: imageBuffer, filename: 'image.png' }, {});
+    expect(sendMessage).toHaveBeenCalledWith('chat-id', message, {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      reply_markup: {
+        inline_keyboard: [[{ text: '🔎 Xem nguồn gốc', url: 'https://example.com/a' }]],
+      },
+    });
+  });
+
+  it('keeps a custom button label when photo send falls back to text', async () => {
+    const sendMessage = vi.fn().mockResolvedValue({});
+    const sendPhoto = vi.fn().mockRejectedValue(new Error('photo rejected'));
+    const http = {
+      get: vi.fn().mockResolvedValue({
+        data: imageBuffer,
+      }),
+    };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const service = new TelegramService(
+      {
+        telegram: {
+          sendMessage,
+          sendPhoto,
+        },
+      },
+      'chat-id',
+      3900,
+      '',
+      http,
+    );
+
+    try {
+      await service.sendDigest(
+        'hello',
+        'https://example.com/a',
+        'https://example.com/image.png',
+        '🔎 Xem nguồn gốc',
+      );
+    } finally {
+      warn.mockRestore();
+    }
+
+    expect(sendPhoto).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledWith('chat-id', 'hello', {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      reply_markup: {
+        inline_keyboard: [[{ text: '🔎 Xem nguồn gốc', url: 'https://example.com/a' }]],
+      },
+    });
+  });
+
+  it('does not render a button when sendDigest has no url', async () => {
+    const sendMessage = vi.fn().mockResolvedValue({});
+    const service = new TelegramService(
+      {
+        telegram: {
+          sendMessage,
+        },
+      },
+      'chat-id',
+      3900,
+      '',
+    );
+
+    await service.sendDigest('hello', undefined, undefined, '🔎 Xem nguồn gốc');
+
+    expect(sendMessage).toHaveBeenCalledWith('chat-id', 'hello', {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    });
+  });
+
+  it('keeps the global message effect by default and disables it when options override to empty', () => {
+    const defaultService = createTelegramService('token', 'chat-id');
+    expect(
+      (defaultService as unknown as { messageEffectId: string }).messageEffectId,
+    ).toBe(env.TELEGRAM_MESSAGE_EFFECT_ID);
+    expect((defaultService as unknown as { effectSupported: boolean }).effectSupported).toBe(true);
+
+    const dedicated = createTelegramService('token', 'chat-id', { messageEffectId: '' });
+    expect((dedicated as unknown as { messageEffectId: string }).messageEffectId).toBe('');
+    expect((dedicated as unknown as { effectSupported: boolean }).effectSupported).toBe(false);
   });
 });
