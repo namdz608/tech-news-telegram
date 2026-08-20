@@ -478,6 +478,93 @@ describe('PoliticsEditorialService', () => {
     expect(`${result.title}${result.summary}${result.whyImportant}`).not.toContain('&amp;amp;');
   });
 
+  it('replaces a reported summary that states the allegation as fact with attributed fallback', async () => {
+    const editorial = {
+      editArticle: vi.fn().mockResolvedValue(
+        verifiedEditorial({
+          title: 'Theo VnExpress, Pham Minh Chinh bị cáo buộc nhận hối lộ',
+          summary: 'Pham Minh Chinh nhận hối lộ 5 tỷ đồng.',
+          whyImportant: 'Một nguồn độc lập ghi nhận cùng cáo buộc.',
+        }),
+      ),
+    };
+
+    const result = await new PoliticsEditorialService(editorial).edit(candidate({
+      verificationState: 'reported',
+      claimModality: 'alleged',
+      evidentiaryEffect: 'records-claim',
+    }));
+
+    expect(result.summary).not.toBe('Pham Minh Chinh nhận hối lộ 5 tỷ đồng.');
+    expect(result.summary).toMatch(/cho rằng|bị cáo buộc|Tài khoản|Theo VnExpress/iu);
+    expect(result.summary).not.toMatch(/^Pham Minh Chinh nhận hối lộ/u);
+  });
+
+  it('does not treat theo dõi as required title attribution', async () => {
+    const editorial = {
+      editArticle: vi.fn().mockResolvedValue(
+        verifiedEditorial({
+          title: 'Pham Minh Chinh nhận hối lộ 5 tỷ đồng đang được theo dõi',
+          summary: 'Nguồn VnExpress cho rằng Pham Minh Chinh bị cáo buộc nhận hối lộ 5 tỷ đồng.',
+          whyImportant: 'Một nguồn độc lập ghi nhận cùng cáo buộc.',
+        }),
+      ),
+    };
+
+    const result = await new PoliticsEditorialService(editorial).edit(candidate({
+      verificationState: 'reported',
+      claimModality: 'alleged',
+    }));
+
+    expect(result.title).not.toBe('Pham Minh Chinh nhận hối lộ 5 tỷ đồng đang được theo dõi');
+    expect(result.title).not.toMatch(/đang được theo dõi/iu);
+    expect(result.title).toMatch(/Tài khoản vnexpress cho rằng|Theo VnExpress|bị cáo buộc/iu);
+  });
+
+  it('replaces a non-throwing grounded dump with compact attributed copy', async () => {
+    const editorial = {
+      editArticle: vi.fn().mockImplementation(async (article: Article) => verifiedEditorial({
+        title: article.title,
+        summary: article.summary ?? '',
+        whyImportant: article.summary ?? '',
+      })),
+    };
+
+    const result = await new PoliticsEditorialService(editorial).edit(candidate());
+    const dump = `${result.title}\n${result.summary}\n${result.whyImportant}`;
+
+    expect(editorial.editArticle).toHaveBeenCalledTimes(1);
+    expect(dump).not.toContain('verificationState:');
+    expect(dump).not.toContain('semanticClaimKey:');
+    expect(dump).not.toContain('matchingAssertionEffect:');
+    expect(dump).not.toContain('claimOriginResolution:');
+    expect(result.summary).toMatch(/cho rằng|bị cáo buộc|Tài khoản/iu);
+    expect(result.title).toMatch(/cho rằng|bị cáo buộc|Theo VnExpress|Tài khoản/iu);
+  });
+
+  it('rejects records-claim output that reads as an established finding', async () => {
+    const editorial = {
+      editArticle: vi.fn().mockResolvedValue(
+        verifiedEditorial({
+          title: 'Theo VnExpress, Pham Minh Chinh bị cáo buộc nhận hối lộ',
+          summary: 'Pham Minh Chinh nhận hối lộ 5 tỷ đồng; đây là sự thật đã được xác lập.',
+          whyImportant: 'Kết luận đã được xác lập, không còn là cáo buộc.',
+        }),
+      ),
+    };
+
+    const result = await new PoliticsEditorialService(editorial).edit(candidate({
+      verificationState: 'reported',
+      claimModality: 'alleged',
+      evidentiaryEffect: 'records-claim',
+    }));
+
+    expect(result.summary).not.toMatch(/sự thật đã được xác lập/iu);
+    expect(result.whyImportant).not.toMatch(/Kết luận đã được xác lập, không còn là cáo buộc/u);
+    expect(result.summary).toMatch(/cho rằng|cáo buộc|ghi nhận|đưa tin/iu);
+    expect(result.whyImportant).toMatch(/ghi nhận|cáo buộc|đưa tin|chưa phải kết luận/iu);
+  });
+
   it('never forwards token, chat, header, search-key, or allegation text from fake provider errors to console', async () => {
     const editorial = {
       editArticle: vi.fn().mockRejectedValue(new Error(SENSITIVE_ERROR_TEXT)),

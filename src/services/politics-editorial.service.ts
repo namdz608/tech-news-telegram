@@ -95,7 +95,14 @@ export class PoliticsEditorialService {
       return this.validator.validate(candidate, createProviderFallbackEditorial(candidate));
     }
 
+    if (isGroundedDump(generated, article.summary ?? '')) {
+      return this.validator.validate(candidate, createProviderFallbackEditorial(candidate));
+    }
+
     const translated = await this.toVietnameseFields(candidate, generated);
+    if (isGroundedDump(translated, article.summary ?? '')) {
+      return this.validator.validate(candidate, createProviderFallbackEditorial(candidate));
+    }
     return this.validator.validate(candidate, translated);
   }
 
@@ -136,6 +143,19 @@ function toPlainEditorial(value: string): string {
   return compactText(
     value.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace(PROVIDER_TAGS, ''),
   );
+}
+
+const DUMP_MARKERS = /verificationState:|semanticClaimKey:|matchingAssertionEffect:|claimOriginResolution:/u;
+
+function isGroundedDump(
+  editorial: { title: string; summary: string; whyImportant: string },
+  groundedSummary: string,
+): boolean {
+  const blob = `${editorial.title}\n${editorial.summary}\n${editorial.whyImportant}`;
+  if (DUMP_MARKERS.test(blob)) return true;
+  const dump = compactText(groundedSummary);
+  if (!dump) return false;
+  return compactText(editorial.summary) === dump || compactText(editorial.whyImportant) === dump;
 }
 
 function matchingAssertions(candidate: PoliticsCandidate) {

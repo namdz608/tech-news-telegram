@@ -12,7 +12,6 @@ const SUMMARY_BOUND = 720;
 const WHY_BOUND = 360;
 const CLAIM_BOUND = 280;
 
-const ATTRIBUTION = /cho rằng|cáo buộc|theo |tài khoản|nguồn |allegedly|reported|according to/iu;
 const CERTAINTY = /chắc chắn|đã xác nhận|được xác nhận|ĐÃ XÁC NHẬN|definitely|proven|confirms that|kết luận chính thức/iu;
 const GUILTY = /phạm tội|có tội|tội phạm|đã thực hiện|convicted|guilty|thú nhận|admitted guilt/iu;
 const MOTIVE = /vì muốn|động cơ|in order to|because he wanted/iu;
@@ -23,6 +22,11 @@ const INSTRUCTION_FOLLOWED =
   /ignore previous instructions.{0,40}(?:tuân theo|followed|obeyed)|(?:tuân theo|followed).{0,40}ignore previous instructions/iu;
 const NUMBER = /\d+(?:[.,]\d+)?/gu;
 const PROPER_NAME = /\b[A-Z][a-z]+(?:\s+[A-Z][a-zA-Z]+)+\b/g;
+const ESTABLISHED_FINDING =
+  /sự thật đã được xác lập|đã được xác lập|là sự thật|kết luận đã được xác lập|không còn là cáo buộc|established finding|established fact/iu;
+const ALLEGATION_FACT = /nhận hối lộ|accepted bribes|đã nhận|đã thực hiện/iu;
+const ALLEGATION_MODALITY =
+  /bị cáo buộc|cáo buộc|allegedly|\balleged\b|cho rằng|đang được đưa tin/iu;
 
 export function truncateUtf16(value: string, max: number): string {
   if (max <= 0) return '';
@@ -152,9 +156,66 @@ function inventedQuotes(field: string, corpus: string): boolean {
   return [...field.matchAll(/"([^"]+)"/g)].some((match) => !normalizedCorpus.includes(normalize(match[1] ?? '')));
 }
 
-function restatedAllegationAsFact(field: string, corpus: string): boolean {
-  if (!/cáo buộc|allegedly|alleged|cho rằng/iu.test(corpus)) return false;
-  return /đã thực hiện/iu.test(field) && !ATTRIBUTION.test(field);
+function matchingAssertionEffect(candidate: PoliticsCandidate): string {
+  const match = candidate.evidenceAssertions.find(
+    (assertion) => assertion.semanticClaimKey === candidate.semanticClaimKey,
+  );
+  return match?.effect ?? candidate.evidentiaryEffect;
+}
+
+function needsAllegationFrame(candidate: PoliticsCandidate): boolean {
+  return candidate.verificationState === 'reported'
+    || candidate.verificationState === 'unverified'
+    || candidate.claimModality === 'alleged'
+    || candidate.evidentiaryEffect === 'records-claim'
+    || matchingAssertionEffect(candidate) === 'records-claim';
+}
+
+function hasClaimantAttribution(field: string, candidate: PoliticsCandidate): boolean {
+  const text = compactText(field);
+  if (/tài khoản/iu.test(text) || /cho rằng/iu.test(text) || /theo nguồn/iu.test(text)) return true;
+  if (/according to/iu.test(text) || /\breported\b/iu.test(text)) return true;
+  const source = compactText(candidate.sourceName);
+  if (source) {
+    const quotedSource = escapeRegExp(source);
+    if (new RegExp(`(?:^|\\s)theo\\s+${quotedSource}\\b`, 'iu').test(text)) return true;
+    if (new RegExp(`${quotedSource}.{0,48}(?:cho rằng|cáo buộc|reported|ghi nhận)`, 'iu').test(text)) {
+      return true;
+    }
+  }
+  const actor = compactText(candidate.originAttribution.account || candidate.originalAccount || '');
+  if (actor) {
+    const quotedActor = escapeRegExp(actor);
+    if (new RegExp(`(?:tài khoản\\s+)?${quotedActor}.{0,24}(?:cho rằng|cáo buộc|reported)`, 'iu').test(text)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function hasAllegationModality(field: string): boolean {
+  return ALLEGATION_MODALITY.test(field);
+}
+
+function restatedAllegationAsFact(field: string, candidate: PoliticsCandidate): boolean {
+  if (candidate.verificationState === 'confirmed' && candidate.claimModality === 'established') {
+    return false;
+  }
+  if (ESTABLISHED_FINDING.test(field)) return true;
+  if (!needsAllegationFrame(candidate)) return false;
+  if (ALLEGATION_FACT.test(field) && !hasAllegationModality(field) && !hasClaimantAttribution(field, candidate)) {
+    return true;
+  }
+  return /đã thực hiện/iu.test(field) && !hasAllegationModality(field);
+}
+
+function lostRecordsClaim(field: string, candidate: PoliticsCandidate): boolean {
+  const effect = matchingAssertionEffect(candidate);
+  if (effect !== 'records-claim' && candidate.evidentiaryEffect !== 'records-claim') return false;
+  if (candidate.verificationState === 'confirmed') return false;
+  if (ESTABLISHED_FINDING.test(field)) return true;
+  if (ALLEGATION_FACT.test(field) && !hasAllegationModality(field)) return true;
+  return false;
 }
 
 function swappedRoles(field: string, candidate: PoliticsCandidate): boolean {
@@ -181,14 +242,19 @@ function lostNegation(field: string, candidate: PoliticsCandidate, corpus: strin
   return false;
 }
 
-function lostModality(field: string, candidate: PoliticsCandidate): boolean {
-  if (candidate.claimModality !== 'alleged' && candidate.verificationState === 'confirmed') {
-    return false;
-  }
-  if (candidate.claimModality !== 'alleged' && candidate.verificationState !== 'reported') {
-    return false;
-  }
-  return !ATTRIBUTION.test(field);
+function restatesAllegation(field: string): boolean {
+  return ALLEGATION_FACT.test(field);
+}
+
+function lostReportedFraming(
+  field: string,
+  candidate: PoliticsCandidate,
+  role: 'title' | 'summary' | 'whyImportant',
+): boolean {
+  if (!needsAllegationFrame(candidate)) return false;
+  if (role === 'title') return !hasClaimantAttribution(field, candidate);
+  if (!restatesAllegation(field)) return false;
+  return !hasClaimantAttribution(field, candidate) && !hasAllegationModality(field);
 }
 
 function isFieldSafe(
@@ -203,16 +269,14 @@ function isFieldSafe(
   if (inventedNumbers(compact, corpus) || inventedNames(compact, corpus) || inventedQuotes(compact, corpus)) {
     return false;
   }
-  if (MOTIVE.test(compact) || GUILTY.test(compact) || restatedAllegationAsFact(compact, corpus)) {
+  if (MOTIVE.test(compact) || GUILTY.test(compact) || restatedAllegationAsFact(compact, candidate)) {
     return false;
   }
   if (candidate.verificationState !== 'confirmed' && CERTAINTY.test(compact)) return false;
   if (swappedRoles(compact, candidate)) return false;
-  if ((role === 'title' || role === 'summary') && lostNegation(compact, candidate, corpus)) return false;
-  if (role === 'title' && (candidate.verificationState === 'reported' || candidate.verificationState === 'unverified')) {
-    if (!ATTRIBUTION.test(compact)) return false;
-    if (lostModality(compact, candidate)) return false;
-  }
+  if (lostNegation(compact, candidate, corpus)) return false;
+  if (lostReportedFraming(compact, candidate, role)) return false;
+  if (lostRecordsClaim(compact, candidate)) return false;
   return true;
 }
 
