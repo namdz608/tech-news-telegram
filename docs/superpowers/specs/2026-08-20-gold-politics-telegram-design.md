@@ -1,7 +1,7 @@
 # Gold and Politics Telegram Flow Design
 
 **Date:** 2026-08-20
-**Status:** Approved for written-spec review
+**Status:** Approved
 
 ## Goal
 
