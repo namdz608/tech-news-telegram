@@ -224,6 +224,9 @@ describe('SafeWebRetrievalService URL and address policy', () => {
     ['http://[::ffff:127.0.0.1]/', 'IPv4-mapped loopback'],
     ['http://[::ffff:10.0.0.1]/', 'IPv4-mapped RFC1918'],
     ['http://[::ffff:192.168.0.1]/', 'IPv4-mapped private'],
+    ['http://[64:ff9b::a00:1]/', 'NAT64 well-known prefix embedding RFC1918'],
+    ['http://[2002:0a00:0001::]/', '6to4 prefix encoding RFC1918'],
+    ['http://[::127.0.0.1]/', 'deprecated IPv4-compatible loopback'],
   ])('rejects %s (%s) as unsafe-address', async (input) => {
     const defaults = createSafeWebRetrievalDependencies();
     const request = vi.fn();
@@ -365,6 +368,18 @@ describe('createSafeWebRetrievalDependencies address policy', () => {
     [{ address: '::ffff:127.0.0.1', family: 6 as const }, false],
     [{ address: '::ffff:10.1.2.3', family: 6 as const }, false],
     [{ address: '::ffff:c0a8:1', family: 6 as const }, false],
+    [{ address: '64:ff9b::a00:1', family: 6 as const }, false],
+    [{ address: '64:ff9b::10.0.0.1', family: 6 as const }, false],
+    [{ address: '64:ff9b::7f00:1', family: 6 as const }, false],
+    [{ address: '2002:0a00:0001::', family: 6 as const }, false],
+    [{ address: '2002:c0a8:1::', family: 6 as const }, false],
+    [{ address: '::127.0.0.1', family: 6 as const }, false],
+    [{ address: '::10.0.0.1', family: 6 as const }, false],
+    [{ address: '::7f00:1', family: 6 as const }, false],
+    [{ address: '::a00:1', family: 6 as const }, false],
+    [{ address: '64:ff9b::808:808', family: 6 as const }, true],
+    [{ address: '2002:808:808::', family: 6 as const }, true],
+    [{ address: '::8.8.8.8', family: 6 as const }, true],
   ])('isAddressAllowed(%j) === %s', (address, allowed) => {
     expect(isAddressAllowed(address)).toBe(allowed);
   });

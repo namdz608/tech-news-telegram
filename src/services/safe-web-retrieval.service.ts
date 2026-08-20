@@ -427,19 +427,41 @@ function isPublicIpv6(address: string): boolean {
   if ((first & 0xff00) === 0xff00) return false;
   if (first === 0x2001 && groups[1] === 0xdb8) return false;
 
-  if (
-    groups[0] === 0
-    && groups[1] === 0
-    && groups[2] === 0
-    && groups[3] === 0
-    && groups[4] === 0
-    && groups[5] === 0xffff
-  ) {
-    const mapped = `${(groups[6] ?? 0) >> 8}.${(groups[6] ?? 0) & 0xff}.${(groups[7] ?? 0) >> 8}.${(groups[7] ?? 0) & 0xff}`;
-    return isPublicIpv4(mapped);
+  const embedded = embeddedIpv4(groups);
+  if (embedded !== undefined) {
+    return isPublicIpv4(embedded);
   }
 
   return true;
+}
+
+function groupsToIpv4(high: number, low: number): string {
+  return `${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`;
+}
+
+function embeddedIpv4(groups: number[]): string | undefined {
+  const g0 = groups[0] ?? 0;
+  const g1 = groups[1] ?? 0;
+  const g2 = groups[2] ?? 0;
+  const g3 = groups[3] ?? 0;
+  const g4 = groups[4] ?? 0;
+  const g5 = groups[5] ?? 0;
+  const g6 = groups[6] ?? 0;
+  const g7 = groups[7] ?? 0;
+
+  if (g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0xffff) {
+    return groupsToIpv4(g6, g7);
+  }
+  if (g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0) {
+    return groupsToIpv4(g6, g7);
+  }
+  if (g0 === 0x64 && g1 === 0xff9b && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0) {
+    return groupsToIpv4(g6, g7);
+  }
+  if (g0 === 0x2002) {
+    return groupsToIpv4(g1, g2);
+  }
+  return undefined;
 }
 
 function ipv4ToInt(address: string): number | undefined {
@@ -473,7 +495,7 @@ function expandIpv6(address: string): number[] | undefined {
       return undefined;
     }
     ipv4Tail = [((octets[0] << 8) | octets[1]) >>> 0, ((octets[2] << 8) | octets[3]) >>> 0];
-    core = zoneless.slice(0, ipv4Match.index);
+    core = zoneless.slice(0, ipv4Match.index + 1);
   }
 
   if ((core.match(/::/g) ?? []).length > 1) return undefined;

@@ -50,6 +50,27 @@ function assertSafeDeliveryError(
   assertNoSensitiveLeak(error);
 }
 
+function stringifyConsole(spies: Array<{ mock: { calls: unknown } }>): string {
+  return spies.map((spy) => JSON.stringify(spy.mock.calls)).join('\n');
+}
+
+function assertSafeDiagnosticLog(
+  warn: { mock: { calls: unknown[][] } },
+  errorLog: { mock: { calls: unknown } },
+  log: { mock: { calls: unknown } },
+  expected: readonly unknown[],
+): void {
+  expect(warn.mock.calls).toEqual([expected]);
+  expect(errorLog.mock.calls).toEqual([]);
+  expect(log.mock.calls).toEqual([]);
+  const logged = stringifyConsole([warn, errorLog, log]);
+  expect(logged).not.toContain('123456:ABC-TOKEN');
+  expect(logged).not.toContain('-100123');
+  expect(logged).not.toContain('Authorization');
+  expect(logged).not.toContain('received bribes');
+  expect(logged).not.toContain('Bearer ');
+}
+
 describe('GoldPoliticsDeliveryService', () => {
   it('sends price first then each news with the source button and marks only news urls', async () => {
     const telegram = {
@@ -98,12 +119,10 @@ describe('GoldPoliticsDeliveryService', () => {
       ]);
       expect(history.mark.mock.calls).toEqual([['https://one.example/story']]);
       expect(telegram.sendMessages).not.toHaveBeenCalled();
-      expect(warn).not.toHaveBeenCalled();
-      expect(errorLog).not.toHaveBeenCalled();
-      expect(log).not.toHaveBeenCalled();
-      assertNoSensitiveLeak(warn.mock.calls);
-      assertNoSensitiveLeak(errorLog.mock.calls);
-      assertNoSensitiveLeak(log.mock.calls);
+      assertSafeDiagnosticLog(warn, errorLog, log, [
+        'Gold politics Telegram send failed',
+        'unknown',
+      ]);
     } finally {
       warn.mockRestore();
       errorLog.mockRestore();
@@ -128,9 +147,10 @@ describe('GoldPoliticsDeliveryService', () => {
       expect(telegram.sendDigest.mock.calls).toEqual([['price html']]);
       expect(history.mark).not.toHaveBeenCalled();
       expect(telegram.sendMessages).not.toHaveBeenCalled();
-      expect(warn).not.toHaveBeenCalled();
-      expect(errorLog).not.toHaveBeenCalled();
-      expect(log).not.toHaveBeenCalled();
+      assertSafeDiagnosticLog(warn, errorLog, log, [
+        'Gold politics Telegram send failed',
+        'unknown',
+      ]);
     } finally {
       warn.mockRestore();
       errorLog.mockRestore();
@@ -158,12 +178,80 @@ describe('GoldPoliticsDeliveryService', () => {
       ]);
       expect(history.mark.mock.calls).toEqual([['https://one.example/story']]);
       expect(telegram.sendMessages).not.toHaveBeenCalled();
-      expect(warn).not.toHaveBeenCalled();
-      expect(errorLog).not.toHaveBeenCalled();
-      expect(log).not.toHaveBeenCalled();
-      assertNoSensitiveLeak(warn.mock.calls);
-      assertNoSensitiveLeak(errorLog.mock.calls);
-      assertNoSensitiveLeak(log.mock.calls);
+      assertSafeDiagnosticLog(warn, errorLog, log, [
+        'Gold politics history mark failed',
+        'unknown',
+      ]);
+    } finally {
+      warn.mockRestore();
+      errorLog.mockRestore();
+      log.mockRestore();
+    }
+  });
+
+  it('logs only Error.name when Telegram fails with a named Error that embeds secrets', async () => {
+    const named = new Error(
+      'Authorization: Bearer 123456:ABC-TOKEN chat_id=-100123 received bribes from official X',
+    );
+    named.name = 'TypeError';
+    const telegram = {
+      sendDigest: vi.fn().mockRejectedValue(named),
+      sendMessages: vi.fn(),
+    };
+    const history = { mark: vi.fn().mockResolvedValue(undefined) };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const service = new GoldPoliticsDeliveryService(telegram, history);
+
+    try {
+      const failure = await service.send('price html', news).catch((caught: unknown) => caught);
+      assertSafeDeliveryError(failure, 'telegram-send-failed');
+      assertSafeDiagnosticLog(warn, errorLog, log, [
+        'Gold politics Telegram send failed',
+        'TypeError',
+      ]);
+    } finally {
+      warn.mockRestore();
+      errorLog.mockRestore();
+      log.mockRestore();
+    }
+  });
+
+  it('logs axios-like numeric status without headers, body, token, chat ID, or allegation text', async () => {
+    const axiosLike = Object.assign(
+      new Error('Request failed with status 429 chat_id=-100123 token=123456:ABC-TOKEN received bribes'),
+      {
+        name: 'AxiosError',
+        response: {
+          status: 429,
+          headers: { Authorization: 'Bearer 123456:ABC-TOKEN' },
+          data: {
+            description: 'received bribes from official X',
+            chat_id: '-100123',
+          },
+        },
+        config: { headers: { Authorization: 'Bearer 123456:ABC-TOKEN' } },
+      },
+    );
+    const telegram = {
+      sendDigest: vi.fn().mockRejectedValue(axiosLike),
+      sendMessages: vi.fn(),
+    };
+    const history = { mark: vi.fn().mockResolvedValue(undefined) };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const service = new GoldPoliticsDeliveryService(telegram, history);
+
+    try {
+      const failure = await service.send('price html', news).catch((caught: unknown) => caught);
+      assertSafeDeliveryError(failure, 'telegram-send-failed');
+      assertSafeDiagnosticLog(warn, errorLog, log, [
+        'Gold politics Telegram send failed',
+        'AxiosError',
+        429,
+      ]);
     } finally {
       warn.mockRestore();
       errorLog.mockRestore();
