@@ -429,11 +429,22 @@ export function politicsSignificantTokens(text: string): Set<string> {
   );
 }
 
-function detectStance(synonymized: string): ClaimStance {
-  if (hasAny(synonymized, ['denies', 'deny', 'denied', 'denial', 'refute', 'refutes', 'khong'])) {
+const NEGATED_DENIAL =
+  /\b(?:(?:have|has|had|did|do|does)\s+not|never)\s+(?:denied|deny|denies|refute|refutes|refuted)\b|\bnot\s+denied\b|\bno\s+denial\b|\bwithout\s+(?:any\s+|a\s+)?denial\b|\black of denial\b|\bkhong (?:phu nhan|bac bo)\b|\bchua (?:phu nhan|bac bo|binh luan)\b/g;
+const DENIAL_VERB = /\b(?:denies|deny|denied|refutes|refute|refuted)\b|\bphu nhan\b|\bbac bo\b/;
+const DENIAL_OF_PROPOSITION = /\b(?:did|does|do)\s+not\s+accept\b|\bkhong nhan(?:\s+hoi lo)?\b/;
+const EXPLICIT_SUPPORT =
+  /\bofficial record established\b|\bestablished\b|\badmitted\b|\backnowledged\b|\bconfirmed (?:corruption )?finding\b/;
+
+function detectStance(foldedOriginal: string): ClaimStance {
+  const withoutNegatedDenial = foldedOriginal.replace(NEGATED_DENIAL, ' ');
+  if (DENIAL_VERB.test(withoutNegatedDenial) || DENIAL_OF_PROPOSITION.test(withoutNegatedDenial)) {
     return 'denies';
   }
-  return 'supports';
+  if (EXPLICIT_SUPPORT.test(foldedOriginal)) {
+    return 'supports';
+  }
+  return 'neutral';
 }
 
 function detectModality(synonymized: string, foldedOriginal: string): ClaimModality {
@@ -581,7 +592,7 @@ export class PoliticsClassificationService {
     const geographicScope = decideGeography(combinedSyn);
     const claimEntities = extractEntities(combinedSyn);
     const semanticClaimKey = buildSemanticClaimKey(titleSyn, summarySyn, claimEntities);
-    const claimStance = detectStance(combinedSyn);
+    const claimStance = detectStance(foldedCombined);
     const claimModality = detectModality(combinedSyn, foldedCombined);
     const claimText = title;
 

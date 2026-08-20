@@ -267,9 +267,10 @@ describe('PoliticsClassificationService', () => {
     expect(denied?.semanticClaimKey).toBe(english?.semanticClaimKey);
     expect(established?.semanticClaimKey).toBe(english?.semanticClaimKey);
     expect(possible?.semanticClaimKey).toBe(english?.semanticClaimKey);
-    expect(english?.claimStance).toBe('supports');
+    expect(english?.claimStance).toBe('neutral');
     expect(denied?.claimStance).toBe('denies');
-    expect(vietnamese?.claimStance).toBe('supports');
+    expect(vietnamese?.claimStance).toBe('neutral');
+    expect(established?.claimStance).toBe('supports');
     expect(english?.claimModality).toBe('alleged');
     expect(possible?.claimModality).toBe('possible');
     expect(established?.claimModality).toBe('established');
@@ -323,7 +324,74 @@ describe('PoliticsClassificationService', () => {
     expect(vi?.primaryCategory).toBe('vietnam-politics');
     expect(en?.primaryCategory).toBe('vietnam-politics');
     expect(vi?.semanticClaimKey).toBe(en?.semanticClaimKey);
-    expect(vi?.claimStance).toBe('supports');
-    expect(en?.claimStance).toBe('supports');
+    expect(vi?.claimStance).toBe('neutral');
+    expect(en?.claimStance).toBe('neutral');
+  });
+
+  it('does not treat official silence as a denial of the claim', () => {
+    const classified = service.classify(
+      item({
+        title: 'Prime Minister Pham Minh Chinh allegedly accepted bribes with no official comment',
+        summary: 'Officials have not denied the allegation.',
+      }),
+    );
+    expect(classified?.claimStance).not.toBe('denies');
+    expect(classified?.claimStance).toBe('neutral');
+    expect(classified?.evidenceAssertions[0]?.stance).toBe('neutral');
+  });
+
+  it('does not treat ordinary Vietnamese khong as a claim denial', () => {
+    const atmosphere = service.classify(
+      item({
+        title: 'Quốc hội thông qua luật ngân sách',
+        summary: 'Không khí tại hội trường căng thẳng khi Chính phủ trình dự luật.',
+      }),
+    );
+    const reporting = service.classify(
+      item({
+        title: 'Chính phủ Việt Nam công bố chính sách ngoại giao mới',
+        summary: 'Hà Nội cho biết không khí đàm phán vẫn ổn định.',
+      }),
+    );
+    expect(atmosphere?.primaryCategory).toBe('vietnam-politics');
+    expect(atmosphere?.claimStance).not.toBe('denies');
+    expect(atmosphere?.claimStance).toBe('neutral');
+    expect(reporting?.claimStance).not.toBe('denies');
+    expect(reporting?.claimStance).toBe('neutral');
+  });
+
+  it('classifies reporting news without explicit support or denial as neutral', () => {
+    const report = service.classify(
+      item({
+        title: 'Quốc hội thông qua luật ngân sách',
+        summary: 'Chính phủ trình dự luật.',
+      }),
+    );
+    const alleged = service.classify(
+      item({
+        title: 'Prime Minister Pham Minh Chinh allegedly accepted bribes',
+        summary: 'Corruption scandal in Hanoi.',
+      }),
+    );
+    expect(report?.claimStance).toBe('neutral');
+    expect(alleged?.claimStance).toBe('neutral');
+  });
+
+  it('still classifies an explicit denial of the claim as denies', () => {
+    const english = service.classify(
+      item({
+        title: 'Prime Minister Pham Minh Chinh denied the allegation',
+        summary: 'The prime minister denied accepting bribes in Hanoi.',
+      }),
+    );
+    const vietnamese = service.classify(
+      item({
+        title: 'Thủ tướng Phạm Minh Chính phủ nhận cáo buộc nhận hối lộ',
+        summary: 'Ông bác bỏ bê bối tham nhũng tại Hà Nội.',
+      }),
+    );
+    expect(english?.claimStance).toBe('denies');
+    expect(vietnamese?.claimStance).toBe('denies');
+    expect(english?.semanticClaimKey).toBe(vietnamese?.semanticClaimKey);
   });
 });

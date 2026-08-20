@@ -281,6 +281,22 @@ describe('PoliticsVerificationService', () => {
     expect(assessment.state).not.toBe('confirmed');
   });
 
+  it('does not treat a classified official-silence report as denial or confirmation', () => {
+    const classifiedItem = classifier.classify(
+      source({
+        title: 'Prime Minister Pham Minh Chinh allegedly accepted bribes with no official comment',
+        summary: 'Officials have not denied the allegation.',
+      }),
+    );
+    expect(classifiedItem).toBeDefined();
+    expect(classifiedItem?.claimStance).not.toBe('denies');
+    expect(classifiedItem?.claimStance).toBe('neutral');
+    const assessment = verifier.assess(eventFrom([classifiedItem!]));
+    expect(assessment.state).toBe('reported');
+    expect(assessment.state).not.toBe('confirmed');
+    expect(assessment.conflictNote).toBeUndefined();
+  });
+
   it('records a neutral conflict note and keeps the conservative state', () => {
     const support = classified({
       url: 'https://vnexpress.net/pm-bribe',

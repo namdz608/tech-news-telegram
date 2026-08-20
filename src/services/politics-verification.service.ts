@@ -142,8 +142,10 @@ function stateFromAssertion(
 
 function hasConflict(assertions: readonly EvidenceAssertion[]): boolean {
   const denied = assertions.some((assertion) => assertion.stance === 'denies' || assertion.effect === 'denies');
-  const supported = assertions.some((assertion) => assertion.stance === 'supports');
-  return denied && supported;
+  const otherAccount = assertions.some(
+    (assertion) => assertion.stance !== 'denies' && assertion.effect !== 'denies',
+  );
+  return denied && otherAccount;
 }
 
 export class PoliticsVerificationService {
