@@ -13,7 +13,7 @@ const WHY_BOUND = 360;
 const CLAIM_BOUND = 280;
 
 const CERTAINTY = /chắc chắn|đã xác nhận|được xác nhận|ĐÃ XÁC NHẬN|definitely|proven|confirms that|kết luận chính thức/iu;
-const GUILTY = /phạm tội|có tội|tội phạm|đã thực hiện|convicted|guilty|thú nhận|admitted guilt/iu;
+const GUILTY = /phạm tội|có tội|tội phạm|đã thực hiện|convicted|guilty|thú nhận|admitted guilt/giu;
 const MOTIVE = /vì muốn|động cơ|in order to|because he wanted/iu;
 const NEGATION = /\bnot\b|không|chưa|phủ nhận|did not|was not|do not|does not/iu;
 const LIMITATION = /chưa đầy đủ|chưa truy cập|không đầy đủ|giới hạn/iu;
@@ -24,7 +24,7 @@ const NUMBER = /\d+(?:[.,]\d+)?/gu;
 const PROPER_NAME = /\b[A-Z][a-z]+(?:\s+[A-Z][a-zA-Z]+)+\b/g;
 const ESTABLISHED_FINDING =
   /sự thật đã được xác lập|đã được xác lập|là sự thật|kết luận đã được xác lập|không còn là cáo buộc|established finding|established fact/iu;
-const COMPLETED_ACT = /đã (làm|thực hiện|tiến hành|nhận)\b|committed|carried out/iu;
+const COMPLETED_ACT = /đã (?!được đưa tin|được kiểm chứng)\p{L}+|committed|carried out/iu;
 const ALLEGATION_MODALITY =
   /bị cáo buộc|cáo buộc|allegedly|\balleged\b|đang được đưa tin/iu;
 
@@ -62,7 +62,7 @@ export function createUnverifiedEditorial(candidate: PoliticsCandidate): Politic
       SUMMARY_BOUND,
     ),
     whyImportant: truncateUtf16(
-      `Thông tin này chưa được kiểm chứng. Chỉ ghi nhận nội dung do ${actor} đưa ra.`,
+      `${actor} cho rằng đây là thông tin chưa được kiểm chứng, không phải kết luận sự thật.`,
       WHY_BOUND,
     ),
   };
@@ -79,15 +79,13 @@ export function createProviderFallbackEditorial(candidate: PoliticsCandidate): P
     compactText(candidate.summary ?? ''),
     candidate.conflictNote ? compactText(candidate.conflictNote) : '',
   ].filter(Boolean);
-  const whyParts = [
-    compactText(candidate.corroborationNote),
-    candidate.sourceTextStatus === 'incomplete' ? 'Nội dung nguồn chưa đầy đủ.' : '',
-  ].filter(Boolean);
+  const whyBody = compactText(candidate.corroborationNote)
+    || 'sự việc đang được đưa tin, chưa phải kết luận cuối.';
   return {
     title: truncateUtf16(attributed, TITLE_BOUND),
     summary: truncateUtf16(summaryParts.join(' '), SUMMARY_BOUND),
     whyImportant: truncateUtf16(
-      whyParts.join(' ') || 'Sự việc đang được các nguồn ghi nhận, chưa phải kết luận cuối.',
+      `Theo ${compactText(candidate.sourceName)}, ${actor} cho rằng ${whyBody}`,
       WHY_BOUND,
     ),
   };
@@ -243,6 +241,17 @@ function lostNegation(field: string, candidate: PoliticsCandidate, corpus: strin
   return false;
 }
 
+function hasUnguardedGuiltyLanguage(field: string): boolean {
+  for (const match of field.matchAll(GUILTY)) {
+    const start = match.index ?? 0;
+    const before = field.slice(Math.max(0, start - 48), start);
+    if (/(?:không phải|chưa)(?:\s+\S+){0,4}\s*$/iu.test(before)) continue;
+    if (/\b(?:not|no)\b(?:\s+\S+){0,4}\s*$/iu.test(before)) continue;
+    return true;
+  }
+  return false;
+}
+
 function isFieldSafe(
   candidate: PoliticsCandidate,
   field: string,
@@ -255,7 +264,7 @@ function isFieldSafe(
   if (inventedNumbers(compact, corpus) || inventedNames(compact, corpus) || inventedQuotes(compact, corpus)) {
     return false;
   }
-  if (MOTIVE.test(compact) || GUILTY.test(compact) || restatedAllegationAsFact(compact, candidate)) {
+  if (MOTIVE.test(compact) || hasUnguardedGuiltyLanguage(compact) || restatedAllegationAsFact(compact, candidate)) {
     return false;
   }
   if (candidate.verificationState !== 'confirmed' && CERTAINTY.test(compact)) return false;
@@ -266,6 +275,20 @@ function isFieldSafe(
   return true;
 }
 
+function chooseSafeField(
+  candidate: PoliticsCandidate,
+  generated: string,
+  fallback: string,
+  role: 'title' | 'summary' | 'whyImportant',
+  corpus: string,
+): string {
+  const compactGenerated = compactText(generated);
+  if (isFieldSafe(candidate, compactGenerated, role, corpus)) return compactGenerated;
+  const compactFallback = compactText(fallback);
+  if (isFieldSafe(candidate, compactFallback, role, corpus)) return compactFallback;
+  return compactFallback;
+}
+
 export class PoliticsEditorialValidator {
   validate(candidate: PoliticsCandidate, editorial: PoliticsEditorial): PoliticsEditorial {
     const fallback = candidate.verificationState === 'unverified'
@@ -273,15 +296,15 @@ export class PoliticsEditorialValidator {
       : createProviderFallbackEditorial(candidate);
     const corpus = sourceCorpus(candidate);
     const next: PoliticsEditorial = {
-      title: isFieldSafe(candidate, editorial.title, 'title', corpus)
-        ? compactText(editorial.title)
-        : fallback.title,
-      summary: isFieldSafe(candidate, editorial.summary, 'summary', corpus)
-        ? compactText(editorial.summary)
-        : fallback.summary,
-      whyImportant: isFieldSafe(candidate, editorial.whyImportant, 'whyImportant', corpus)
-        ? compactText(editorial.whyImportant)
-        : fallback.whyImportant,
+      title: chooseSafeField(candidate, editorial.title, fallback.title, 'title', corpus),
+      summary: chooseSafeField(candidate, editorial.summary, fallback.summary, 'summary', corpus),
+      whyImportant: chooseSafeField(
+        candidate,
+        editorial.whyImportant,
+        fallback.whyImportant,
+        'whyImportant',
+        corpus,
+      ),
     };
 
     if (candidate.sourceTextStatus === 'incomplete' && !LIMITATION.test(`${next.title} ${next.summary} ${next.whyImportant}`)) {
