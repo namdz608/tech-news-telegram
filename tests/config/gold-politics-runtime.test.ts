@@ -20,6 +20,10 @@ function exactLines(text: string): string[] {
   return text.split(/\r?\n/);
 }
 
+function assignmentLines(lines: string[], key: string): string[] {
+  return lines.filter((line) => line.startsWith(`${key}=`));
+}
+
 function goldPoliticsReadmeSection(readme: string): string {
   const heading = '### Bản tin giá vàng và chính trị';
   const start = readme.indexOf(heading);
@@ -41,16 +45,10 @@ describe('gold-politics runtime configuration', () => {
     const envExample = readFileSync('.env.example', 'utf8');
     const lines = exactLines(envExample);
 
-    expect(lines).toEqual(expect.arrayContaining([...GOLD_POLITICS_ENV_LINES]));
-    expect(lines.filter((line) => line.startsWith('GOLD_POLITICS_MAX_ARTICLES='))).toEqual([
-      'GOLD_POLITICS_MAX_ARTICLES=15',
-    ]);
-    expect(lines.filter((line) => line.startsWith('GOLD_POLITICS_TELEGRAM_BOT_TOKEN='))).toEqual([
-      'GOLD_POLITICS_TELEGRAM_BOT_TOKEN=replace_me',
-    ]);
-    expect(lines.filter((line) => line.startsWith('GOLD_POLITICS_TELEGRAM_CHAT_ID='))).toEqual([
-      'GOLD_POLITICS_TELEGRAM_CHAT_ID=replace_me',
-    ]);
+    for (const exact of GOLD_POLITICS_ENV_LINES) {
+      const key = exact.slice(0, exact.indexOf('='));
+      expect(assignmentLines(lines, key)).toEqual([exact]);
+    }
 
     expect(lines).toContain('TELEGRAM_BOT_TOKEN=replace_me');
     expect(lines).toContain('GADGET_TELEGRAM_BOT_TOKEN=replace_me');
