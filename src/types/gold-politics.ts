@@ -267,6 +267,7 @@ export interface PoliticsSelectionResult {
 export interface PoliticsMessage {
   text: string;
   url: string;
+  imageUrl?: string;
   candidate: PoliticsCandidate;
 }
 

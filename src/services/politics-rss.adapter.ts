@@ -74,6 +74,7 @@ function mapRssArticle(article: Article, discoveredAt: string): PoliticsSourceIt
     title,
     url,
     summary: summary || undefined,
+    imageUrl: article.imageUrl,
     author: article.author,
     publishedAt,
     collectedAt: discoveredAt,

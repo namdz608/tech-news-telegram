@@ -1,3 +1,4 @@
+import { goldPoliticsFallbackImageUrls } from '../config/gold-politics-images';
 import type {
   GoldPriceSnapshot,
   GoldProviderKey,
@@ -6,6 +7,7 @@ import type {
   PoliticsMessage,
 } from '../types/gold-politics';
 import { compactText, escapeHtml } from '../utils/text';
+import { getArticleMessageImageUrl } from './article-message.service';
 import {
   PoliticsEditorialService,
   type PoliticsEditorial,
@@ -87,6 +89,10 @@ export class GoldPoliticsMessageService {
       return {
         text,
         url: item.claimOriginUrl,
+        imageUrl: getArticleMessageImageUrl(
+          item,
+          goldPoliticsFallbackImageUrls[item.primaryCategory],
+        ),
         candidate: item,
       };
     }));

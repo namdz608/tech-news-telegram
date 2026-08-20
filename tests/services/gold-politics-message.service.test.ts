@@ -347,7 +347,9 @@ describe('GoldPoliticsMessageService.buildNewsMessages', () => {
     const [message] = await new GoldPoliticsMessageService(editorial).buildNewsMessages([input]);
 
     expect(message.url).toBe('https://origin.example/original');
-    expect(message).not.toHaveProperty('imageUrl');
+    expect(message.imageUrl).toBe(
+      'https://placehold.co/1200x630/b91c1c/ffffff.png?text=Vietnam+Politics',
+    );
     expect(message.candidate).toBe(input);
 
     const text = message.text;
@@ -367,6 +369,33 @@ describe('GoldPoliticsMessageService.buildNewsMessages', () => {
     expect(text).toMatch(/vnexpress/iu);
     expect(text).toMatch(/rss/iu);
     expect(text).toMatch(/thu thập|collected-original|nguồn gốc đã/iu);
+  });
+
+  it('prefers an HTTPS article image and falls back for an unsafe image URL', async () => {
+    const editorial = editorialOf({
+      title: 'Tiêu đề trung lập',
+      summary: 'Tóm tắt có căn cứ.',
+      whyImportant: 'Vì sao đáng chú ý.',
+    });
+    const service = new GoldPoliticsMessageService(editorial);
+
+    const [articleImage] = await service.buildNewsMessages([
+      candidate({
+        imageUrl: 'https://images.example.com/article.jpg',
+        primaryCategory: 'vietnam-politics',
+      }),
+    ]);
+    const [fallbackImage] = await service.buildNewsMessages([
+      candidate({
+        imageUrl: 'http://unsafe.example/image.jpg',
+        primaryCategory: 'international-politics',
+      }),
+    ]);
+
+    expect(articleImage.imageUrl).toBe('https://images.example.com/article.jpg');
+    expect(fallbackImage.imageUrl).toBe(
+      'https://placehold.co/1200x630/1d4ed8/ffffff.png?text=World+Politics',
+    );
   });
 
   it('uses representative-source claimOriginUrl even when candidate and attribution URLs differ', async () => {

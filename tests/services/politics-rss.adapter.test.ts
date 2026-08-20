@@ -59,7 +59,7 @@ describe('PoliticsRssAdapter', () => {
     }
   });
 
-  it('maps a dated RSS item onto identified-report evidence and strips imageUrl', async () => {
+  it('maps a dated RSS item onto identified-report evidence and preserves imageUrl', async () => {
     const source = goldPoliticsRssSources[0]!;
     const crawler = createCrawler([rssArticle()]);
     const adapter = new PoliticsRssAdapter(source, crawler, () => NOW);
@@ -96,7 +96,7 @@ describe('PoliticsRssAdapter', () => {
         },
       }),
     );
-    expect(result.items[0]).not.toHaveProperty('imageUrl');
+    expect(result.items[0]?.imageUrl).toBe('https://vnexpress.net/photo.jpg');
     expect(result.items[0].evidentiaryEffect).not.toBe('establishes');
     expect(result.items[0].evidenceKind).not.toBe('official-final');
   });
