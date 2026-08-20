@@ -36,6 +36,9 @@ export interface RssSourceConfig extends BaseSourceConfig {
   defaultTopics?: TopicKey[];
   // Cho phép flow chuyên biệt tự phân loại sau khi crawl thay vì dùng tech topics mặc định.
   includeUnmatched?: boolean;
+  boundedFeedFetch?: boolean;
+  enrichArticlePage?: boolean;
+  maxItems?: number;
 }
 
 /**
