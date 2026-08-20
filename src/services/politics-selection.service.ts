@@ -314,6 +314,20 @@ function isIntAnchor(candidate: PoliticsCandidate): boolean {
   );
 }
 
+function findDistinctAnchorPair(
+  candidates: readonly PoliticsCandidate[],
+): readonly [PoliticsCandidate, PoliticsCandidate] | undefined {
+  for (const vietnam of candidates) {
+    if (!isVnAnchor(vietnam)) continue;
+    const international = candidates.find(
+      (candidate) =>
+        isIntAnchor(candidate) && candidate.eventFingerprint !== vietnam.eventFingerprint,
+    );
+    if (international) return [vietnam, international];
+  }
+  return undefined;
+}
+
 function compareCandidates(left: PoliticsCandidate, right: PoliticsCandidate): number {
   if (left.priorityTier !== right.priorityTier) {
     return right.priorityTier - left.priorityTier;
@@ -369,23 +383,68 @@ export class PoliticsSelectionService {
     const seen = canonicalizeSeen(seenUrls);
 
     const skippedFingerprints = new Set<string>();
-    const unseen: PoliticsEvent[] = [];
+    const seenEvents: PoliticsEvent[] = [];
+    const unseenEvents: PoliticsEvent[] = [];
     for (const event of events) {
       if (eventIsSeen(event, seen)) {
         skippedFingerprints.add(event.fingerprint);
+        seenEvents.push(event);
         continue;
       }
-      unseen.push(event);
+      unseenEvents.push(event);
     }
     const skippedSeenCount = skippedFingerprints.size;
 
-    const eligible = unseen.map((event) => this.materialize(event, now)).sort(compareCandidates);
-    const selected = this.pick(eligible);
+    const unseenCandidates = unseenEvents
+      .map((event) => this.materialize(event, now))
+      .sort(compareCandidates);
+    const seenCandidates = seenEvents
+      .map((event) => this.materialize(event, now))
+      .sort(compareCandidates);
+    let selected = this.pick(unseenCandidates);
+    const replay = this.replayAnchors(selected, seenCandidates);
+    if (replay.length > 0) {
+      selected = this.pick([...unseenCandidates, ...replay].sort(compareCandidates));
+    }
     return {
       selected,
-      eligibleCount: eligible.length,
+      eligibleCount: unseenCandidates.length,
       skippedSeenCount,
     };
+  }
+
+  private replayAnchors(
+    selected: readonly PoliticsCandidate[],
+    seenCandidates: readonly PoliticsCandidate[],
+  ): PoliticsCandidate[] {
+    if (findDistinctAnchorPair(selected)) return [];
+
+    const selectedFingerprints = new Set(selected.map((candidate) => candidate.eventFingerprint));
+    const completingAnchor = seenCandidates.find(
+      (candidate) =>
+        !selectedFingerprints.has(candidate.eventFingerprint) &&
+        findDistinctAnchorPair([...selected, candidate]) !== undefined,
+    );
+    if (completingAnchor) return [completingAnchor];
+
+    if (!selected.some((candidate) => isVnAnchor(candidate) || isIntAnchor(candidate))) {
+      const pair = findDistinctAnchorPair(seenCandidates);
+      if (pair) return [...pair];
+    }
+
+    const replay: PoliticsCandidate[] = [];
+    if (!selected.some(isVnAnchor)) {
+      const vietnam = seenCandidates.find(isVnAnchor);
+      if (vietnam) replay.push(vietnam);
+    }
+    if (!selected.some(isIntAnchor)) {
+      const fingerprints = new Set(replay.map((candidate) => candidate.eventFingerprint));
+      const international = seenCandidates.find(
+        (candidate) => isIntAnchor(candidate) && !fingerprints.has(candidate.eventFingerprint),
+      );
+      if (international) replay.push(international);
+    }
+    return replay;
   }
 
   private materialize(event: PoliticsEvent, now: Date): PoliticsCandidate {
