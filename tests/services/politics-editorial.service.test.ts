@@ -102,7 +102,7 @@ function createService(
         summary:
           'Nguồn VnExpress cho rằng Pham Minh Chinh bị cáo buộc nhận hối lộ 5 tỷ đồng. Đây không phải kết luận có tội.',
         whyImportant:
-          'Một nguồn độc lập ghi nhận cùng cáo buộc. Thông tin vẫn ở mức đang được đưa tin.',
+          'Theo VnExpress, một nguồn độc lập ghi nhận cùng cáo buộc. Thông tin vẫn ở mức đang được đưa tin.',
       }),
     ),
   },
@@ -175,12 +175,12 @@ describe('PoliticsEditorialService', () => {
         }
         if (text.includes('outlet said')) {
           return {
-            text: 'Nguồn cho rằng Pham Minh Chinh bị cáo buộc nhận hối lộ 5 tỷ đồng.',
+            text: 'Nguồn VnExpress cho rằng Pham Minh Chinh bị cáo buộc nhận hối lộ 5 tỷ đồng.',
             succeeded: true,
           };
         }
         return {
-          text: 'Một nguồn độc lập ghi nhận cùng cáo buộc.',
+          text: 'Theo VnExpress, một nguồn độc lập ghi nhận cùng cáo buộc.',
           succeeded: true,
         };
       }),
@@ -316,8 +316,8 @@ describe('PoliticsEditorialService', () => {
       editArticle: vi.fn().mockResolvedValue(
         verifiedEditorial({
           title: 'Theo VnExpress, Pham Minh Chinh bị cáo buộc nhận hối lộ',
-          summary: 'Nguồn cho rằng Pham Minh Chinh bị cáo buộc nhận hối lộ 5 tỷ đồng.',
-          whyImportant: 'Sự việc đang được theo dõi.',
+          summary: 'Nguồn VnExpress cho rằng Pham Minh Chinh bị cáo buộc nhận hối lộ 5 tỷ đồng.',
+          whyImportant: 'Theo VnExpress, sự việc đang được theo dõi.',
         }),
       ),
     };
@@ -463,8 +463,8 @@ describe('PoliticsEditorialService', () => {
       editArticle: vi.fn().mockResolvedValue(
         verifiedEditorial({
           title: 'Theo VnExpress, cáo buộc A & B <C> 𝄞',
-          summary: 'Nguồn cho rằng A & B <C> với 5 billion. 𝄞',
-          whyImportant: 'Ghi nhận cáo buộc A & B <C>.',
+          summary: 'Nguồn VnExpress cho rằng A & B <C> với 5 billion. 𝄞',
+          whyImportant: 'Theo VnExpress, ghi nhận cáo buộc A & B <C>.',
         }),
       ),
     };
@@ -540,6 +540,76 @@ describe('PoliticsEditorialService', () => {
     expect(dump).not.toContain('claimOriginResolution:');
     expect(result.summary).toMatch(/cho rằng|bị cáo buộc|Tài khoản/iu);
     expect(result.title).toMatch(/cho rằng|bị cáo buộc|Theo VnExpress|Tài khoản/iu);
+  });
+
+  it('replaces a reported title that uses generic cho rằng without the claimant', async () => {
+    const editorial = {
+      editArticle: vi.fn().mockResolvedValue(
+        verifiedEditorial({
+          title: 'Pham Minh Chinh nhận hối lộ 5 tỷ đồng, dư luận cho rằng vụ việc nghiêm trọng',
+          summary: 'Nguồn VnExpress cho rằng Pham Minh Chinh bị cáo buộc nhận hối lộ 5 tỷ đồng.',
+          whyImportant: 'Theo VnExpress, một nguồn độc lập ghi nhận cùng cáo buộc.',
+        }),
+      ),
+    };
+
+    const result = await new PoliticsEditorialService(editorial).edit(candidate({
+      verificationState: 'reported',
+      claimModality: 'alleged',
+    }));
+
+    expect(result.title).not.toBe(
+      'Pham Minh Chinh nhận hối lộ 5 tỷ đồng, dư luận cho rằng vụ việc nghiêm trọng',
+    );
+    expect(result.title).toMatch(/Tài khoản vnexpress|Theo VnExpress/iu);
+    expect(result.title).not.toMatch(/dư luận cho rằng/iu);
+  });
+
+  it('replaces a reported summary that has modality but no claimant or source', async () => {
+    const editorial = {
+      editArticle: vi.fn().mockResolvedValue(
+        verifiedEditorial({
+          title: 'Theo VnExpress, Pham Minh Chinh bị cáo buộc nhận hối lộ',
+          summary: 'Pham Minh Chinh bị cáo buộc nhận hối lộ 5 tỷ đồng.',
+          whyImportant: 'Theo VnExpress, một nguồn độc lập ghi nhận cùng cáo buộc.',
+        }),
+      ),
+    };
+
+    const result = await new PoliticsEditorialService(editorial).edit(candidate({
+      verificationState: 'reported',
+      claimModality: 'alleged',
+      evidentiaryEffect: 'records-claim',
+    }));
+
+    expect(result.summary).not.toBe('Pham Minh Chinh bị cáo buộc nhận hối lộ 5 tỷ đồng.');
+    expect(result.summary).toMatch(/Tài khoản vnexpress|Theo VnExpress|Nguồn VnExpress/iu);
+  });
+
+  it('replaces a reported non-bribery allegation restated as an established fact', async () => {
+    const editorial = {
+      editArticle: vi.fn().mockResolvedValue(
+        verifiedEditorial({
+          title: 'Theo VnExpress, Pham Minh Chinh bị cáo buộc lạm quyền',
+          summary: 'Theo VnExpress, Pham Minh Chinh bị cáo buộc nhưng ông đã làm lạm quyền.',
+          whyImportant: 'Theo VnExpress, một nguồn độc lập ghi nhận cùng cáo buộc.',
+        }),
+      ),
+    };
+
+    const result = await new PoliticsEditorialService(editorial).edit(candidate({
+      verificationState: 'reported',
+      claimModality: 'alleged',
+      evidentiaryEffect: 'records-claim',
+      semanticClaimKey: 'pham-minh-chinh|abuse-of-power',
+      evidenceAssertions: [assertion({
+        semanticClaimKey: 'pham-minh-chinh|abuse-of-power',
+        claimText: 'Pham Minh Chinh allegedly abused power',
+      })],
+    }));
+
+    expect(result.summary).not.toMatch(/đã làm lạm quyền/iu);
+    expect(result.summary).toMatch(/cho rằng|cáo buộc|Tài khoản|Theo VnExpress/iu);
   });
 
   it('rejects records-claim output that reads as an established finding', async () => {

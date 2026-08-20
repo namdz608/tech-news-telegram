@@ -24,9 +24,9 @@ const NUMBER = /\d+(?:[.,]\d+)?/gu;
 const PROPER_NAME = /\b[A-Z][a-z]+(?:\s+[A-Z][a-zA-Z]+)+\b/g;
 const ESTABLISHED_FINDING =
   /sự thật đã được xác lập|đã được xác lập|là sự thật|kết luận đã được xác lập|không còn là cáo buộc|established finding|established fact/iu;
-const ALLEGATION_FACT = /nhận hối lộ|accepted bribes|đã nhận|đã thực hiện/iu;
+const COMPLETED_ACT = /đã (làm|thực hiện|tiến hành|nhận)\b|committed|carried out/iu;
 const ALLEGATION_MODALITY =
-  /bị cáo buộc|cáo buộc|allegedly|\balleged\b|cho rằng|đang được đưa tin/iu;
+  /bị cáo buộc|cáo buộc|allegedly|\balleged\b|đang được đưa tin/iu;
 
 export function truncateUtf16(value: string, max: number): string {
   if (max <= 0) return '';
@@ -104,7 +104,7 @@ export function createTranslationFallbackEditorial(candidate: PoliticsCandidate)
       SUMMARY_BOUND,
     ),
     whyImportant: truncateUtf16(
-      'Giữ nguyên nội dung nguồn vì bản dịch chưa xác minh được; không bịa bản dịch.',
+      `Theo ${compactText(candidate.sourceName)}, ${actor} cho rằng nội dung gốc chưa dịch được; không bịa bản dịch.`,
       WHY_BOUND,
     ),
   };
@@ -171,51 +171,52 @@ function needsAllegationFrame(candidate: PoliticsCandidate): boolean {
     || matchingAssertionEffect(candidate) === 'records-claim';
 }
 
-function hasClaimantAttribution(field: string, candidate: PoliticsCandidate): boolean {
-  const text = compactText(field);
-  if (/tài khoản/iu.test(text) || /cho rằng/iu.test(text) || /theo nguồn/iu.test(text)) return true;
-  if (/according to/iu.test(text) || /\breported\b/iu.test(text)) return true;
-  const source = compactText(candidate.sourceName);
-  if (source) {
-    const quotedSource = escapeRegExp(source);
-    if (new RegExp(`(?:^|\\s)theo\\s+${quotedSource}\\b`, 'iu').test(text)) return true;
-    if (new RegExp(`${quotedSource}.{0,48}(?:cho rằng|cáo buộc|reported|ghi nhận)`, 'iu').test(text)) {
-      return true;
-    }
-  }
-  const actor = compactText(candidate.originAttribution.account || candidate.originalAccount || '');
-  if (actor) {
-    const quotedActor = escapeRegExp(actor);
-    if (new RegExp(`(?:tài khoản\\s+)?${quotedActor}.{0,24}(?:cho rằng|cáo buộc|reported)`, 'iu').test(text)) {
-      return true;
-    }
-  }
-  return false;
+function claimantNames(candidate: PoliticsCandidate): string[] {
+  return [...new Set([
+    compactText(candidate.sourceName),
+    compactText(candidate.originAttribution.account || ''),
+    compactText(candidate.originalAccount || ''),
+    compactText(candidate.originalAuthor || ''),
+    compactText(candidate.author || ''),
+  ].filter(Boolean))];
 }
 
-function hasAllegationModality(field: string): boolean {
-  return ALLEGATION_MODALITY.test(field);
+function hasClaimantAttribution(field: string, candidate: PoliticsCandidate): boolean {
+  const text = compactText(field);
+  return claimantNames(candidate).some((name) => {
+    const quoted = escapeRegExp(name);
+    return new RegExp(`tài khoản\\s+${quoted}\\b`, 'iu').test(text)
+      || new RegExp(`(?:^|\\s)theo\\s+${quoted}\\b`, 'iu').test(text)
+      || new RegExp(`(?:according to|reported by)\\s+${quoted}\\b`, 'iu').test(text)
+      || new RegExp(`${quoted}\\s+reported\\b`, 'iu').test(text)
+      || new RegExp(`${quoted}.{0,48}(?:cho rằng|cáo buộc|reported|ghi nhận)`, 'iu').test(text);
+  });
+}
+
+function hasAllegationModality(field: string, candidate: PoliticsCandidate): boolean {
+  if (ALLEGATION_MODALITY.test(field)) return true;
+  return hasClaimantAttribution(field, candidate) && /cho rằng/iu.test(field);
 }
 
 function restatedAllegationAsFact(field: string, candidate: PoliticsCandidate): boolean {
   if (candidate.verificationState === 'confirmed' && candidate.claimModality === 'established') {
     return false;
   }
-  if (ESTABLISHED_FINDING.test(field)) return true;
+  if (ESTABLISHED_FINDING.test(field) || COMPLETED_ACT.test(field)) return true;
   if (!needsAllegationFrame(candidate)) return false;
-  if (ALLEGATION_FACT.test(field) && !hasAllegationModality(field) && !hasClaimantAttribution(field, candidate)) {
-    return true;
-  }
-  return /đã thực hiện/iu.test(field) && !hasAllegationModality(field);
+  return /đã thực hiện/iu.test(field) && !hasAllegationModality(field, candidate);
 }
 
 function lostRecordsClaim(field: string, candidate: PoliticsCandidate): boolean {
   const effect = matchingAssertionEffect(candidate);
   if (effect !== 'records-claim' && candidate.evidentiaryEffect !== 'records-claim') return false;
   if (candidate.verificationState === 'confirmed') return false;
-  if (ESTABLISHED_FINDING.test(field)) return true;
-  if (ALLEGATION_FACT.test(field) && !hasAllegationModality(field)) return true;
-  return false;
+  return ESTABLISHED_FINDING.test(field) || COMPLETED_ACT.test(field);
+}
+
+function lostReportedFraming(field: string, candidate: PoliticsCandidate): boolean {
+  if (!needsAllegationFrame(candidate)) return false;
+  return !hasClaimantAttribution(field, candidate) || !hasAllegationModality(field, candidate);
 }
 
 function swappedRoles(field: string, candidate: PoliticsCandidate): boolean {
@@ -242,25 +243,10 @@ function lostNegation(field: string, candidate: PoliticsCandidate, corpus: strin
   return false;
 }
 
-function restatesAllegation(field: string): boolean {
-  return ALLEGATION_FACT.test(field);
-}
-
-function lostReportedFraming(
-  field: string,
-  candidate: PoliticsCandidate,
-  role: 'title' | 'summary' | 'whyImportant',
-): boolean {
-  if (!needsAllegationFrame(candidate)) return false;
-  if (role === 'title') return !hasClaimantAttribution(field, candidate);
-  if (!restatesAllegation(field)) return false;
-  return !hasClaimantAttribution(field, candidate) && !hasAllegationModality(field);
-}
-
 function isFieldSafe(
   candidate: PoliticsCandidate,
   field: string,
-  role: 'title' | 'summary' | 'whyImportant',
+  _role: 'title' | 'summary' | 'whyImportant',
   corpus: string,
 ): boolean {
   const compact = compactText(field);
@@ -275,7 +261,7 @@ function isFieldSafe(
   if (candidate.verificationState !== 'confirmed' && CERTAINTY.test(compact)) return false;
   if (swappedRoles(compact, candidate)) return false;
   if (lostNegation(compact, candidate, corpus)) return false;
-  if (lostReportedFraming(compact, candidate, role)) return false;
+  if (lostReportedFraming(compact, candidate)) return false;
   if (lostRecordsClaim(compact, candidate)) return false;
   return true;
 }
