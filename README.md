@@ -236,7 +236,7 @@ X and Brave are optional when their keys are empty (`X_BEARER_TOKEN`,
 
 Politics editorial uses `GOLD_POLITICS_EDITORIAL_PROVIDER` (default Codex).
 Global `EDITORIAL_PROVIDER` still selects tech/gadget/health editorial (google).
-Unofficial Google Translate (`gtx`) is last-resort only when Codex fails.
+Codex uses ChatGPT login from `~/.codex/auth.json`. Leave `OPENAI_API_KEY` and `CODEX_API_KEY` empty so a placeholder key does not override that session. Unofficial Google Translate (`gtx`) is last-resort only when Codex fails.
 
 ```bash
 curl -X POST http://localhost:3000/telegram/send-gold-politics

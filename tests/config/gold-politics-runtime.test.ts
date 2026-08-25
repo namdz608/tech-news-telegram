@@ -128,6 +128,7 @@ describe('gold-politics runtime configuration', () => {
     expect(goldSection).toMatch(/GOLD_POLITICS_EDITORIAL_PROVIDER/u);
     expect(goldSection).toMatch(/Codex/u);
     expect(goldSection).toMatch(/EDITORIAL_PROVIDER/u);
+    expect(goldSection).toMatch(/auth\.json/u);
     expect(goldSection).toMatch(/last-resort|phương án cuối|gtx/iu);
     expect(goldSection).toMatch(/RSS/);
     expect(goldSection).toMatch(/Reddit/);
@@ -148,6 +149,8 @@ describe('gold-politics runtime configuration', () => {
     expect(dockerfile).toContain('FROM node:22-bookworm-slim AS runtime');
     expect(dockerfile).not.toContain('node:22-alpine');
     expect(dockerfile).toContain('@openai/codex');
+    expect(dockerfile).toContain('HOME=/home/node');
+    expect(dockerfile).toContain('docker-entrypoint.sh');
     expect(dockerfile).toMatch(/USER node/);
     expect(gitignore).toMatch(/^\.env$/m);
     expect(gitignore).toMatch(/^data\/$/m);
