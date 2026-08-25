@@ -144,6 +144,11 @@ describe('gold-politics runtime configuration', () => {
     const gitignore = readFileSync('.gitignore', 'utf8');
 
     expect(dockerfile).toContain('mkdir -p /app/data');
+    expect(dockerfile).toContain('FROM node:22-bookworm-slim AS build');
+    expect(dockerfile).toContain('FROM node:22-bookworm-slim AS runtime');
+    expect(dockerfile).not.toContain('node:22-alpine');
+    expect(dockerfile).toContain('@openai/codex');
+    expect(dockerfile).toMatch(/USER node/);
     expect(gitignore).toMatch(/^\.env$/m);
     expect(gitignore).toMatch(/^data\/$/m);
   });
