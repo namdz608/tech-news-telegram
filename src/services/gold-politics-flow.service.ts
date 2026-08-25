@@ -10,13 +10,19 @@ import type {
   PoliticsSourceItem,
 } from '../types/gold-politics';
 import { BraveWebSearchProvider } from './brave-web-search.provider';
+import { ArticleEditorialService } from './article-editorial.service';
+import { CodexArticleEditorialGenerator } from './codex-article-editorial.generator';
 import { GoldPoliticsDeliveryService } from './gold-politics-delivery.service';
 import { GoldPoliticsMessageService } from './gold-politics-message.service';
 import { createGoldPriceAdapters } from './gold-price/adapters';
 import { GoldPriceHistoryStore } from './gold-price-history.store';
 import { GoldPriceService } from './gold-price.service';
+import { OpenAIArticleEditorialGenerator } from './openai-article-editorial.generator';
 import { PoliticsClassificationService } from './politics-classification.service';
-import { PoliticsEditorialService } from './politics-editorial.service';
+import {
+  PoliticsEditorialService,
+  politicsEditorialServiceOptions,
+} from './politics-editorial.service';
 import { PoliticsEventDedupeService } from './politics-event-dedupe.service';
 import { PoliticsRssAdapter } from './politics-rss.adapter';
 import { PoliticsSelectionService } from './politics-selection.service';
@@ -187,7 +193,20 @@ export function createGoldPoliticsFlowService(): GoldPoliticsFlowService {
       maxPerSource: 3,
     },
   );
-  const messages = new GoldPoliticsMessageService(new PoliticsEditorialService());
+  const provider = env.GOLD_POLITICS_EDITORIAL_PROVIDER;
+  const politicsEditor = provider === 'codex'
+    ? new ArticleEditorialService(new CodexArticleEditorialGenerator())
+    : provider === 'openai'
+      ? new ArticleEditorialService(new OpenAIArticleEditorialGenerator())
+      : new ArticleEditorialService();
+  const messages = new GoldPoliticsMessageService(
+    new PoliticsEditorialService(
+      politicsEditor,
+      undefined,
+      undefined,
+      politicsEditorialServiceOptions(provider),
+    ),
+  );
   const history = new SentHistoryStore(
     env.GOLD_POLITICS_HISTORY_PATH,
     env.GOLD_POLITICS_HISTORY_RETENTION_DAYS,

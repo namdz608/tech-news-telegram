@@ -23,6 +23,9 @@ const {
   PoliticsSourceService,
   PoliticsSelectionService,
   PoliticsEditorialService,
+  ArticleEditorialService,
+  CodexArticleEditorialGenerator,
+  OpenAIArticleEditorialGenerator,
   GoldPoliticsMessageService,
   SentHistoryStore,
   createTelegramService,
@@ -48,6 +51,7 @@ const {
     GOLD_POLITICS_HISTORY_PATH: 'data/gold-politics-sent-history.json',
     GOLD_PRICE_HISTORY_PATH: 'data/gold-price-history.json',
     GOLD_POLITICS_WEB_SEARCH_MAX_QUERIES: 8,
+    GOLD_POLITICS_EDITORIAL_PROVIDER: 'codex',
     X_BEARER_TOKEN: '',
     BRAVE_SEARCH_API_KEY: '',
   };
@@ -84,6 +88,9 @@ const {
     PoliticsSourceService: mockCtor('politics-source'),
     PoliticsSelectionService: mockCtor('politics-selection'),
     PoliticsEditorialService: mockCtor('politics-editorial'),
+    ArticleEditorialService: mockCtor('article-editorial'),
+    CodexArticleEditorialGenerator: mockCtor('codex-generator'),
+    OpenAIArticleEditorialGenerator: mockCtor('openai-generator'),
     GoldPoliticsMessageService: mockCtor('gold-politics-messages'),
     SentHistoryStore: mockCtor('sent-history'),
     createTelegramService: vi.fn(() => ({ __label: 'telegram' })),
@@ -108,7 +115,19 @@ vi.mock('../../src/services/politics-web-search.adapter', () => ({ PoliticsWebSe
 vi.mock('../../src/services/safe-web-retrieval.service', () => ({ SafeWebRetrievalService }));
 vi.mock('../../src/services/politics-source.service', () => ({ PoliticsSourceService }));
 vi.mock('../../src/services/politics-selection.service', () => ({ PoliticsSelectionService }));
-vi.mock('../../src/services/politics-editorial.service', () => ({ PoliticsEditorialService }));
+vi.mock('../../src/services/politics-editorial.service', () => ({
+  PoliticsEditorialService,
+  politicsEditorialServiceOptions: (provider: string) => {
+    const nativeVietnameseEditor = provider === 'codex' || provider === 'openai';
+    return {
+      skipModelEditor: !nativeVietnameseEditor,
+      nativeVietnameseEditor,
+    };
+  },
+}));
+vi.mock('../../src/services/article-editorial.service', () => ({ ArticleEditorialService }));
+vi.mock('../../src/services/codex-article-editorial.generator', () => ({ CodexArticleEditorialGenerator }));
+vi.mock('../../src/services/openai-article-editorial.generator', () => ({ OpenAIArticleEditorialGenerator }));
 vi.mock('../../src/services/gold-politics-message.service', () => ({ GoldPoliticsMessageService }));
 vi.mock('../../src/services/sent-history.store', () => ({ SentHistoryStore }));
 vi.mock('../../src/services/telegram.service', () => ({ createTelegramService }));
@@ -132,6 +151,9 @@ const compositionMocks = [
   PoliticsSourceService,
   PoliticsSelectionService,
   PoliticsEditorialService,
+  ArticleEditorialService,
+  CodexArticleEditorialGenerator,
+  OpenAIArticleEditorialGenerator,
   GoldPoliticsMessageService,
   SentHistoryStore,
   createTelegramService,
@@ -151,6 +173,7 @@ function resetEnv(): void {
   envState.GOLD_POLITICS_HISTORY_PATH = 'data/gold-politics-sent-history.json';
   envState.GOLD_PRICE_HISTORY_PATH = 'data/gold-price-history.json';
   envState.GOLD_POLITICS_WEB_SEARCH_MAX_QUERIES = 8;
+  envState.GOLD_POLITICS_EDITORIAL_PROVIDER = 'codex';
   envState.X_BEARER_TOKEN = '';
   envState.BRAVE_SEARCH_API_KEY = '';
 }
@@ -288,6 +311,18 @@ describe('createGoldPoliticsFlowService', () => {
       maxPerSource: 3,
     });
     expect(GoldPoliticsMessageService).toHaveBeenCalledWith(PoliticsEditorialService.mock.results[0]?.value);
+    expect(CodexArticleEditorialGenerator).toHaveBeenCalledOnce();
+    expect(ArticleEditorialService).toHaveBeenCalledWith(
+      CodexArticleEditorialGenerator.mock.results[0]?.value,
+    );
+    expect(PoliticsEditorialService.mock.calls[0]?.[3]).toEqual({
+      skipModelEditor: false,
+      nativeVietnameseEditor: true,
+    });
+    expect(PoliticsEditorialService.mock.calls[0]?.[0]).toBe(
+      ArticleEditorialService.mock.results[0]?.value,
+    );
+    expect(OpenAIArticleEditorialGenerator).not.toHaveBeenCalled();
     expect(SentHistoryStore).toHaveBeenCalledWith(
       envState.GOLD_POLITICS_HISTORY_PATH,
       envState.GOLD_POLITICS_HISTORY_RETENTION_DAYS,
@@ -301,6 +336,20 @@ describe('createGoldPoliticsFlowService', () => {
     );
     expect(Telegraf).not.toHaveBeenCalled();
     expect(axiosCreate).not.toHaveBeenCalled();
+  });
+
+  it('skips the model editor when gold-politics editorial is google', async () => {
+    useLiveCredentials();
+    envState.GOLD_POLITICS_EDITORIAL_PROVIDER = 'google';
+    const module = await loadFlowModule();
+    module.createGoldPoliticsFlowService();
+
+    expect(CodexArticleEditorialGenerator).not.toHaveBeenCalled();
+    expect(ArticleEditorialService).toHaveBeenCalledWith();
+    expect(PoliticsEditorialService.mock.calls[0]?.[3]).toEqual({
+      skipModelEditor: true,
+      nativeVietnameseEditor: false,
+    });
   });
 
   it('wires optional X and Brave when credentials are present', async () => {

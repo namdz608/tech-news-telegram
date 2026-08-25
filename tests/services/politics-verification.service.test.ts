@@ -267,7 +267,7 @@ describe('PoliticsVerificationService', () => {
     const assessment = verifier.assess(eventFrom([first, second]));
     expect(assessment.state).toBe('reported');
     expect(assessment.independentSourceIds.sort()).toEqual(['reuters.com', 'vnexpress.net']);
-    expect(assessment.corroborationNote.length).toBeGreaterThan(0);
+    expect(assessment.corroborationNote).toBe('Có 2 nguồn độc lập cùng ghi nhận.');
     expect(assessment.state).not.toBe('confirmed');
   });
 
@@ -353,8 +353,7 @@ describe('PoliticsVerificationService', () => {
       ],
     });
     const assessment = verifier.assess(eventOf(support, [support, denial], ['reuters.com', 'vnexpress.net']));
-    expect(assessment.conflictNote).toBeDefined();
-    expect(assessment.conflictNote!.length).toBeGreaterThan(0);
+    expect(assessment.conflictNote).toBe('Các nguồn đưa tin mâu thuẫn về cáo buộc này.');
     expect(assessment.state).toBe('reported');
     expect(assessment.state).not.toBe('confirmed');
   });

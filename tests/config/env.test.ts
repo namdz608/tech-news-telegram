@@ -82,6 +82,29 @@ describe('env config', () => {
     expect(readEditorialProvider()).toBe('google');
   });
 
+  it('defaults gold-politics editorial to codex independently of the global provider', () => {
+    expect(
+      readEnvValues(['EDITORIAL_PROVIDER', 'GOLD_POLITICS_EDITORIAL_PROVIDER']),
+    ).toEqual({
+      EDITORIAL_PROVIDER: 'google',
+      GOLD_POLITICS_EDITORIAL_PROVIDER: 'codex',
+    });
+  });
+
+  it.each(['openai', 'codex', 'google', 'none'] as const)(
+    'accepts gold-politics editorial provider %s',
+    (value) => {
+      const result = runEnv(
+        { GOLD_POLITICS_EDITORIAL_PROVIDER: value },
+        ['GOLD_POLITICS_EDITORIAL_PROVIDER'],
+      );
+      expect(result.status).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual({
+        GOLD_POLITICS_EDITORIAL_PROVIDER: value,
+      });
+    },
+  );
+
   it('provides isolated gadget defaults', () => {
     expect(
       readEnvValues([

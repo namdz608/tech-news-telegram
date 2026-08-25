@@ -25,6 +25,21 @@ export interface CodexRunner {
   run(prompt: string, input: string, timeoutMs: number): Promise<string>;
 }
 
+const PLACEHOLDER_API_KEY = /replace[_-]?me/iu;
+
+export function codexProcessEnv(
+  source: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const env = { ...source };
+  for (const key of ['OPENAI_API_KEY', 'CODEX_API_KEY'] as const) {
+    const value = env[key];
+    if (!value?.trim() || PLACEHOLDER_API_KEY.test(value)) {
+      delete env[key];
+    }
+  }
+  return env;
+}
+
 /**
  * Class `CodexExecRunner` sở hữu vòng đời dependency và điều phối các bước codex exec runner.
  *
@@ -73,10 +88,9 @@ export class CodexExecRunner implements CodexRunner {
           prompt,
         ],
         {
-          // Gán field `cwd` từ `process.cwd(),` để object khớp contract.
           cwd: process.cwd(),
-          // Gán field `stdio` từ `['pipe', 'pipe', 'pipe'],` để object khớp contract.
           stdio: ['pipe', 'pipe', 'pipe'],
+          env: codexProcessEnv(),
         },
       );
 

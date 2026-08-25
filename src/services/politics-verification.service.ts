@@ -151,7 +151,9 @@ export class PoliticsVerificationService {
     const independentSourceIds = [...event.independentSourceIds].sort();
     const assertions = matchingAssertions(event);
     const corroborationNote =
-      independentSourceIds.length >= 2 ? `Independent corroboration from ${independentSourceIds.length} sources.` : '';
+      independentSourceIds.length >= 2
+        ? `Có ${independentSourceIds.length} nguồn độc lập cùng ghi nhận.`
+        : '';
 
     if (assertions.length === 0) {
       return {
@@ -178,7 +180,7 @@ export class PoliticsVerificationService {
       corroborationNote,
     };
     if (conflict) {
-      assessment.conflictNote = 'Conflicting accounts exist for this claim.';
+      assessment.conflictNote = 'Các nguồn đưa tin mâu thuẫn về cáo buộc này.';
     }
     return assessment;
   }

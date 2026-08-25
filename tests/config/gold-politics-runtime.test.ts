@@ -12,6 +12,7 @@ const GOLD_POLITICS_ENV_LINES = [
   'GOLD_POLITICS_HISTORY_PATH=data/gold-politics-sent-history.json',
   'GOLD_PRICE_HISTORY_PATH=data/gold-price-history.json',
   'GOLD_POLITICS_WEB_SEARCH_MAX_QUERIES=8',
+  'GOLD_POLITICS_EDITORIAL_PROVIDER=codex',
   'BRAVE_SEARCH_API_KEY=',
   'GOLD_SPOT_API_URL=https://api.gold-api.com/price/XAU',
 ] as const;
@@ -41,7 +42,7 @@ function goldPoliticsReadmeSection(readme: string): string {
 }
 
 describe('gold-politics runtime configuration', () => {
-  it('documents all twelve gold-politics env variables as exact placeholder lines under data/', () => {
+  it('documents all thirteen gold-politics env variables as exact placeholder lines under data/', () => {
     const envExample = readFileSync('.env.example', 'utf8');
     const lines = exactLines(envExample);
 
@@ -124,6 +125,11 @@ describe('gold-politics runtime configuration', () => {
     expect(goldSection).toMatch(/history mutation/i);
 
     expect(goldSection).toMatch(/X and Brave are optional|X và Brave.*optional|optional when their keys are empty/iu);
+    expect(goldSection).toMatch(/GOLD_POLITICS_EDITORIAL_PROVIDER/u);
+    expect(goldSection).toMatch(/Codex/u);
+    expect(goldSection).toMatch(/EDITORIAL_PROVIDER/u);
+    expect(goldSection).toMatch(/auth\.json/u);
+    expect(goldSection).toMatch(/last-resort|phương án cuối|gtx/iu);
     expect(goldSection).toMatch(/RSS/);
     expect(goldSection).toMatch(/Reddit/);
     expect(goldSection).toContain('.corrupt-');
@@ -139,6 +145,13 @@ describe('gold-politics runtime configuration', () => {
     const gitignore = readFileSync('.gitignore', 'utf8');
 
     expect(dockerfile).toContain('mkdir -p /app/data');
+    expect(dockerfile).toContain('FROM node:22-bookworm-slim AS build');
+    expect(dockerfile).toContain('FROM node:22-bookworm-slim AS runtime');
+    expect(dockerfile).not.toContain('node:22-alpine');
+    expect(dockerfile).toContain('@openai/codex');
+    expect(dockerfile).toContain('HOME=/home/node');
+    expect(dockerfile).toContain('docker-entrypoint.sh');
+    expect(dockerfile).toMatch(/USER node/);
     expect(gitignore).toMatch(/^\.env$/m);
     expect(gitignore).toMatch(/^data\/$/m);
   });

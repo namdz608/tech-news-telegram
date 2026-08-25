@@ -40,6 +40,7 @@ const envSchema = z.object({
   GOLD_POLITICS_HISTORY_PATH: z.string().min(1).default('data/gold-politics-sent-history.json'),
   GOLD_PRICE_HISTORY_PATH: z.string().min(1).default('data/gold-price-history.json'),
   GOLD_POLITICS_WEB_SEARCH_MAX_QUERIES: z.coerce.number().int().min(0).max(20).default(8),
+  GOLD_POLITICS_EDITORIAL_PROVIDER: z.enum(['openai', 'codex', 'google', 'none']).default('codex'),
   BRAVE_SEARCH_API_KEY: z.string().default(''),
   GOLD_SPOT_API_URL: z
     .string()

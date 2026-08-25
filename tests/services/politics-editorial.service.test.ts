@@ -3,6 +3,8 @@ import { ArticleEditorialService } from '../../src/services/article-editorial.se
 import { verifiedVietnameseEditorial } from '../../src/services/article-editorial.types';
 import {
   PoliticsEditorialService,
+  politicsEditorialServiceOptions,
+  politicsTranslateRetryInstructions,
   shouldSkipPoliticsModelEditor,
   type PoliticsEditorial,
 } from '../../src/services/politics-editorial.service';
@@ -1034,5 +1036,237 @@ describe('PoliticsEditorialService', () => {
       warn.mockRestore();
       error.mockRestore();
     }
+  });
+
+  it('maps politics providers to skip vs native Vietnamese options', () => {
+    expect(politicsEditorialServiceOptions('codex')).toEqual({
+      skipModelEditor: false,
+      nativeVietnameseEditor: true,
+    });
+    expect(politicsEditorialServiceOptions('openai')).toEqual({
+      skipModelEditor: false,
+      nativeVietnameseEditor: true,
+    });
+    expect(politicsEditorialServiceOptions('google')).toEqual({
+      skipModelEditor: true,
+      nativeVietnameseEditor: false,
+    });
+    expect(politicsEditorialServiceOptions('none')).toEqual({
+      skipModelEditor: true,
+      nativeVietnameseEditor: false,
+    });
+  });
+
+  it('treats Codex Vietnamese JSON as native and does not call Google Translate', async () => {
+    const input = candidate({
+      sourceName: 'The Guardian Politics',
+      title: "PM Mark Carney says ‘we got attacked’ as tariffs come into force on items from hockey sticks to tongue depressors",
+      summary:
+        "The lesson from Canada’s collapsed trade talks with the US: negotiation may be futile Donald Trump has hit back at Canada after a breakdown in negotiations plunged the two countries into a trade war.",
+      originalAccount: 'Lauren Almeida',
+      originAttribution: {
+        url: 'https://www.theguardian.com/world/lauren-almeida-canada-tariffs',
+        account: 'Lauren Almeida',
+        publishedAt: '2026-08-25T00:00:00.000Z',
+        discoveredAt: '2026-08-25T02:00:00.000Z',
+      },
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      evidenceAssertions: [assertion({
+        semanticClaimKey: 'carney|tariffs',
+        claimText: 'Mark Carney said Canada got attacked as US tariffs came into force',
+        modality: 'reported',
+        effect: 'mentions',
+      })],
+      semanticClaimKey: 'carney|tariffs',
+      claimEntities: ['mark-carney', 'canada'],
+      verificationState: 'reported',
+    });
+    const editorial = {
+      editArticle: vi.fn().mockResolvedValue({
+        title: 'Theo The Guardian, thủ tướng Mark Carney cho rằng Canada bị tấn công khi thuế quan có hiệu lực',
+        summary:
+          'Tài khoản Lauren Almeida cho rằng đàm phán thương mại Canada–Mỹ sụp đổ và Donald Trump đáp trả. Đây là thông tin đang được đưa tin, chưa phải kết luận cuối.',
+        whyImportant:
+          'Theo The Guardian, sự việc đang được đưa tin, chưa phải kết luận cuối.',
+        actionLevel: 'monitor' as const,
+        actionText: 'Theo dõi nguồn gốc và các tường thuật độc lập; không đưa lời khuyên.',
+        languageVerified: true,
+      }),
+    };
+    const translator = {
+      translateDigestVerified: vi.fn(async (text: string) => ({ text, succeeded: true })),
+    };
+
+    const result = await new PoliticsEditorialService(
+      editorial,
+      translator,
+      new PoliticsEditorialValidator(),
+      politicsEditorialServiceOptions('codex'),
+    ).edit(input);
+
+    expect(editorial.editArticle).toHaveBeenCalledOnce();
+    expect(translator.translateDigestVerified).not.toHaveBeenCalled();
+    expect(result.title).toContain('Mark Carney');
+    expect(result.summary).toContain('cho rằng');
+    expect(result.title).not.toMatch(/chưa dịch|Chưa có bản dịch/iu);
+    expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
+  });
+
+  it('retries Codex with a plain article when the first JSON is English-only ASCII', async () => {
+    const input = candidate({
+      sourceName: 'The Guardian Politics',
+      title: 'PM Mark Carney says we got attacked as tariffs come into force',
+      summary: 'Donald Trump has hit back at Canada after talks collapsed.',
+      originalAccount: 'Lauren Almeida',
+      originAttribution: {
+        url: 'https://www.theguardian.com/world/lauren-almeida-canada-tariffs',
+        account: 'Lauren Almeida',
+        publishedAt: '2026-08-25T00:00:00.000Z',
+        discoveredAt: '2026-08-25T02:00:00.000Z',
+      },
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      evidenceAssertions: [assertion({
+        semanticClaimKey: 'carney|tariffs',
+        claimText: 'Mark Carney said Canada got attacked',
+        modality: 'reported',
+        effect: 'mentions',
+      })],
+      semanticClaimKey: 'carney|tariffs',
+      claimEntities: ['mark-carney'],
+      verificationState: 'reported',
+    });
+    const vietnamese = {
+      title: 'Theo The Guardian, thủ tướng Mark Carney cho rằng Canada bị tấn công khi thuế quan có hiệu lực',
+      summary:
+        'Tài khoản Lauren Almeida cho rằng Donald Trump đáp trả sau khi đàm phán sụp đổ. Đây là thông tin đang được đưa tin, chưa phải kết luận cuối.',
+      whyImportant: 'Theo The Guardian, sự việc đang được đưa tin, chưa phải kết luận cuối.',
+      actionLevel: 'monitor' as const,
+      actionText: 'Theo dõi nguồn gốc và các tường thuật độc lập; không đưa lời khuyên.',
+    };
+    const editorial = {
+      editArticle: vi.fn().mockImplementation(async (_article: Article, topic: { instructions: string }) => {
+        if (topic.instructions === politicsTranslateRetryInstructions) {
+          return vietnamese;
+        }
+        return {
+          title: 'PM Mark Carney says we got attacked as tariffs come into force',
+          summary: 'Donald Trump has hit back at Canada after talks collapsed.',
+          whyImportant: 'The story is being reported.',
+          actionLevel: 'monitor' as const,
+          actionText: 'Follow independent sources.',
+        };
+      }),
+    };
+    const translator = {
+      translateDigestVerified: vi.fn(async (text: string) => ({ text, succeeded: true })),
+    };
+
+    const result = await new PoliticsEditorialService(
+      editorial,
+      translator,
+      new PoliticsEditorialValidator(),
+      politicsEditorialServiceOptions('codex'),
+    ).edit(input);
+
+    expect(editorial.editArticle).toHaveBeenCalledTimes(2);
+    expect(editorial.editArticle.mock.calls[1][0].summary).not.toContain('verificationState:');
+    expect(editorial.editArticle.mock.calls[1][1].instructions).toBe(politicsTranslateRetryInstructions);
+    expect(translator.translateDigestVerified).not.toHaveBeenCalled();
+    expect(result.title).toContain('Mark Carney');
+    expect(result.summary).toContain('cho rằng');
+    expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
+  });
+
+  it('retries Codex after a grounded dump and does not call Google Translate', async () => {
+    const input = candidate({
+      sourceName: 'The Guardian Politics',
+      title: 'PM Mark Carney says we got attacked as tariffs come into force',
+      summary: 'Donald Trump has hit back at Canada after talks collapsed.',
+      originalAccount: 'Lauren Almeida',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      semanticClaimKey: 'carney|tariffs',
+      claimEntities: ['mark-carney'],
+      verificationState: 'reported',
+    });
+    const editorial = {
+      editArticle: vi.fn().mockImplementation(async (article: Article, topic: { instructions: string }) => {
+        if (topic.instructions === politicsTranslateRetryInstructions) {
+          return {
+            title: 'Theo The Guardian, thủ tướng Mark Carney cho rằng Canada bị tấn công khi thuế quan có hiệu lực',
+            summary:
+              'Tài khoản Lauren Almeida cho rằng Donald Trump đáp trả sau khi đàm phán sụp đổ.',
+            whyImportant: 'Theo The Guardian, sự việc đang được đưa tin, chưa phải kết luận cuối.',
+            actionLevel: 'monitor' as const,
+            actionText: 'Theo dõi nguồn gốc và các tường thuật độc lập; không đưa lời khuyên.',
+          };
+        }
+        return {
+          title: article.title,
+          summary: article.summary ?? '',
+          whyImportant: article.summary ?? '',
+          actionLevel: 'monitor' as const,
+          actionText: 'Follow independent sources.',
+        };
+      }),
+    };
+    const translator = {
+      translateDigestVerified: vi.fn(async (text: string) => ({ text, succeeded: true })),
+    };
+
+    const result = await new PoliticsEditorialService(
+      editorial,
+      translator,
+      new PoliticsEditorialValidator(),
+      politicsEditorialServiceOptions('codex'),
+    ).edit(input);
+
+    expect(editorial.editArticle).toHaveBeenCalledTimes(2);
+    expect(editorial.editArticle.mock.calls[1][0].summary).not.toContain('verificationState:');
+    expect(translator.translateDigestVerified).not.toHaveBeenCalled();
+    expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
+    expect(result.title).toContain('Mark Carney');
+  });
+
+  it('keeps the untranslated notice when Codex retry stays English and does not call Google Translate', async () => {
+    const input = candidate({
+      sourceName: 'The Guardian Politics',
+      title: 'PM Mark Carney says we got attacked as tariffs come into force',
+      summary: 'Donald Trump has hit back at Canada after talks collapsed.',
+      originalAccount: 'Lauren Almeida',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      semanticClaimKey: 'carney|tariffs',
+      verificationState: 'reported',
+    });
+    const editorial = {
+      editArticle: vi.fn().mockResolvedValue({
+        title: 'PM Mark Carney says we got attacked as tariffs come into force',
+        summary: 'Donald Trump has hit back at Canada after talks collapsed.',
+        whyImportant: 'The story is being reported.',
+        actionLevel: 'monitor' as const,
+        actionText: 'Follow independent sources.',
+      }),
+    };
+    const translator = {
+      translateDigestVerified: vi.fn(async (_text: string) => ({
+        text: 'Thủ tướng Mark Carney cho rằng Canada bị tấn công khi thuế quan có hiệu lực',
+        succeeded: true,
+      })),
+    };
+
+    const result = await new PoliticsEditorialService(
+      editorial,
+      translator,
+      new PoliticsEditorialValidator(),
+      politicsEditorialServiceOptions('codex'),
+    ).edit(input);
+
+    expect(editorial.editArticle).toHaveBeenCalledTimes(2);
+    expect(translator.translateDigestVerified).not.toHaveBeenCalled();
+    expect(result.title).toContain('Chưa dịch được tiêu đề');
+    expect(result.summary).toContain('Chưa có bản dịch tiếng Việt đã xác minh');
   });
 });
