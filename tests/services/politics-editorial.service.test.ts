@@ -4,6 +4,7 @@ import { verifiedVietnameseEditorial } from '../../src/services/article-editoria
 import {
   PoliticsEditorialService,
   politicsEditorialServiceOptions,
+  politicsTranslateRetryInstructions,
   shouldSkipPoliticsModelEditor,
   type PoliticsEditorial,
 } from '../../src/services/politics-editorial.service';
@@ -1112,7 +1113,7 @@ describe('PoliticsEditorialService', () => {
     expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
   });
 
-  it('falls through to translation when Codex returns English-only ASCII', async () => {
+  it('retries Codex with a plain article when the first JSON is English-only ASCII', async () => {
     const input = candidate({
       sourceName: 'The Guardian Politics',
       title: 'PM Mark Carney says we got attacked as tariffs come into force',
@@ -1134,6 +1135,110 @@ describe('PoliticsEditorialService', () => {
       })],
       semanticClaimKey: 'carney|tariffs',
       claimEntities: ['mark-carney'],
+      verificationState: 'reported',
+    });
+    const vietnamese = {
+      title: 'Theo The Guardian, thủ tướng Mark Carney cho rằng Canada bị tấn công khi thuế quan có hiệu lực',
+      summary:
+        'Tài khoản Lauren Almeida cho rằng Donald Trump đáp trả sau khi đàm phán sụp đổ. Đây là thông tin đang được đưa tin, chưa phải kết luận cuối.',
+      whyImportant: 'Theo The Guardian, sự việc đang được đưa tin, chưa phải kết luận cuối.',
+      actionLevel: 'monitor' as const,
+      actionText: 'Theo dõi nguồn gốc và các tường thuật độc lập; không đưa lời khuyên.',
+    };
+    const editorial = {
+      editArticle: vi.fn().mockImplementation(async (_article: Article, topic: { instructions: string }) => {
+        if (topic.instructions === politicsTranslateRetryInstructions) {
+          return vietnamese;
+        }
+        return {
+          title: 'PM Mark Carney says we got attacked as tariffs come into force',
+          summary: 'Donald Trump has hit back at Canada after talks collapsed.',
+          whyImportant: 'The story is being reported.',
+          actionLevel: 'monitor' as const,
+          actionText: 'Follow independent sources.',
+        };
+      }),
+    };
+    const translator = {
+      translateDigestVerified: vi.fn(async (text: string) => ({ text, succeeded: true })),
+    };
+
+    const result = await new PoliticsEditorialService(
+      editorial,
+      translator,
+      new PoliticsEditorialValidator(),
+      politicsEditorialServiceOptions('codex'),
+    ).edit(input);
+
+    expect(editorial.editArticle).toHaveBeenCalledTimes(2);
+    expect(editorial.editArticle.mock.calls[1][0].summary).not.toContain('verificationState:');
+    expect(editorial.editArticle.mock.calls[1][1].instructions).toBe(politicsTranslateRetryInstructions);
+    expect(translator.translateDigestVerified).not.toHaveBeenCalled();
+    expect(result.title).toContain('Mark Carney');
+    expect(result.summary).toContain('cho rằng');
+    expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
+  });
+
+  it('retries Codex after a grounded dump and does not call Google Translate', async () => {
+    const input = candidate({
+      sourceName: 'The Guardian Politics',
+      title: 'PM Mark Carney says we got attacked as tariffs come into force',
+      summary: 'Donald Trump has hit back at Canada after talks collapsed.',
+      originalAccount: 'Lauren Almeida',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      semanticClaimKey: 'carney|tariffs',
+      claimEntities: ['mark-carney'],
+      verificationState: 'reported',
+    });
+    const editorial = {
+      editArticle: vi.fn().mockImplementation(async (article: Article, topic: { instructions: string }) => {
+        if (topic.instructions === politicsTranslateRetryInstructions) {
+          return {
+            title: 'Theo The Guardian, thủ tướng Mark Carney cho rằng Canada bị tấn công khi thuế quan có hiệu lực',
+            summary:
+              'Tài khoản Lauren Almeida cho rằng Donald Trump đáp trả sau khi đàm phán sụp đổ.',
+            whyImportant: 'Theo The Guardian, sự việc đang được đưa tin, chưa phải kết luận cuối.',
+            actionLevel: 'monitor' as const,
+            actionText: 'Theo dõi nguồn gốc và các tường thuật độc lập; không đưa lời khuyên.',
+          };
+        }
+        return {
+          title: article.title,
+          summary: article.summary ?? '',
+          whyImportant: article.summary ?? '',
+          actionLevel: 'monitor' as const,
+          actionText: 'Follow independent sources.',
+        };
+      }),
+    };
+    const translator = {
+      translateDigestVerified: vi.fn(async (text: string) => ({ text, succeeded: true })),
+    };
+
+    const result = await new PoliticsEditorialService(
+      editorial,
+      translator,
+      new PoliticsEditorialValidator(),
+      politicsEditorialServiceOptions('codex'),
+    ).edit(input);
+
+    expect(editorial.editArticle).toHaveBeenCalledTimes(2);
+    expect(editorial.editArticle.mock.calls[1][0].summary).not.toContain('verificationState:');
+    expect(translator.translateDigestVerified).not.toHaveBeenCalled();
+    expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
+    expect(result.title).toContain('Mark Carney');
+  });
+
+  it('keeps the untranslated notice when Codex retry stays English and does not call Google Translate', async () => {
+    const input = candidate({
+      sourceName: 'The Guardian Politics',
+      title: 'PM Mark Carney says we got attacked as tariffs come into force',
+      summary: 'Donald Trump has hit back at Canada after talks collapsed.',
+      originalAccount: 'Lauren Almeida',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      semanticClaimKey: 'carney|tariffs',
       verificationState: 'reported',
     });
     const editorial = {
@@ -1159,7 +1264,9 @@ describe('PoliticsEditorialService', () => {
       politicsEditorialServiceOptions('codex'),
     ).edit(input);
 
-    expect(translator.translateDigestVerified).toHaveBeenCalled();
-    expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
+    expect(editorial.editArticle).toHaveBeenCalledTimes(2);
+    expect(translator.translateDigestVerified).not.toHaveBeenCalled();
+    expect(result.title).toContain('Chưa dịch được tiêu đề');
+    expect(result.summary).toContain('Chưa có bản dịch tiếng Việt đã xác minh');
   });
 });
