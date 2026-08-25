@@ -109,13 +109,17 @@ const PROVIDER_TAGS =
 export class PoliticsEditorialService {
   private readonly skipModelEditor: boolean;
   private readonly nativeVietnameseEditor: boolean;
+  private readonly translator: VerifiedPoliticsTranslator;
+  private readonly validator: PoliticsEditorialValidatorLike;
 
   constructor(
     private readonly editorial: PoliticsArticleEditor = new ArticleEditorialService(),
-    private readonly translator: VerifiedPoliticsTranslator = new GoogleTranslationService(),
-    private readonly validator: PoliticsEditorialValidatorLike = new PoliticsEditorialValidator(),
+    translator?: VerifiedPoliticsTranslator,
+    validator?: PoliticsEditorialValidatorLike,
     options: PoliticsEditorialServiceOptions = {},
   ) {
+    this.translator = translator ?? new GoogleTranslationService();
+    this.validator = validator ?? new PoliticsEditorialValidator();
     this.skipModelEditor = options.skipModelEditor
       ?? shouldSkipPoliticsModelEditor(editorial, env.GOLD_POLITICS_EDITORIAL_PROVIDER);
     this.nativeVietnameseEditor = options.nativeVietnameseEditor ?? false;
