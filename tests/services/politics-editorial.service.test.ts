@@ -1146,7 +1146,7 @@ describe('PoliticsEditorialService', () => {
       }),
     };
     const translator = {
-      translateDigestVerified: vi.fn(async (text: string) => ({
+      translateDigestVerified: vi.fn(async (_text: string) => ({
         text: 'Thủ tướng Mark Carney cho rằng Canada bị tấn công khi thuế quan có hiệu lực',
         succeeded: true,
       })),
