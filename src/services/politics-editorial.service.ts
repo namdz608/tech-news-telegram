@@ -43,6 +43,7 @@ export interface PoliticsEditorial {
 
 export interface PoliticsEditorialServiceOptions {
   skipModelEditor?: boolean;
+  nativeVietnameseEditor?: boolean;
 }
 
 export function shouldSkipPoliticsModelEditor(
@@ -50,6 +51,26 @@ export function shouldSkipPoliticsModelEditor(
   provider: string,
 ): boolean {
   return editorial instanceof ArticleEditorialService && provider === 'google';
+}
+
+const VIETNAMESE_CHAR =
+  /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/iu;
+
+export function hasVietnameseEditorialText(editorial: {
+  title: string;
+  summary: string;
+}): boolean {
+  return VIETNAMESE_CHAR.test(`${editorial.title}\n${editorial.summary}`.normalize('NFC'));
+}
+
+export function politicsEditorialServiceOptions(
+  provider: string,
+): PoliticsEditorialServiceOptions {
+  const nativeVietnameseEditor = provider === 'codex' || provider === 'openai';
+  return {
+    skipModelEditor: !nativeVietnameseEditor,
+    nativeVietnameseEditor,
+  };
 }
 
 export const politicsEditorialInstructions = [
@@ -87,6 +108,7 @@ const PROVIDER_TAGS =
 
 export class PoliticsEditorialService {
   private readonly skipModelEditor: boolean;
+  private readonly nativeVietnameseEditor: boolean;
 
   constructor(
     private readonly editorial: PoliticsArticleEditor = new ArticleEditorialService(),
@@ -95,7 +117,8 @@ export class PoliticsEditorialService {
     options: PoliticsEditorialServiceOptions = {},
   ) {
     this.skipModelEditor = options.skipModelEditor
-      ?? shouldSkipPoliticsModelEditor(editorial, env.EDITORIAL_PROVIDER);
+      ?? shouldSkipPoliticsModelEditor(editorial, env.GOLD_POLITICS_EDITORIAL_PROVIDER);
+    this.nativeVietnameseEditor = options.nativeVietnameseEditor ?? false;
   }
 
   async edit(candidate: PoliticsCandidate): Promise<PoliticsEditorial> {
@@ -125,6 +148,23 @@ export class PoliticsEditorialService {
 
     if (isGroundedDump(generated, article.summary ?? '')) {
       return this.translateFallback(candidate, createProviderFallbackEditorial);
+    }
+
+    if (this.nativeVietnameseEditor) {
+      const plain = {
+        title: toPlainEditorial(generated.title),
+        summary: toPlainEditorial(generated.summary),
+        whyImportant: toPlainEditorial(generated.whyImportant),
+      };
+      if (isGroundedDump(plain, article.summary ?? '') || !hasVietnameseEditorialText(plain)) {
+        return this.translateFallback(candidate, createProviderFallbackEditorial);
+      }
+      return this.validator.validate(
+        candidate,
+        plain,
+        createTranslationFallbackEditorial(candidate),
+        'translated',
+      );
     }
 
     let generatedForTranslation = generated;
