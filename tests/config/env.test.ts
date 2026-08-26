@@ -74,6 +74,19 @@ function runEnv(overrides: Record<string, string>, keys: string[] = []): ReturnT
 }
 
 describe('env config', () => {
+  it('provides the default X tracked accounts including Tibo', () => {
+    expect(readEnvValues(['X_TRACKED_ACCOUNTS'])).toEqual({
+      X_TRACKED_ACCOUNTS:
+        'OpenAI,AnthropicAI,GoogleDeepMind,github,kubernetesio,awscloud,Cloudflare,Docker,HashiCorp,TheHackersNews,thsottiaux',
+    });
+  });
+
+  it('allows enough time for ChatGPT-backed Codex editorial', () => {
+    expect(readEnvValues(['CODEX_TRANSLATION_TIMEOUT_MS'])).toEqual({
+      CODEX_TRANSLATION_TIMEOUT_MS: 120000,
+    });
+  });
+
   it('accepts the editorial provider independently', () => {
     expect(readEditorialProvider('codex')).toBe('codex');
   });
@@ -82,14 +95,31 @@ describe('env config', () => {
     expect(readEditorialProvider()).toBe('google');
   });
 
-  it('defaults gold-politics editorial to codex independently of the global provider', () => {
+  it('defaults tech and gold-politics editorial to codex independently of the global provider', () => {
     expect(
-      readEnvValues(['EDITORIAL_PROVIDER', 'GOLD_POLITICS_EDITORIAL_PROVIDER']),
+      readEnvValues([
+        'EDITORIAL_PROVIDER',
+        'TECH_EDITORIAL_PROVIDER',
+        'GOLD_POLITICS_EDITORIAL_PROVIDER',
+      ]),
     ).toEqual({
       EDITORIAL_PROVIDER: 'google',
+      TECH_EDITORIAL_PROVIDER: 'codex',
       GOLD_POLITICS_EDITORIAL_PROVIDER: 'codex',
     });
   });
+
+  it.each(['codex', 'google', 'none'] as const)(
+    'accepts tech editorial provider %s',
+    (value) => {
+      const result = runEnv(
+        { TECH_EDITORIAL_PROVIDER: value },
+        ['TECH_EDITORIAL_PROVIDER'],
+      );
+      expect(result.status).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual({ TECH_EDITORIAL_PROVIDER: value });
+    },
+  );
 
   it.each(['openai', 'codex', 'google', 'none'] as const)(
     'accepts gold-politics editorial provider %s',

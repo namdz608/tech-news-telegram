@@ -4,7 +4,6 @@
 import type { Request, Response } from 'express';
 import { VnJobsCrawler } from '../crawlers/vn-jobs.crawler';
 import { parseJobSendParams } from '../crawlers/vn-jobs/params';
-import { ArticleEditorialService } from '../services/article-editorial.service';
 import { DigestService } from '../services/digest.service';
 import { editDigestMessages } from '../services/digest-message-editorial.service';
 import { EmailService } from '../services/email.service';
@@ -22,12 +21,13 @@ import {
 } from '../services/health-flow.service';
 import { buildJobsPdf } from '../services/jobs-pdf.service';
 import { SourceService } from '../services/source.service';
+import { createTechArticleEditorialService } from '../services/tech-editorial.factory';
 import { TelegramService } from '../services/telegram.service';
 
 const sourceService = new SourceService();
 const digestService = new DigestService();
 const telegramService = new TelegramService();
-const articleEditorialService = new ArticleEditorialService();
+const articleEditorialService = createTechArticleEditorialService();
 const vnJobsCrawler = new VnJobsCrawler();
 const emailService = new EmailService();
 let gadgetFlowService: ReturnType<typeof createGadgetFlowService> | undefined;

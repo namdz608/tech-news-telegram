@@ -6,20 +6,22 @@
  */
 import type { Request, Response } from 'express';
 import { sources } from '../config/sources';
-import { ArticleEditorialService } from '../services/article-editorial.service';
 import { DigestService } from '../services/digest.service';
 import { editDigestMessages } from '../services/digest-message-editorial.service';
 import { SourceService } from '../services/source.service';
-import { TranslationService } from '../services/translation.service';
+import {
+  createTechArticleEditorialService,
+  createTechTranslationService,
+} from '../services/tech-editorial.factory';
 
 // Dùng một SourceService dùng chung cho các request để tái sử dụng cấu hình/crawler.
 const sourceService = new SourceService();
 // Dùng một DigestService stateless để dựng digest text và message theo bài.
 const digestService = new DigestService();
 // Chọn translator theo cấu hình môi trường và cung cấp fallback khi dịch lỗi.
-const translationService = new TranslationService();
+const translationService = createTechTranslationService();
 // Chọn provider biên tập và chuẩn hóa editorial cho từng Article.
-const articleEditorialService = new ArticleEditorialService();
+const articleEditorialService = createTechArticleEditorialService();
 
 /**
  * Trả danh sách cấu hình nguồn tin mà service biết tới.
@@ -59,10 +61,11 @@ export async function createDigest(_req: Request, res: Response) {
   const digest = digestService.buildDigest(articles);
   // Bước 2b: dựng danh sách message giàu cấu trúc, một message cho mỗi bài.
   const messages = digestService.buildDigestMessages(articles);
-  // Bước 3a: dịch digest text sang ngôn ngữ đích; service tự fallback khi lỗi.
-  const translatedDigest = await translationService.translateDigest(digest);
-  // Bước 3b: biên tập/chuẩn hóa từng message qua provider được cấu hình.
-  const editedMessages = await editDigestMessages(messages, articleEditorialService);
+  // Bước 3: hai nhánh Codex độc lập chạy song song để giảm độ trễ tổng.
+  const [translatedDigest, editedMessages] = await Promise.all([
+    translationService.translateDigest(digest),
+    editDigestMessages(messages, articleEditorialService),
+  ]);
 
   // Trả đồng thời bản đã xử lý và raw để client so sánh hoặc debug pipeline.
   res.json({

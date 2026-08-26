@@ -19,6 +19,7 @@ import type {
   ArticleEditorial,
   // Đưa giá trị `ArticleEditorialGenerator` vào field cùng tên của object đang tạo.
   ArticleEditorialGenerator,
+  ArticleEditorialInput,
   EditorialTopicContext,
 } from './article-editorial.types';
 import { verifiedVietnameseEditorial } from './article-editorial.types';
@@ -55,7 +56,10 @@ const fallbackWhyImportant: Record<TopicKey, string> = {
  */
 // Mở khai báo `export class ArticleEditorialService` để compiler kiểm tra contract cho mọi consumer.
 export class ArticleEditorialService {
-  constructor(private readonly generator = createDefaultGenerator()) {}
+  constructor(
+    private readonly generator: ArticleEditorialGenerator | null =
+      createArticleEditorialGenerator() ?? null,
+  ) {}
 
   /**
    * Hàm `editArticle` biên tập nội dung và giữ contract message; kết quả được trả cho caller theo kiểu khai báo.
@@ -79,45 +83,54 @@ export class ArticleEditorialService {
     // Cô lập thao tác có thể lỗi để module còn cơ hội log và trả fallback an toàn.
     try {
       // Tính `raw` từ `await this.generator.generate({` và giữ bất biến trong phạm vi hiện tại.
-      const raw = await this.generator.generate({
-        // Gán field `title` từ `article.title,` để object khớp contract.
-        title: article.title,
-        // Gán field `summary` từ `article.summary,` để object khớp contract.
-        summary: article.summary,
-        // Gán field `sourceName` từ `article.sourceName,` để object khớp contract.
-        sourceName: article.sourceName,
-        // Đưa giá trị `topic` vào field cùng tên của object đang tạo.
-        topic: topicContext.key,
-        // Gán field `publishedAt` từ `article.publishedAt,` để object khớp contract.
-        publishedAt: article.publishedAt,
-        // Gán field `collectedAt` từ `article.collectedAt,` để object khớp contract.
-        collectedAt: article.collectedAt,
-        instructions: topicContext.instructions,
-      });
+      const raw = await this.generator.generate(createEditorialInput(article, topicContext));
       // Tính `parsed` từ `parseJsonObject(raw);` và giữ bất biến trong phạm vi hiện tại.
       const parsed = parseJsonObject(raw);
-
-      const editorial: ArticleEditorial = {
-        // Gán field `title` từ `cleanString(parsed.title) || fallback.title,` để object khớp contract.
-        title: cleanString(parsed.title) || fallback.title,
-        // Gán field `summary` từ `cleanString(parsed.summary) || fallback.summary,` để object khớp contract.
-        summary: cleanString(parsed.summary) || fallback.summary,
-        // Gán field `whyImportant` từ `cleanString(parsed.whyImportant) || fallback.whyImportant,` để object khớp contract.
-        whyImportant: cleanString(parsed.whyImportant) || fallback.whyImportant,
-        // Gán field `actionLevel` từ `isActionLevel(parsed.actionLevel) ? parsed.actionLevel : fallback.actionLevel,` để object khớp contract.
-        actionLevel: isActionLevel(parsed.actionLevel) ? parsed.actionLevel : fallback.actionLevel,
-        // Gán field `actionText` từ `cleanString(parsed.actionText) || fallback.actionText,` để object khớp contract.
-        actionText: cleanString(parsed.actionText) || fallback.actionText,
-      };
-      return this.generator instanceof GoogleArticleEditorialGenerator
-        && parsed.languageVerified === true
-        ? { ...editorial, [verifiedVietnameseEditorial]: true }
-        : editorial;
+      return createEditorialFromParsed(
+        parsed,
+        fallback,
+        this.generator instanceof GoogleArticleEditorialGenerator,
+      );
     // Bắt lỗi từ khối try, không để một dependency ngoài làm hỏng toàn bộ đợt xử lý.
     } catch {
       console.warn('Article editorial generation failed, using fallback');
       // Trả `fallback;` cho caller và kết thúc nhánh hiện tại.
       return fallback;
+    }
+  }
+
+  async editArticles(
+    requests: Array<{
+      article: Article;
+      topic: TopicKey | EditorialTopicContext;
+    }>,
+  ): Promise<ArticleEditorial[]> {
+    if (requests.length === 0) {
+      return [];
+    }
+
+    if (!this.generator?.generateBatch) {
+      return Promise.all(
+        requests.map(({ article, topic }) => this.editArticle(article, topic)),
+      );
+    }
+
+    const contexts = requests.map(({ topic }) => resolveEditorialTopic(topic));
+    const fallbacks = requests.map(({ article, topic }) => createFallbackEditorial(article, topic));
+    const inputs = requests.map(({ article }, index) =>
+      createEditorialInput(article, contexts[index]));
+
+    try {
+      const parsed = parseJsonArray(await this.generator.generateBatch(inputs));
+      return requests.map((_request, index) => {
+        const item = parsed[index];
+        return isJsonObject(item)
+          ? createEditorialFromParsed(item, fallbacks[index])
+          : fallbacks[index];
+      });
+    } catch {
+      console.warn('Article editorial batch generation failed, using fallback');
+      return fallbacks;
     }
   }
 }
@@ -129,21 +142,25 @@ export class ArticleEditorialService {
  * - `src/services/article-editorial.service.ts`
  */
 // Mở thân hàm `createDefaultGenerator` với input/output được TypeScript kiểm tra.
-function createDefaultGenerator(): ArticleEditorialGenerator | undefined {
+export type ArticleEditorialProvider = 'openai' | 'codex' | 'google' | 'none';
+
+export function createArticleEditorialGenerator(
+  provider: ArticleEditorialProvider = env.EDITORIAL_PROVIDER,
+): ArticleEditorialGenerator | undefined {
   // Nếu `env.EDITORIAL_PROVIDER === 'codex'` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
-  if (env.EDITORIAL_PROVIDER === 'codex') {
+  if (provider === 'codex') {
     // Trả `new CodexArticleEditorialGenerator();` cho caller và kết thúc nhánh hiện tại.
     return new CodexArticleEditorialGenerator();
   }
 
   // Nếu `env.EDITORIAL_PROVIDER === 'openai'` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
-  if (env.EDITORIAL_PROVIDER === 'openai') {
+  if (provider === 'openai') {
     // Trả `new OpenAIArticleEditorialGenerator();` cho caller và kết thúc nhánh hiện tại.
     return new OpenAIArticleEditorialGenerator();
   }
 
   // Nếu `env.EDITORIAL_PROVIDER === 'google'` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
-  if (env.EDITORIAL_PROVIDER === 'google') {
+  if (provider === 'google') {
     // Trả `new GoogleArticleEditorialGenerator();` cho caller và kết thúc nhánh hiện tại.
     return new GoogleArticleEditorialGenerator();
   }
@@ -188,6 +205,38 @@ function resolveEditorialTopic(topic: TopicKey | EditorialTopicContext): Editori
     : topic;
 }
 
+function createEditorialInput(
+  article: Article,
+  topic: EditorialTopicContext,
+): ArticleEditorialInput {
+  return {
+    title: article.title,
+    summary: article.summary,
+    sourceName: article.sourceName,
+    topic: topic.key,
+    publishedAt: article.publishedAt,
+    collectedAt: article.collectedAt,
+    instructions: topic.instructions,
+  };
+}
+
+function createEditorialFromParsed(
+  parsed: Record<string, unknown>,
+  fallback: ArticleEditorial,
+  trustLanguageVerification = false,
+): ArticleEditorial {
+  const editorial: ArticleEditorial = {
+    title: cleanString(parsed.title) || fallback.title,
+    summary: cleanString(parsed.summary) || fallback.summary,
+    whyImportant: cleanString(parsed.whyImportant) || fallback.whyImportant,
+    actionLevel: isActionLevel(parsed.actionLevel) ? parsed.actionLevel : fallback.actionLevel,
+    actionText: cleanString(parsed.actionText) || fallback.actionText,
+  };
+  return trustLanguageVerification && parsed.languageVerified === true
+    ? { ...editorial, [verifiedVietnameseEditorial]: true }
+    : editorial;
+}
+
 /**
  * Hàm `parseJsonObject` parse và làm sạch dữ liệu không tin cậy; kết quả được trả cho caller theo kiểu khai báo.
  *
@@ -209,6 +258,19 @@ function parseJsonObject(raw: string): Record<string, unknown> {
 
   // Trả `parsed as Record<string, unknown>;` cho caller và kết thúc nhánh hiện tại.
   return parsed as Record<string, unknown>;
+}
+
+function parseJsonArray(raw: string): unknown[] {
+  const normalized = raw.trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
+  const parsed: unknown = JSON.parse(normalized);
+  if (!Array.isArray(parsed)) {
+    throw new Error('Editorial response must be a JSON array');
+  }
+  return parsed;
+}
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 /**

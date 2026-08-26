@@ -12,7 +12,20 @@ export const topics: TopicDefinition[] = [
   {
     key: 'ai',
     label: 'AI',
-    keywords: ['ai', 'artificial intelligence', 'machine learning', 'llm', 'openai', 'anthropic', 'gemini'],
+    keywords: [
+      'ai',
+      'artificial intelligence',
+      'machine learning',
+      'llm',
+      'openai',
+      'anthropic',
+      'gemini',
+      'chatgpt',
+      'gpt',
+      'codex',
+      'claude',
+      'deepmind',
+    ],
   },
   // Nhóm Kubernetes/container orchestration.
   {
@@ -30,13 +43,23 @@ export const topics: TopicDefinition[] = [
   {
     key: 'devops',
     label: 'DevOps',
-    keywords: ['devops', 'ci/cd', 'github actions', 'jenkins', 'observability', 'sre'],
+    keywords: [
+      'devops',
+      'ci/cd',
+      'github',
+      'github actions',
+      'docker',
+      'hashicorp',
+      'jenkins',
+      'observability',
+      'sre',
+    ],
   },
   // Nhóm cloud provider và infrastructure as code.
   {
     key: 'cloud',
     label: 'Cloud',
-    keywords: ['aws', 'azure', 'gcp', 'cloud', 'serverless', 'terraform'],
+    keywords: ['aws', 'azure', 'gcp', 'cloud', 'cloudflare', 'serverless', 'terraform'],
   },
   // Nhóm tin tuyển dụng giáo viên / trợ giảng tiếng Anh.
   {

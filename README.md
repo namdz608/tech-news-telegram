@@ -7,7 +7,7 @@ App Express + TypeScript dùng để gom tin công nghệ từ RSS, forum, HTML 
 - RSS/blog: Hacker News, Kubernetes Blog, Google Security Blog, AWS News Blog, CNCF Blog, DevOps.com.
 - Forum RSS: Reddit r/MachineLearning, r/LocalLLaMA, r/OpenAI, r/artificial, r/kubernetes, r/devops, r/cybersecurity, r/aws.
 - HTML web: The Hacker News.
-- X Search: tìm Post công nghệ bằng X API v2 Recent Search.
+- X Search: tìm Post công nghệ theo từ khóa và theo dõi các tài khoản đã duyệt bằng X API v2 Recent Search.
 - GitHub Search: tìm repository AI mới hoặc mới cập nhật bằng GitHub Search API.
 
 ## Luồng Forum Reddit
@@ -33,6 +33,18 @@ App dùng endpoint chính thức `GET https://api.x.com/2/tweets/search/recent` 
 
 Post từ X vẫn đi qua các bước lọc topic, lọc link rác, lọc bài quá cũ, tổng hợp digest, dịch tiếng Việt và gửi Telegram như các nguồn khác.
 
+Ngoài query từ khóa, app tạo một query riêng để lấy bài đăng gốc từ danh sách
+`X_TRACKED_ACCOUNTS`. Query dùng toán tử `from:` cho từng tài khoản và luôn thêm
+`-is:retweet -is:reply`; bài trùng giữa hai query được loại theo URL. Danh sách mặc
+định theo dõi các tài khoản công nghệ chính thức và `@thsottiaux` (Tibo):
+
+```text
+OpenAI,AnthropicAI,GoogleDeepMind,github,kubernetesio,awscloud,Cloudflare,Docker,HashiCorp,TheHackersNews,thsottiaux
+```
+
+Handle được chuẩn hóa, loại trùng không phân biệt hoa/thường và phải đúng định dạng
+tài khoản X. App dừng sớm nếu cấu hình có handle sai hoặc query vượt giới hạn 512 ký tự.
+
 ## Luồng GitHub AI Repos
 
 App dùng endpoint chính thức `GET https://api.github.com/search/repositories` để lấy repo AI mới hoặc mới cập nhật. Mặc định, app lọc theo các topic AI như `llm`, `generative-ai`, `ai-agent`, `rag`, `machine-learning`, `artificial-intelligence`, giới hạn trong `GITHUB_AI_REPO_LOOKBACK_DAYS` ngày gần nhất và sắp theo stars.
@@ -52,7 +64,7 @@ Mỗi tin Telegram dạng từng bài sẽ cố gửi kèm ảnh minh họa. App
 
 ## Nội Dung Mỗi Tin Telegram
 
-Mỗi bài được gửi thành một tin riêng kèm ảnh và luôn có: header chủ đề, tiêu đề, ngày công bố, tóm tắt, lý do đáng chú ý, mức hành động, tên nguồn và nút `Xem bài gốc`. Các mục dùng emoji riêng để dễ quét trên Telegram. `EDITORIAL_PROVIDER` chọn Codex, OpenAI, Google hoặc tắt AI cho phần biên tập dữ liệu có cấu trúc; Google Translate luôn dịch digest sang ngôn ngữ đích; code dựng HTML cố định. Nếu provider lỗi hoặc dữ liệu nguồn chưa đủ, app dùng nội dung fallback ở mức `🟡 THEO DÕI` nên không bỏ trống mục nào và không tự gắn cảnh báo khẩn cấp.
+Mỗi bài được gửi thành một tin riêng kèm ảnh và luôn có: header chủ đề, tiêu đề, ngày công bố, tóm tắt, lý do đáng chú ý, mức hành động, tên nguồn và nút `Xem bài gốc`. Các mục dùng emoji riêng để dễ quét trên Telegram. `TECH_EDITORIAL_PROVIDER` mặc định là `codex`: luồng tech dùng Codex CLI với phiên đăng nhập ChatGPT để dịch và biên tập cả digest tổng hợp lẫn từng message sang tiếng Việt. Các message trong một digest được biên tập bằng một request batch duy nhất; tại `POST /news/digest`, nhánh dịch digest tổng hợp và nhánh biên tập message chạy song song để giảm thời gian chờ. Khi chọn Codex, luồng tech không gọi Google Translate. `EDITORIAL_PROVIDER` tiếp tục chọn provider riêng cho gadget/health. Nếu provider lỗi hoặc dữ liệu nguồn chưa đủ, app dùng nội dung fallback ở mức `🟡 THEO DÕI` nên không bỏ trống mục nào và không tự gắn cảnh báo khẩn cấp.
 
 ## Env
 
@@ -94,6 +106,7 @@ GOLD_SPOT_API_URL=https://api.gold-api.com/price/XAU
 X_BEARER_TOKEN=
 X_SEARCH_QUERY=(AI OR "artificial intelligence" OR LLM OR Kubernetes OR DevOps OR cloud OR security OR CVE) lang:en -is:retweet -is:reply
 X_SEARCH_MAX_RESULTS=20
+X_TRACKED_ACCOUNTS=OpenAI,AnthropicAI,GoogleDeepMind,github,kubernetesio,awscloud,Cloudflare,Docker,HashiCorp,TheHackersNews,thsottiaux
 
 GITHUB_TOKEN=
 GITHUB_AI_REPO_QUERY=
@@ -104,6 +117,7 @@ OPENAI_API_KEY=sk-replace-me
 OPENAI_MODEL=gpt-4.1-mini
 
 EDITORIAL_PROVIDER=google
+TECH_EDITORIAL_PROVIDER=codex
 TRANSLATION_TARGET_LANGUAGE=vi
 CODEX_TRANSLATION_TIMEOUT_MS=120000
 
@@ -116,6 +130,9 @@ USER_AGENT=TechNewsTelegramBot/1.0
 ```
 
 Nếu `X_BEARER_TOKEN` trống, nguồn X sẽ tự tắt và app vẫn chạy bình thường. Reddit không cần token vì dùng RSS public, nhưng nên giữ `USER_AGENT` có tên app rõ ràng.
+
+Đặt `X_TRACKED_ACCOUNTS=` nếu muốn tắt riêng nguồn theo dõi tài khoản nhưng vẫn giữ
+nguồn tìm theo `X_SEARCH_QUERY`.
 
 ## Lấy X Bearer Token
 
@@ -235,7 +252,8 @@ X and Brave are optional when their keys are empty (`X_BEARER_TOKEN`,
 `BRAVE_SEARCH_API_KEY`); direct RSS and Reddit remain available.
 
 Politics editorial uses `GOLD_POLITICS_EDITORIAL_PROVIDER` (default Codex).
-Global `EDITORIAL_PROVIDER` still selects tech/gadget/health editorial (google).
+Tech editorial uses the independent `TECH_EDITORIAL_PROVIDER` (default Codex); global
+`EDITORIAL_PROVIDER` remains for gadget/health editorial (Google by default).
 Codex uses ChatGPT login from `~/.codex/auth.json`. Leave `OPENAI_API_KEY` and `CODEX_API_KEY` empty so a placeholder key does not override that session. Unofficial Google Translate (`gtx`) is last-resort only when Codex fails.
 
 ```bash
