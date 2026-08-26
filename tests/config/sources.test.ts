@@ -2,6 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { sources } from '../../src/config/sources';
 
 describe('sources config', () => {
+  it('includes one X source that tracks the configured technology accounts', () => {
+    const source = sources.find((candidate) => candidate.id === 'x-tracked-accounts');
+
+    expect(source).toMatchObject({
+      id: 'x-tracked-accounts',
+      name: 'X Tracked Accounts',
+      kind: 'x-search',
+      homepageUrl: 'https://x.com',
+      query:
+        '(from:OpenAI OR from:AnthropicAI OR from:GoogleDeepMind OR from:github OR from:kubernetesio OR from:awscloud OR from:Cloudflare OR from:Docker OR from:HashiCorp OR from:TheHackersNews OR from:thsottiaux) -is:retweet -is:reply',
+      maxResults: 20,
+    });
+  });
+
   it('includes enabled Reddit forum RSS sources with default topics', () => {
     const redditSources = sources.filter((source) => source.id.startsWith('reddit-'));
 

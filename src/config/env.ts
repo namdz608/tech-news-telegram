@@ -60,6 +60,12 @@ const envSchema = z.object({
     .default('(AI OR "artificial intelligence" OR LLM OR Kubernetes OR DevOps OR cloud OR security OR CVE) lang:en -is:retweet -is:reply'),
   // X API chỉ chấp nhận page size trong khoảng 10–100.
   X_SEARCH_MAX_RESULTS: z.coerce.number().int().min(10).max(100).default(20),
+  // Danh sách tài khoản công nghệ được theo dõi bằng một X Recent Search query.
+  X_TRACKED_ACCOUNTS: z
+    .string()
+    .default(
+      'OpenAI,AnthropicAI,GoogleDeepMind,github,kubernetesio,awscloud,Cloudflare,Docker,HashiCorp,TheHackersNews,thsottiaux',
+    ),
   // GitHub token/query có thể rỗng; crawler có chế độ public/default query.
   GITHUB_TOKEN: z.string().default(''),
   GITHUB_AI_REPO_QUERY: z.string().default(''),
@@ -69,9 +75,10 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().default('test-openai-key'),
   OPENAI_MODEL: z.string().default('gpt-4.1-mini'),
   EDITORIAL_PROVIDER: z.enum(['openai', 'codex', 'google', 'none']).default('google'),
+  TECH_EDITORIAL_PROVIDER: z.enum(['codex', 'google', 'none']).default('codex'),
   // Ngôn ngữ dịch đích và timeout tiến trình Codex.
   TRANSLATION_TARGET_LANGUAGE: z.string().default('vi'),
-  CODEX_TRANSLATION_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
+  CODEX_TRANSLATION_TIMEOUT_MS: z.coerce.number().int().positive().default(120000),
   // Các giới hạn chọn bài ngăn digest quá dài hoặc lệch topic.
   MAX_ARTICLES_PER_DIGEST: z.coerce.number().int().positive().default(20),
   MAX_ARTICLES_PER_TOPIC: z.coerce.number().int().positive().default(2),

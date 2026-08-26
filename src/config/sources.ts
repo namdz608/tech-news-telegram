@@ -6,8 +6,14 @@
  * `tests/config/sources.test.ts`.
  */
 import { env } from './env';
+import { buildXTrackedAccountsQuery, parseXTrackedAccounts } from './x-tracked-accounts';
 import type { SourceConfig } from '../types/source';
 import type { TopicKey } from '../types/topic';
+
+const xTrackedAccounts = parseXTrackedAccounts(env.X_TRACKED_ACCOUNTS);
+const xTrackedAccountsQuery = xTrackedAccounts.length > 0
+  ? buildXTrackedAccountsQuery(xTrackedAccounts)
+  : '';
 
 /**
  * Tạo cấu hình RSS Reddit nhất quán từ subreddit và topic mặc định.
@@ -58,6 +64,17 @@ export const sources: SourceConfig[] = [
     homepageUrl: 'https://x.com',
     bearerToken: env.X_BEARER_TOKEN,
     query: env.X_SEARCH_QUERY,
+    maxResults: env.X_SEARCH_MAX_RESULTS,
+  },
+  // X Recent Search giới hạn kết quả theo danh sách tài khoản công nghệ đã duyệt.
+  {
+    id: 'x-tracked-accounts',
+    name: 'X Tracked Accounts',
+    kind: 'x-search',
+    enabled: Boolean(env.X_BEARER_TOKEN && xTrackedAccountsQuery),
+    homepageUrl: 'https://x.com',
+    bearerToken: env.X_BEARER_TOKEN,
+    query: xTrackedAccountsQuery,
     maxResults: env.X_SEARCH_MAX_RESULTS,
   },
   // GitHub Search lấy repository AI mới/cập nhật.

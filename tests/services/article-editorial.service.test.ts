@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ArticleEditorialService } from '../../src/services/article-editorial.service';
+import {
+  ArticleEditorialService,
+  createArticleEditorialGenerator,
+} from '../../src/services/article-editorial.service';
 import { verifiedVietnameseEditorial } from '../../src/services/article-editorial.types';
+import { CodexArticleEditorialGenerator } from '../../src/services/codex-article-editorial.generator';
 import { GoogleArticleEditorialGenerator } from '../../src/services/google-article-editorial.generator';
 
 const article = {
@@ -16,6 +20,16 @@ const article = {
 };
 
 describe('ArticleEditorialService', () => {
+  it('selects Codex independently from the global editorial provider', () => {
+    expect(createArticleEditorialGenerator('codex')).toBeInstanceOf(
+      CodexArticleEditorialGenerator,
+    );
+    expect(createArticleEditorialGenerator('google')).toBeInstanceOf(
+      GoogleArticleEditorialGenerator,
+    );
+    expect(createArticleEditorialGenerator('none')).toBeUndefined();
+  });
+
   it('accepts structured editorial fields but does not trust a JSON verification flag', async () => {
     const generator = {
       generate: vi.fn().mockResolvedValue(
@@ -40,6 +54,91 @@ describe('ArticleEditorialService', () => {
       actionText: 'Kiểm tra phơi nhiễm và vá ngay.',
     });
     expect(result[verifiedVietnameseEditorial]).toBeUndefined();
+  });
+
+  it('edits multiple articles with one batch generator call', async () => {
+    const secondArticle = { ...article, id: 'second', title: 'Second article' };
+    const generator = {
+      generate: vi.fn(),
+      generateBatch: vi.fn().mockResolvedValue(JSON.stringify([
+        {
+          title: 'Tin thứ nhất',
+          summary: 'Tóm tắt thứ nhất',
+          whyImportant: 'Lý do thứ nhất',
+          actionLevel: 'high',
+          actionText: 'Xử lý thứ nhất',
+        },
+        {
+          title: 'Tin thứ hai',
+          summary: 'Tóm tắt thứ hai',
+          whyImportant: 'Lý do thứ hai',
+          actionLevel: 'monitor',
+          actionText: 'Theo dõi thứ hai',
+        },
+      ])),
+    };
+
+    const result = await new ArticleEditorialService(generator).editArticles([
+      { article, topic: 'security' },
+      { article: secondArticle, topic: 'ai' },
+    ]);
+
+    expect(generator.generateBatch).toHaveBeenCalledTimes(1);
+    expect(generator.generate).not.toHaveBeenCalled();
+    expect(result.map((item) => item.title)).toEqual(['Tin thứ nhất', 'Tin thứ hai']);
+    expect(generator.generateBatch).toHaveBeenCalledWith([
+      expect.objectContaining({ title: article.title, topic: 'security' }),
+      expect.objectContaining({ title: secondArticle.title, topic: 'ai' }),
+    ]);
+  });
+
+  it('falls back only the malformed item in an otherwise valid batch', async () => {
+    const secondArticle = { ...article, id: 'second', title: 'Second article' };
+    const generator = {
+      generate: vi.fn(),
+      generateBatch: vi.fn().mockResolvedValue(JSON.stringify([
+        {
+          title: 'Tin hợp lệ',
+          summary: 'Tóm tắt hợp lệ',
+          whyImportant: 'Lý do hợp lệ',
+          actionLevel: 'urgent',
+          actionText: 'Xử lý ngay',
+        },
+        null,
+      ])),
+    };
+
+    await expect(new ArticleEditorialService(generator).editArticles([
+      { article, topic: 'security' },
+      { article: secondArticle, topic: 'ai' },
+    ])).resolves.toEqual([
+      expect.objectContaining({ title: 'Tin hợp lệ', actionLevel: 'urgent' }),
+      expect.objectContaining({ title: secondArticle.title, actionLevel: 'monitor' }),
+    ]);
+  });
+
+  it('preserves valid items when a batch response is shorter than requested', async () => {
+    const secondArticle = { ...article, id: 'second', title: 'Second article' };
+    const generator = {
+      generate: vi.fn(),
+      generateBatch: vi.fn().mockResolvedValue(JSON.stringify([
+        {
+          title: 'Tin hợp lệ',
+          summary: 'Tóm tắt hợp lệ',
+          whyImportant: 'Lý do hợp lệ',
+          actionLevel: 'high',
+          actionText: 'Kiểm tra ngay',
+        },
+      ])),
+    };
+
+    await expect(new ArticleEditorialService(generator).editArticles([
+      { article, topic: 'security' },
+      { article: secondArticle, topic: 'ai' },
+    ])).resolves.toEqual([
+      expect.objectContaining({ title: 'Tin hợp lệ', actionLevel: 'high' }),
+      expect.objectContaining({ title: secondArticle.title, actionLevel: 'monitor' }),
+    ]);
   });
 
   it('adds trusted verification metadata for successful Google translations', async () => {

@@ -214,6 +214,52 @@ describe('SourceService', () => {
     await expect(service.collectLatest()).resolves.toEqual([article]);
   });
 
+  it('crawls keyword and tracked-account X sources and deduplicates overlapping posts', async () => {
+    const sources: SourceConfig[] = [
+      {
+        id: 'x-search',
+        name: 'X Search',
+        kind: 'x-search',
+        enabled: true,
+        homepageUrl: 'https://x.com',
+        bearerToken: 'token',
+        query: 'AI lang:en',
+        maxResults: 20,
+      },
+      {
+        id: 'x-tracked-accounts',
+        name: 'X Tracked Accounts',
+        kind: 'x-search',
+        enabled: true,
+        homepageUrl: 'https://x.com',
+        bearerToken: 'token',
+        query: '(from:OpenAI OR from:thsottiaux) -is:retweet -is:reply',
+        maxResults: 20,
+      },
+    ];
+    const article: Article = {
+      id: 'https://x.com/i/web/status/123',
+      sourceId: 'x-search',
+      sourceName: 'X Search',
+      title: 'Codex ships a platform update',
+      url: 'https://x.com/i/web/status/123',
+      publishedAt: new Date().toISOString(),
+      collectedAt: new Date().toISOString(),
+      topics: ['ai'],
+    };
+    const xSearch = vi.fn().mockResolvedValue([article]);
+    const service = new SourceService(sources, {
+      rss: { crawl: async () => [] },
+      html: { crawl: async () => [] },
+      xSearch: { crawl: xSearch },
+    });
+
+    await expect(service.collectLatest()).resolves.toEqual([article]);
+    expect(xSearch).toHaveBeenCalledTimes(2);
+    expect(xSearch).toHaveBeenCalledWith(expect.objectContaining({ id: 'x-search' }));
+    expect(xSearch).toHaveBeenCalledWith(expect.objectContaining({ id: 'x-tracked-accounts' }));
+  });
+
   it('crawls enabled GitHub repository sources', async () => {
     const sources: SourceConfig[] = [
       {

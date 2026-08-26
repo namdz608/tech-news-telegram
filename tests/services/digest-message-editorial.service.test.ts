@@ -44,4 +44,47 @@ describe('editDigestMessages', () => {
     expect(result[0].url).toBe(messages[0].url);
     expect(result[0].imageUrl).toBe(messages[0].imageUrl);
   });
+
+  it('prefers one batch edit when the editor supports it', async () => {
+    const messages = new DigestService(10).buildDigestMessages([
+      {
+        id: 'first',
+        sourceId: 'hn-rss',
+        sourceName: 'First Source',
+        title: 'First',
+        url: 'https://example.com/first',
+        collectedAt: '2026-07-15T00:00:00.000Z',
+        topics: ['ai'],
+      },
+      {
+        id: 'second',
+        sourceId: 'aws-news-blog',
+        sourceName: 'Second Source',
+        title: 'Second',
+        url: 'https://example.com/second',
+        collectedAt: '2026-07-15T00:00:00.000Z',
+        topics: ['cloud'],
+      },
+    ]);
+    const editArticle = vi.fn();
+    const editArticles = vi.fn().mockResolvedValue(messages.map((message) => ({
+      title: `VI ${message.article.title}`,
+      summary: `Tóm tắt ${message.article.title}`,
+      whyImportant: `Quan trọng ${message.article.title}`,
+      actionLevel: 'monitor' as const,
+      actionText: `Theo dõi ${message.article.title}`,
+    })));
+
+    const result = await editDigestMessages(messages, { editArticle, editArticles });
+
+    expect(editArticles).toHaveBeenCalledTimes(1);
+    expect(editArticles).toHaveBeenCalledWith(messages.map((message) => ({
+      article: message.article,
+      topic: message.topic,
+    })));
+    expect(editArticle).not.toHaveBeenCalled();
+    expect(result.map((message) => message.article.id)).toEqual(['first', 'second']);
+    expect(result[0].text).toContain('VI First');
+    expect(result[1].text).toContain('VI Second');
+  });
 });

@@ -25,6 +25,12 @@ interface ArticleEditor {
     // Gán field `topic` từ `DigestMessage['topic'],` để object khớp contract.
     topic: DigestMessage['topic'],
   ): Promise<ArticleEditorial>;
+  editArticles?(
+    requests: Array<{
+      article: DigestMessage['article'];
+      topic: DigestMessage['topic'];
+    }>,
+  ): Promise<ArticleEditorial[]>;
 }
 
 /**
@@ -42,17 +48,18 @@ export async function editDigestMessages(
   // Gán field `editorialService` từ `ArticleEditor,` để object khớp contract.
   editorialService: ArticleEditor,
 ): Promise<DigestMessage[]> {
-  // Trả `Promise.all(` cho caller và kết thúc nhánh hiện tại.
-  return Promise.all(
-    messages.map(async (message) => ({
-      ...message,
-      // Gán field `text` từ `renderArticleMessage(` để object khớp contract.
-      text: renderArticleMessage(
-        message.article,
-        message.topic,
-        // Chờ `editorialService.editArticle(message.article, message.topic),` hoàn tất để giữ đúng thứ tự side effect.
-        await editorialService.editArticle(message.article, message.topic),
-      ),
-    })),
-  );
+  const requests = messages.map((message) => ({
+    article: message.article,
+    topic: message.topic,
+  }));
+  const editorials = editorialService.editArticles
+    ? await editorialService.editArticles(requests)
+    : await Promise.all(
+      requests.map(({ article, topic }) => editorialService.editArticle(article, topic)),
+    );
+
+  return messages.map((message, index) => ({
+    ...message,
+    text: renderArticleMessage(message.article, message.topic, editorials[index]),
+  }));
 }

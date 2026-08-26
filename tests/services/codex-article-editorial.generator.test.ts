@@ -38,4 +38,42 @@ describe('CodexArticleEditorialGenerator', () => {
       12345,
     );
   });
+
+  it('edits a batch in one Codex execution while preserving input order', async () => {
+    const runner = { run: vi.fn().mockResolvedValue('[{"title":"Một"},{"title":"Hai"}]') };
+    const generator = new CodexArticleEditorialGenerator(runner, 12345);
+    const inputs = [input, { ...input, title: 'Second article' }];
+
+    await expect(generator.generateBatch(inputs)).resolves.toBe(
+      '[{"title":"Một"},{"title":"Hai"}]',
+    );
+    expect(runner.run).toHaveBeenCalledTimes(1);
+    expect(runner.run).toHaveBeenCalledWith(
+      expect.stringContaining('cùng thứ tự'),
+      JSON.stringify(inputs),
+      12345,
+    );
+    expect(runner.run.mock.calls[0][0]).toContain('JSON array');
+  });
+
+  it('allows independent single-article Codex executions to run concurrently', async () => {
+    const releases: Array<(value: string) => void> = [];
+    const runner = {
+      run: vi.fn(
+        () => new Promise<string>((resolve) => {
+          releases.push(resolve);
+        }),
+      ),
+    };
+    const generator = new CodexArticleEditorialGenerator(runner, 12345);
+
+    const first = generator.generate(input);
+    const second = generator.generate({ ...input, title: 'Second article' });
+
+    await vi.waitFor(() => expect(runner.run).toHaveBeenCalledTimes(2));
+    releases.shift()?.('{"title":"Tin thứ nhất"}');
+    await expect(first).resolves.toContain('Tin thứ nhất');
+    releases.shift()?.('{"title":"Tin thứ hai"}');
+    await expect(second).resolves.toContain('Tin thứ hai');
+  });
 });

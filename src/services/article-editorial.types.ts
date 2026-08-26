@@ -59,6 +59,7 @@ export interface EditorialTopicContext {
  */
 export interface ArticleEditorialGenerator {
   generate(input: ArticleEditorialInput): Promise<string>;
+  generateBatch?(inputs: ArticleEditorialInput[]): Promise<string>;
 }
 
 /**
