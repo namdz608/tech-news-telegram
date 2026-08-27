@@ -45,6 +45,20 @@ function item(overrides: Partial<PoliticsSourceItem> = {}): PoliticsSourceItem {
 const service = new PoliticsClassificationService();
 
 describe('PoliticsClassificationService', () => {
+  it('uses an explicit fallback category for an item from a trusted politics-only feed', () => {
+    const source = item({
+      title: 'Nguyễn Quang Thiều: Cống hiến để rồi bị chính nơi mình phục vụ quay lưng',
+      summary: 'Một bài bình luận về hành trình cống hiến và những đổi thay.',
+    });
+
+    expect(service.classify(source)).toBeUndefined();
+    expect(service.classify(source, 'vietnam-politics')).toMatchObject({
+      primaryCategory: 'vietnam-politics',
+      title: source.title,
+      url: source.url,
+    });
+  });
+
   it.each([
     {
       name: 'SJC gold price with USD drivers',
@@ -305,6 +319,22 @@ describe('PoliticsClassificationService', () => {
     expect(established?.claimModality).toBe('established');
     expect(vietnamese?.claimEntities).toEqual(expect.arrayContaining(['pham-minh-chinh']));
     expect(english?.claimEntities).toEqual(vietnamese?.claimEntities);
+  });
+
+  it('does not let unrelated possibility language in a long summary change the headline modality', () => {
+    const classified = service.classify(
+      item({
+        title:
+          'Supreme court threatens midterms mail-in voting as it backs Trump plan | First Thing',
+        summary:
+          'The court sided with Donald Trump on mail-in voting, though it is unclear whether the administration may act before the midterm elections.',
+      }),
+    );
+
+    expect(classified).toBeDefined();
+    expect(classified?.claimModality).toBe('reported');
+    expect(classified?.evidenceAssertions[0]?.claimText).toBe(classified?.title);
+    expect(classified?.evidenceAssertions[0]?.modality).toBe('reported');
   });
 
   it('emits one source-linked EvidenceAssertion and ignores secondary unrelated claims', () => {

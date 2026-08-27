@@ -92,6 +92,37 @@ function candidate(overrides: Partial<PoliticsCandidate> = {}): PoliticsCandidat
   };
 }
 
+const IRAN_WATERWAY_SOURCE =
+  'Iran has closed the vital waterway since the beginning of the conflict causing wild fluctuations in oil prices worldwide.';
+
+function anonymousIranCandidate(): PoliticsCandidate {
+  return candidate({
+    sourceName: 'X Search',
+    title: IRAN_WATERWAY_SOURCE,
+    summary: IRAN_WATERWAY_SOURCE,
+    author: '',
+    originalAuthor: '',
+    originalAccount: '',
+    originAttribution: {
+      url: 'https://x.com/i/status/iran-waterway',
+      account: '',
+      publishedAt: '2026-08-27T00:00:00.000Z',
+      discoveredAt: '2026-08-27T00:05:00.000Z',
+    },
+    claimModality: 'alleged',
+    evidentiaryEffect: 'records-claim',
+    semanticClaimKey: 'iran|waterway-closure',
+    claimEntities: ['iran'],
+    evidenceAssertions: [assertion({
+      semanticClaimKey: 'iran|waterway-closure',
+      claimText: IRAN_WATERWAY_SOURCE,
+      modality: 'alleged',
+      effect: 'records-claim',
+    })],
+    verificationState: 'reported',
+  });
+}
+
 function verifiedEditorial(
   fields: PoliticsEditorial,
 ): PoliticsEditorial & { actionLevel: 'monitor'; actionText: string } {
@@ -353,6 +384,232 @@ describe('PoliticsEditorialService', () => {
 
     expect(result.summary).toContain('tháng 11');
     expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
+  });
+
+  it('keeps a Vietnamese translation attributed to an unidentified account', () => {
+    const input = anonymousIranCandidate();
+    const translated = {
+      title:
+        'Tài khoản chưa xác định nói Iran đã đóng tuyến đường thủy quan trọng từ đầu xung đột',
+      summary:
+        'Theo một tài khoản chưa xác định, Iran đã đóng tuyến đường thủy quan trọng này từ khi xung đột bắt đầu, khiến giá dầu trên thế giới biến động mạnh.',
+      whyImportant:
+        'Theo một tài khoản chưa xác định, nếu chính xác, diễn biến này có thể ảnh hưởng đến nguồn cung năng lượng và giá dầu toàn cầu.',
+    };
+
+    const result = new PoliticsEditorialValidator().validate(
+      input,
+      translated,
+      createTranslationFallbackEditorial(input),
+      'translated',
+    );
+
+    expect(result).toEqual(translated);
+    expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
+  });
+
+  it.each([
+    {
+      name: 'an identified account reporting one completed act',
+      account: 'Lan Nguyen',
+      summary:
+        'Tài khoản Lan Nguyen cho rằng Iran đã đóng tuyến đường thủy quan trọng từ đầu xung đột.',
+    },
+    {
+      name: 'an anonymous account using an explicit allegation marker',
+      account: '',
+      summary:
+        'Theo một tài khoản chưa xác định, Iran bị cáo buộc đã đóng tuyến đường thủy quan trọng từ đầu xung đột.',
+    },
+  ])('keeps a safe Vietnamese translation with $name', ({ account, summary }) => {
+    const input = anonymousIranCandidate();
+    input.originalAccount = account;
+    input.originAttribution.account = account;
+    const fallback = createTranslationFallbackEditorial(input);
+
+    const result = new PoliticsEditorialValidator().validate(
+      input,
+      {
+        title: summary,
+        summary,
+        whyImportant:
+          'Nếu chính xác, diễn biến này có thể ảnh hưởng đến nguồn cung năng lượng toàn cầu.',
+      },
+      fallback,
+      'translated',
+    );
+
+    expect(result.title).toBe(summary);
+    expect(result.summary).toBe(summary);
+  });
+
+  it('rejects an unframed fact when the source summary directly records an allegation', () => {
+    const input = candidate({
+      title: 'Minister faces new scrutiny',
+      summary: 'Investigators alleged that the minister accepted bribes.',
+      claimModality: 'reported',
+      evidentiaryEffect: 'records-claim',
+      evidenceAssertions: [assertion({
+        claimText: 'Minister faces new scrutiny',
+        modality: 'reported',
+        effect: 'records-claim',
+      })],
+      verificationState: 'reported',
+    });
+    const fallback = createTranslationFallbackEditorial(input);
+
+    const result = new PoliticsEditorialValidator().validate(
+      input,
+      {
+        title: 'Bộ trưởng nhận hối lộ.',
+        summary: 'Bộ trưởng nhận hối lộ.',
+        whyImportant: 'Vụ việc ảnh hưởng đến niềm tin công chúng.',
+      },
+      fallback,
+      'translated',
+    );
+
+    expect(result.title).toBe(fallback.title);
+    expect(result.summary).toBe(fallback.summary);
+  });
+
+  it.each([
+    {
+      name: 'a second completed act after a sentence boundary',
+      summary:
+        'Theo một tài khoản chưa xác định, Iran đã đóng tuyến đường thủy. Sau đó Iran đã tấn công một cảng.',
+    },
+    {
+      name: 'a reporting actor placed before the unidentified account',
+      summary: 'Iran nói một tài khoản chưa xác định đã đóng tuyến đường thủy.',
+    },
+    {
+      name: 'a nested reporting verb that shifts the subject',
+      summary:
+        'Theo một tài khoản chưa xác định, Iran nói Israel đã đóng tuyến đường thủy.',
+    },
+    {
+      name: 'a nested attribution that shifts the subject',
+      summary:
+        'Theo một tài khoản chưa xác định, Iran cho rằng Israel đã đóng tuyến đường thủy.',
+    },
+    {
+      name: 'a nested declaration that shifts the subject',
+      summary:
+        'Theo một tài khoản chưa xác định, Iran tuyên bố Israel đã đóng tuyến đường thủy.',
+    },
+    {
+      name: 'a nested assertion that shifts the subject',
+      summary:
+        'Theo một tài khoản chưa xác định, Iran khẳng định Israel đã đóng tuyến đường thủy.',
+    },
+    {
+      name: 'a bare and-pivot that restates the allegation as fact',
+      summary:
+        'Theo một tài khoản chưa xác định, Iran bị cáo buộc đóng tuyến đường thủy và nước này đã đóng tuyến đường thủy.',
+    },
+    {
+      name: 'a contrasting còn-pivot that restates the allegation as fact',
+      summary:
+        'Theo một tài khoản chưa xác định, Iran bị cáo buộc đóng tuyến đường thủy, còn nước này đã đóng tuyến đường thủy.',
+    },
+    {
+      name: 'a temporal pivot that restates the allegation as fact',
+      summary:
+        'Theo một tài khoản chưa xác định, Iran bị cáo buộc đóng tuyến đường thủy, sau đó nước này đã tấn công một cảng.',
+    },
+  ])('rejects anonymous framing with $name', ({ summary }) => {
+    const input = anonymousIranCandidate();
+    const fallback = createTranslationFallbackEditorial(input);
+
+    const result = new PoliticsEditorialValidator().validate(
+      input,
+      {
+        title:
+          'Tài khoản chưa xác định nói Iran đã đóng tuyến đường thủy quan trọng từ đầu xung đột',
+        summary,
+        whyImportant:
+          'Nếu chính xác, diễn biến này có thể ảnh hưởng đến nguồn cung năng lượng và giá dầu toàn cầu.',
+      },
+      fallback,
+      'translated',
+    );
+
+    expect(result.summary).toBe(fallback.summary);
+  });
+
+  it('rejects an anonymous why-important field that asserts facts after a caveat', () => {
+    const input = anonymousIranCandidate();
+    const fallback = createTranslationFallbackEditorial(input);
+
+    const result = new PoliticsEditorialValidator().validate(
+      input,
+      {
+        title:
+          'Tài khoản chưa xác định nói Iran đã đóng tuyến đường thủy quan trọng từ đầu xung đột',
+        summary:
+          'Theo một tài khoản chưa xác định, Iran đã đóng tuyến đường thủy quan trọng này từ khi xung đột bắt đầu, khiến giá dầu trên thế giới biến động mạnh.',
+        whyImportant:
+          'Nếu đúng theo nghĩa kỹ thuật. Iran kiểm soát tuyến đường thủy và giá dầu tăng mạnh.',
+      },
+      fallback,
+      'translated',
+    );
+
+    expect(result.whyImportant).toBe(fallback.whyImportant);
+  });
+
+  it.each([
+    'Nếu đúng, diễn biến này có thể đáng chú ý, nhưng Iran kiểm soát tuyến đường thủy.',
+    'Nếu đúng, diễn biến này có thể đáng chú ý – Iran kiểm soát tuyến đường thủy.',
+    'Nếu đúng, diễn biến này có thể đáng chú ý và Iran kiểm soát tuyến đường thủy.',
+    'Nếu đúng, diễn biến này có thể đáng chú ý, đồng thời Iran kiểm soát tuyến đường thủy.',
+    'Nếu đúng, diễn biến này có thể đáng chú ý vì Iran kiểm soát tuyến đường thủy.',
+    'Nếu đúng, diễn biến này có thể đáng chú ý trong khi Iran kiểm soát tuyến đường thủy.',
+    'Nếu đúng, diễn biến này có thể đáng chú ý và phía Iran kiểm soát tuyến đường thủy.',
+    'Nếu đúng, diễn biến này có thể đáng chú ý và Donald Trump kiểm soát tuyến đường thủy.',
+    'Nếu đúng, diễn biến này có thể đáng chú ý / Iran kiểm soát tuyến đường thủy.',
+    'Nếu đúng, diễn biến này có thể gây lo ngại và Iran kiểm soát tuyến đường thủy.',
+    'Nếu đúng, sự việc này có thể ảnh hưởng nguồn cung trong khi Iran kiểm soát tuyến đường thủy.',
+  ])('rejects an anonymous caveat followed by an independent assertion: %s', (whyImportant) => {
+    const input = anonymousIranCandidate();
+    const fallback = createTranslationFallbackEditorial(input);
+
+    const result = new PoliticsEditorialValidator().validate(
+      input,
+      {
+        title:
+          'Tài khoản chưa xác định nói Iran đã đóng tuyến đường thủy quan trọng từ đầu xung đột',
+        summary:
+          'Theo một tài khoản chưa xác định, Iran đã đóng tuyến đường thủy quan trọng này từ khi xung đột bắt đầu, khiến giá dầu trên thế giới biến động mạnh.',
+        whyImportant,
+      },
+      fallback,
+      'translated',
+    );
+
+    expect(result.whyImportant).toBe(fallback.whyImportant);
+  });
+
+  it('accepts an attributed conditional why-important clause using future modality', () => {
+    const input = anonymousIranCandidate();
+    const whyImportant =
+      'Theo một tài khoản chưa xác định, nếu đúng, diễn biến này sẽ ảnh hưởng đến nguồn cung năng lượng toàn cầu.';
+
+    const result = new PoliticsEditorialValidator().validate(
+      input,
+      {
+        title:
+          'Tài khoản chưa xác định nói Iran đã đóng tuyến đường thủy quan trọng từ đầu xung đột',
+        summary:
+          'Theo một tài khoản chưa xác định, Iran đã đóng tuyến đường thủy quan trọng này từ khi xung đột bắt đầu, khiến giá dầu trên thế giới biến động mạnh.',
+        whyImportant,
+      },
+      createTranslationFallbackEditorial(input),
+      'translated',
+    );
+
+    expect(result.whyImportant).toBe(whyImportant);
   });
 
   it('does not compare localized proper names lexically with English source text', () => {

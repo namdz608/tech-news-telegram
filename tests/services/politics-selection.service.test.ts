@@ -202,6 +202,32 @@ function uniqueGold(index: number, sourceQuotaKey = `gold-${index}.example`): Po
   });
 }
 
+function thoibaoArticle(index: number): PoliticsSourceItem {
+  const stories = [
+    ['nguyen-quang-thieu', 'Nguyễn Quang Thiều: Cống hiến để rồi bị chính nơi mình phục vụ quay lưng'],
+    ['quoc-phong-bien-dong', 'Quốc hội Việt Nam thảo luận chính sách quốc phòng tại Biển Đông'],
+    ['ngoai-giao-chau-au', 'Quốc hội Việt Nam thảo luận chính sách ngoại giao với châu Âu'],
+    ['xet-xu-tham-nhung', 'Chính phủ Việt Nam công bố điều tra tham nhũng cấp cao'],
+    ['uy-ban-bau-cu', 'Quốc hội Việt Nam chuẩn bị quy định bầu cử mới'],
+    ['chinh-sach-nang-luong', 'Thủ tướng Việt Nam ban hành chính sách năng lượng quốc gia'],
+  ] as const;
+  const story = stories[index]!;
+  const url = `https://www.thoibao.de/blog/2026/08/${story[0]}`;
+  return item({
+    id: url,
+    sourceId: 'thoibao-de-chinh-tri',
+    sourceName: 'Thoibao.de Chính trị',
+    url,
+    title: story[1],
+    summary: index === 0
+      ? 'Một bài bình luận về hành trình cống hiến và những đổi thay.'
+      : `Tin chính trị riêng số ${index + 1} về chính phủ và chính sách công.`,
+    publishedAt: hoursAgo(index + 1),
+    sourceQuotaKey: 'thoibao.de',
+    evidenceOriginKey: 'thoibao.de',
+  });
+}
+
 function buildConstraintPool(): PoliticsSourceItem[] {
   const controversies: PoliticsSourceItem[] = [
     vnControversy(),
@@ -335,6 +361,56 @@ describe('PoliticsSelectionService constructor options', () => {
 });
 
 describe('PoliticsSelectionService eligibility, history, and scoring', () => {
+  it('reserves the five newest Thoibao.de articles even when all of them are already seen', () => {
+    const thoibao = Array.from({ length: 6 }, (_, index) => thoibaoArticle(index));
+    const service = createService({
+      maxArticles: 8,
+      maxGoldNews: 1,
+      maxPerSource: 3,
+      sourceReservation: {
+        sourceId: 'thoibao-de-chinh-tri',
+        articleCount: 5,
+        replaySeen: true,
+        fallbackCategory: 'vietnam-politics',
+      },
+    });
+    const result = service.select(
+      [...thoibao, vnControversy(), intControversy(), intHighImpact()],
+      new Set(thoibao.map((article) => article.url)),
+    );
+    const selectedThoibao = result.selected.filter(
+      (candidate) => candidate.sourceId === 'thoibao-de-chinh-tri',
+    );
+
+    expect(selectedThoibao).toHaveLength(5);
+    expect(new Set(selectedThoibao.map((candidate) => candidate.url))).toEqual(
+      new Set(thoibao.slice(0, 5).map((article) => article.url)),
+    );
+    expect(result.selected).toHaveLength(8);
+    expect(new Set(result.selected.map((candidate) => candidate.url)).size).toBe(
+      result.selected.length,
+    );
+    expect(result.skippedSeenCount).toBe(6);
+  });
+
+  it('uses every available reserved-source article without fabricating a five-item result', () => {
+    const thoibao = Array.from({ length: 3 }, (_, index) => thoibaoArticle(index));
+    const result = createService({
+      maxArticles: 8,
+      maxGoldNews: 1,
+      maxPerSource: 3,
+      sourceReservation: {
+        sourceId: 'thoibao-de-chinh-tri',
+        articleCount: 5,
+        replaySeen: true,
+        fallbackCategory: 'vietnam-politics',
+      },
+    }).select(thoibao, new Set(thoibao.map((article) => article.url)));
+
+    expect(result.selected).toHaveLength(3);
+    expect(result.selected.every((candidate) => candidate.sourceId === 'thoibao-de-chinh-tri')).toBe(true);
+  });
+
   it('replays one seen Vietnamese and one seen international anchor but never seen gold', () => {
     const vietnam = vnControversy();
     const international = intControversy();

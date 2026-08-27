@@ -191,6 +191,12 @@ export function createGoldPoliticsFlowService(): GoldPoliticsFlowService {
       maxArticles: env.GOLD_POLITICS_MAX_ARTICLES,
       maxGoldNews: Math.min(env.GOLD_POLITICS_MAX_GOLD_NEWS, env.GOLD_POLITICS_MAX_ARTICLES),
       maxPerSource: 3,
+      sourceReservation: {
+        sourceId: 'thoibao-de-chinh-tri',
+        articleCount: Math.min(5, env.GOLD_POLITICS_MAX_ARTICLES),
+        replaySeen: true,
+        fallbackCategory: 'vietnam-politics',
+      },
     },
   );
   const provider = env.GOLD_POLITICS_EDITORIAL_PROVIDER;

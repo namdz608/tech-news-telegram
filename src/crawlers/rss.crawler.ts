@@ -24,6 +24,7 @@ import { normalizeUrl } from '../utils/normalize-url';
 import { createRedditAwareLookup, redditHttpsAgent } from '../utils/reddit-dns';
 // Nạp { compactText } từ `../utils/text` để dùng đúng dependency/type thay vì tự triển khai lại.
 import { compactText } from '../utils/text';
+import { createDohFallbackHttpsAgent } from '../utils/doh-dns';
 // Nạp { NewsCrawler } từ `./crawler.types` để dùng đúng dependency/type thay vì tự triển khai lại.
 import type { NewsCrawler } from './crawler.types';
 
@@ -37,6 +38,7 @@ const ALLOWED_FEED_MEDIA_TYPES = new Set([
 ]);
 const ALLOWED_FEED_CHARSETS = new Set(['utf-8', 'utf8', 'us-ascii', 'ascii']);
 const RSS_ACCEPT = 'application/rss+xml, application/xml;q=0.9, */*;q=0.8';
+const HTML_ACCEPT = 'text/html, application/xhtml+xml;q=0.9, */*;q=0.8';
 
 function createDefaultFeedHttpClient(): FeedHttpClientLike {
   return axios.create({
@@ -59,6 +61,15 @@ function createDefaultFeedHttpClient(): FeedHttpClientLike {
  * - `src/crawlers/rss.crawler.ts`
  */
 // Mở khai báo `interface RssItemLike` để compiler kiểm tra contract cho mọi consumer.
+interface RssMediaLike {
+  $?: {
+    url?: string;
+    medium?: string;
+    type?: string;
+    width?: string | number;
+  };
+}
+
 interface RssItemLike {
   // Gán field `title?` từ `string;` để object khớp contract.
   title?: string;
@@ -80,17 +91,8 @@ interface RssItemLike {
     type?: string;
   };
   // Gán field `mediaContent?` từ `{` để object khớp contract.
-  mediaContent?: {
-    // Gán field `$?` từ `{` để object khớp contract.
-    $?: {
-      // Gán field `url?` từ `string;` để object khớp contract.
-      url?: string;
-      // Gán field `medium?` từ `string;` để object khớp contract.
-      medium?: string;
-      // Mở khai báo `type?: string;` để compiler kiểm tra contract cho mọi consumer.
-      type?: string;
-    };
-  }[];
+  mediaContent?: RssMediaLike[];
+  mediaThumbnail?: RssMediaLike[];
 }
 
 /**
@@ -106,7 +108,10 @@ interface RssParserLike {
 }
 
 interface FeedHttpClientLike {
-  get(url: string): Promise<{
+  get(url: string, options?: {
+    httpsAgent?: unknown;
+    headers?: Readonly<Record<string, string>>;
+  }): Promise<{
     data: string;
     headers: Readonly<Record<string, string | undefined>>;
   }>;
@@ -134,6 +139,12 @@ interface HttpClientLike {
 export class RssCrawler implements NewsCrawler<RssSourceConfig> {
   constructor(
     private readonly parser: RssParserLike = new Parser({
+      customFields: {
+        item: [
+          ['media:content', 'mediaContent', { keepArray: true }],
+          ['media:thumbnail', 'mediaThumbnail', { keepArray: true }],
+        ],
+      },
       // Gán field `headers` từ `{` để object khớp contract.
       headers: {
         // Gán field `User-Agent` từ `env.USER_AGENT,` để object khớp contract.
@@ -161,6 +172,8 @@ export class RssCrawler implements NewsCrawler<RssSourceConfig> {
       httpsAgent: redditHttpsAgent,
     }),
     private readonly feedHttp: FeedHttpClientLike = createDefaultFeedHttpClient(),
+    private readonly createDohFallbackAgent: (hostname: string) => unknown =
+      createDohFallbackHttpsAgent,
   ) {}
 
   /**
@@ -173,7 +186,7 @@ export class RssCrawler implements NewsCrawler<RssSourceConfig> {
   // Mở method `crawl` để tải dữ liệu nguồn và chuẩn hóa thành Article[].
   async crawl(source: RssSourceConfig): Promise<Article[]> {
     const feed = source.boundedFeedFetch
-      ? await this.fetchBoundedFeed(source.feedUrl)
+      ? await this.fetchBoundedFeed(source)
       : await this.parser.parseURL(source.feedUrl);
     const items =
       typeof source.maxItems === 'number' ? feed.items.slice(0, source.maxItems) : feed.items;
@@ -212,12 +225,27 @@ export class RssCrawler implements NewsCrawler<RssSourceConfig> {
       return articles.map(({ article }) => article);
     }
 
-    return Promise.all(articles.map(({ article, item }) => this.withArticlePageImage(article, item)));
+    return Promise.all(
+      articles.map(({ article, item }) => this.withArticlePageImage(article, item, source)),
+    );
   }
 
-  private async fetchBoundedFeed(feedUrl: string): Promise<{ items: RssItemLike[] }> {
+  private async fetchBoundedFeed(source: RssSourceConfig): Promise<{ items: RssItemLike[] }> {
+    const { feedUrl } = source;
     assertPublicFeedUrl(feedUrl);
-    const response = await this.feedHttp.get(feedUrl);
+    const requestOptions: {
+      httpsAgent?: unknown;
+      headers?: Readonly<Record<string, string>>;
+    } = {};
+    if (source.dnsOverHttpsFallback) {
+      requestOptions.httpsAgent = this.createDohFallbackAgent(new URL(feedUrl).hostname);
+    }
+    if (source.feedUserAgent) {
+      requestOptions.headers = { 'User-Agent': source.feedUserAgent };
+    }
+    const response = Object.keys(requestOptions).length > 0
+      ? await this.feedHttp.get(feedUrl, requestOptions)
+      : await this.feedHttp.get(feedUrl);
     assertFeedContentType(response.headers);
     if (typeof response.data !== 'string') {
       throw new Error('rss-feed');
@@ -235,7 +263,11 @@ export class RssCrawler implements NewsCrawler<RssSourceConfig> {
    * - `src/crawlers/rss.crawler.ts`
    */
   // Mở method `withArticlePageImage` để thực hiện trách nhiệm `with article page image` của module.
-  private async withArticlePageImage(article: Article, item: RssItemLike): Promise<Article> {
+  private async withArticlePageImage(
+    article: Article,
+    item: RssItemLike,
+    source: RssSourceConfig,
+  ): Promise<Article> {
     // Nếu `article.imageUrl` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
     if (article.imageUrl) {
       // Trả `article;` cho caller và kết thúc nhánh hiện tại.
@@ -245,10 +277,10 @@ export class RssCrawler implements NewsCrawler<RssSourceConfig> {
     // Tính `imageLookupUrl` từ `getImageLookupUrl(article, item);` và giữ bất biến trong phạm vi hiện tại.
     const imageLookupUrl = getImageLookupUrl(article, item);
     // Tính `imageUrl` từ `await this.fetchArticleImageUrl(imageLookupUrl);` và giữ bất biến trong phạm vi hiện tại.
-    const imageUrl = await this.fetchArticleImageUrl(imageLookupUrl);
+    const imageUrl = await this.fetchArticleImageUrl(imageLookupUrl, source);
 
-    // Trả `imageUrl ? { ...article, imageUrl } : article;` cho caller và kết thúc nhánh hiện tại.
-    return imageUrl ? { ...article, imageUrl } : article;
+    const resolvedImageUrl = imageUrl ?? normalizeImageUrl(source.fallbackImageUrl);
+    return resolvedImageUrl ? { ...article, imageUrl: resolvedImageUrl } : article;
   }
 
   /**
@@ -258,11 +290,15 @@ export class RssCrawler implements NewsCrawler<RssSourceConfig> {
    * - `src/crawlers/rss.crawler.ts`
    */
   // Mở method `fetchArticleImageUrl` để lấy dữ liệu từ dependency bên ngoài.
-  private async fetchArticleImageUrl(articleUrl: string): Promise<string | undefined> {
+  private async fetchArticleImageUrl(
+    articleUrl: string,
+    source: RssSourceConfig,
+  ): Promise<string | undefined> {
     // Cô lập thao tác có thể lỗi để module còn cơ hội log và trả fallback an toàn.
     try {
-      // Tính `response` từ `await this.http.get(articleUrl);` và giữ bất biến trong phạm vi hiện tại.
-      const response = await this.http.get(articleUrl);
+      const response = source.boundedFeedFetch
+        ? await this.fetchBoundedArticlePage(articleUrl, source)
+        : await this.http.get(articleUrl);
       // Trả `extractImageUrlFromHtml(response.data, articleUrl);` cho caller và kết thúc nhánh hiện tại.
       return extractImageUrlFromHtml(response.data, articleUrl);
     // Bắt lỗi từ khối try, không để một dependency ngoài làm hỏng toàn bộ đợt xử lý.
@@ -270,6 +306,33 @@ export class RssCrawler implements NewsCrawler<RssSourceConfig> {
       // Trả `undefined;` cho caller và kết thúc nhánh hiện tại.
       return undefined;
     }
+  }
+
+  private async fetchBoundedArticlePage(
+    articleUrl: string,
+    source: RssSourceConfig,
+  ): Promise<{ data: string }> {
+    assertPublicFeedUrl(articleUrl);
+    const requestOptions: {
+      httpsAgent?: unknown;
+      headers: Readonly<Record<string, string>>;
+    } = {
+      headers: {
+        Accept: HTML_ACCEPT,
+        ...(source.feedUserAgent ? { 'User-Agent': source.feedUserAgent } : {}),
+      },
+    };
+    if (source.dnsOverHttpsFallback) {
+      requestOptions.httpsAgent = this.createDohFallbackAgent(new URL(articleUrl).hostname);
+    }
+    const response = await this.feedHttp.get(articleUrl, requestOptions);
+    if (
+      typeof response.data !== 'string'
+      || Buffer.byteLength(response.data, 'utf8') > MAX_FEED_BODY_BYTES
+    ) {
+      throw new Error('rss-article-page');
+    }
+    return { data: response.data };
   }
 }
 
@@ -284,15 +347,44 @@ function extractImageUrl(item: RssItemLike): string | undefined {
   // Tính `candidates` từ `[` và giữ bất biến trong phạm vi hiện tại.
   const candidates = [
     item.enclosure?.type?.startsWith('image/') ? item.enclosure.url : undefined,
-    // Tạo callback nhận `...(item.mediaContent ?? []).map((media)` để xử lý từng kết quả trong collection/promise.
-    ...(item.mediaContent ?? []).map((media) =>
-      media.$?.medium === 'image' || media.$?.type?.startsWith('image/') ? media.$.url : undefined,
-    ),
+    extractWidestMediaImage(item.mediaContent),
+    extractWidestMediaImage(item.mediaThumbnail, true),
     extractFirstImageFromHtml(item.content),
   ];
 
   // Trả `candidates.map((candidate) => normalizeImageUrl(candidate)).find(Boolean);` cho caller và kết thúc nhánh hiện tại.
   return candidates.map((candidate) => normalizeImageUrl(candidate)).find(Boolean);
+}
+
+function extractWidestMediaImage(
+  entries: RssMediaLike[] | undefined,
+  assumeImage = false,
+): string | undefined {
+  let widest: { url: string; width: number } | undefined;
+
+  for (const entry of entries ?? []) {
+    const url = normalizeImageUrl(entry.$?.url);
+    if (!url || (!assumeImage && !isMediaImage(entry, url))) continue;
+
+    const parsedWidth = Number(entry.$?.width);
+    const width = Number.isFinite(parsedWidth) && parsedWidth >= 0 ? parsedWidth : 0;
+    if (!widest || width > widest.width) {
+      widest = { url, width };
+    }
+  }
+
+  return widest?.url;
+}
+
+function isMediaImage(entry: RssMediaLike, url: string): boolean {
+  if (entry.$?.medium?.toLowerCase() === 'image') return true;
+  if (entry.$?.type?.toLowerCase().startsWith('image/')) return true;
+
+  try {
+    return /\.(?:avif|gif|jpe?g|png|webp)$/i.test(new URL(url).pathname);
+  } catch {
+    return false;
+  }
 }
 
 /**

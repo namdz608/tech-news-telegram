@@ -1,5 +1,6 @@
 import { env } from '../config/env';
 import type {
+  ClassifiedPoliticsItem,
   PoliticsCandidate,
   PoliticsCategory,
   PoliticsEvent,
@@ -16,6 +17,12 @@ export interface PoliticsSelectionOptions {
   maxArticles: number;
   maxGoldNews: number;
   maxPerSource: number;
+  sourceReservation?: {
+    sourceId: string;
+    articleCount: number;
+    replaySeen: boolean;
+    fallbackCategory?: PoliticsCategory;
+  };
 }
 
 const REASON_ORDER = [
@@ -150,7 +157,20 @@ const VERIFICATION_POINTS: Record<VerificationState, number> = {
 
 function validateOptions(options: PoliticsSelectionOptions): void {
   const { maxArticles, maxGoldNews, maxPerSource } = options;
+  const reservation = options.sourceReservation;
   const goldCap = Number.isInteger(maxArticles) ? Math.min(3, maxArticles) : Number.NaN;
+  const validReservation = reservation === undefined || (
+    reservation.sourceId.trim().length > 0
+    && Number.isInteger(reservation.articleCount)
+    && reservation.articleCount >= 1
+    && reservation.articleCount <= maxArticles
+    && typeof reservation.replaySeen === 'boolean'
+    && (
+      reservation.fallbackCategory === undefined
+      || ['vietnam-politics', 'international-politics', 'leader-controversy', 'gold-market']
+        .includes(reservation.fallbackCategory)
+    )
+  );
   const valid =
     Number.isInteger(maxArticles) &&
     Number.isInteger(maxGoldNews) &&
@@ -160,7 +180,8 @@ function validateOptions(options: PoliticsSelectionOptions): void {
     maxGoldNews >= 0 &&
     maxGoldNews <= goldCap &&
     maxPerSource >= 1 &&
-    maxPerSource <= 3;
+    maxPerSource <= 3 &&
+    validReservation;
   if (!valid) {
     throw new RangeError('invalid-politics-selection-options');
   }
@@ -342,6 +363,11 @@ function compareCandidates(left: PoliticsCandidate, right: PoliticsCandidate): n
   return left.claimOriginUrl.localeCompare(right.claimOriginUrl);
 }
 
+function compareNewestFirst(left: PoliticsCandidate, right: PoliticsCandidate): number {
+  const publishedDifference = Date.parse(right.publishedAt) - Date.parse(left.publishedAt);
+  return publishedDifference !== 0 ? publishedDifference : compareCandidates(left, right);
+}
+
 function goldCount(selected: readonly PoliticsCandidate[]): number {
   return selected.filter((candidate) => candidate.primaryCategory === 'gold-market').length;
 }
@@ -368,6 +394,16 @@ export class PoliticsSelectionService {
       maxArticles: options.maxArticles,
       maxGoldNews: options.maxGoldNews,
       maxPerSource: options.maxPerSource,
+      ...(options.sourceReservation
+        ? {
+            sourceReservation: Object.freeze({
+              sourceId: options.sourceReservation.sourceId,
+              articleCount: options.sourceReservation.articleCount,
+              replaySeen: options.sourceReservation.replaySeen,
+              fallbackCategory: options.sourceReservation.fallbackCategory,
+            }),
+          }
+        : {}),
     };
     validateOptions(copied);
     this.options = Object.freeze(copied);
@@ -375,12 +411,19 @@ export class PoliticsSelectionService {
 
   select(items: readonly PoliticsSourceItem[], seenUrls: ReadonlySet<string>): PoliticsSelectionResult {
     const now = this.now();
+    const reservation = this.options.sourceReservation;
     const classified = items.flatMap((item) => {
-      const result = this.classifier.classify(item);
+      const result = this.classifier.classify(item)
+        ?? (
+          reservation?.fallbackCategory && item.sourceId === reservation.sourceId
+            ? this.classifier.classify(item, reservation.fallbackCategory)
+            : undefined
+        );
       return result ? [result] : [];
     });
     const events = this.deduper.cluster(classified);
     const seen = canonicalizeSeen(seenUrls);
+    const reservedCandidates = this.reserveSourceCandidates(classified, seen, now);
 
     const skippedFingerprints = new Set<string>();
     const seenEvents: PoliticsEvent[] = [];
@@ -401,16 +444,42 @@ export class PoliticsSelectionService {
     const seenCandidates = seenEvents
       .map((event) => this.materialize(event, now))
       .sort(compareCandidates);
-    let selected = this.pick(unseenCandidates);
+    let selected = this.pick(unseenCandidates, reservedCandidates);
     const replay = this.replayAnchors(selected, seenCandidates);
     if (replay.length > 0) {
-      selected = this.pick([...unseenCandidates, ...replay].sort(compareCandidates));
+      selected = this.pick(
+        [...unseenCandidates, ...replay].sort(compareCandidates),
+        reservedCandidates,
+      );
     }
     return {
       selected,
       eligibleCount: unseenCandidates.length,
       skippedSeenCount,
     };
+  }
+
+  private reserveSourceCandidates(
+    classified: readonly ClassifiedPoliticsItem[],
+    seen: ReadonlySet<string>,
+    now: Date,
+  ): PoliticsCandidate[] {
+    const reservation = this.options.sourceReservation;
+    if (!reservation) return [];
+
+    const uniqueByUrl = new Map<string, ClassifiedPoliticsItem>();
+    for (const candidate of classified) {
+      if (candidate.sourceId === reservation.sourceId) {
+        uniqueByUrl.set(canonicalPoliticsUrl(candidate.url), candidate);
+      }
+    }
+
+    return [...uniqueByUrl.values()]
+      .flatMap((candidate) => this.deduper.cluster([candidate]))
+      .filter((event) => reservation.replaySeen || !eventIsSeen(event, seen))
+      .map((event) => this.materialize(event, now))
+      .sort(compareNewestFirst)
+      .slice(0, reservation.articleCount);
   }
 
   private replayAnchors(
@@ -497,16 +566,22 @@ export class PoliticsSelectionService {
     if (candidate.primaryCategory === 'gold-market' && goldCount(selected) >= this.options.maxGoldNews) {
       return false;
     }
-    if (sourceCount(selected, candidate.sourceQuotaKey) >= this.options.maxPerSource) {
+    const sourceCap = candidate.sourceId === this.options.sourceReservation?.sourceId
+      ? this.options.sourceReservation.articleCount
+      : this.options.maxPerSource;
+    if (sourceCount(selected, candidate.sourceQuotaKey) >= sourceCap) {
       return false;
     }
     return true;
   }
 
-  private pick(eligible: readonly PoliticsCandidate[]): PoliticsCandidate[] {
-    const selected: PoliticsCandidate[] = [];
-    const pickedOrigins = new Set<string>();
-    const pickedFingerprints = new Set<string>();
+  private pick(
+    eligible: readonly PoliticsCandidate[],
+    reserved: readonly PoliticsCandidate[] = [],
+  ): PoliticsCandidate[] {
+    const selected = [...reserved].slice(0, this.options.maxArticles);
+    const pickedOrigins = new Set(selected.map((candidate) => candidate.claimOriginUrl));
+    const pickedFingerprints = new Set(selected.map((candidate) => candidate.eventFingerprint));
 
     const take = (candidate: PoliticsCandidate | undefined): void => {
       if (
@@ -521,15 +596,19 @@ export class PoliticsSelectionService {
       pickedFingerprints.add(candidate.eventFingerprint);
     };
 
-    take(eligible.find((candidate) => isVnAnchor(candidate) && this.canTake(candidate, selected)));
-    take(
-      eligible.find(
-        (candidate) =>
-          isIntAnchor(candidate) &&
-          !pickedFingerprints.has(candidate.eventFingerprint) &&
-          this.canTake(candidate, selected),
-      ),
-    );
+    if (!selected.some(isVnAnchor)) {
+      take(eligible.find((candidate) => isVnAnchor(candidate) && this.canTake(candidate, selected)));
+    }
+    if (!findDistinctAnchorPair(selected)) {
+      take(
+        eligible.find(
+          (candidate) =>
+            isIntAnchor(candidate) &&
+            !pickedFingerprints.has(candidate.eventFingerprint) &&
+            this.canTake(candidate, selected),
+        ),
+      );
+    }
 
     for (const candidate of eligible) {
       take(candidate);

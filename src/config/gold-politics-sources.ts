@@ -154,6 +154,20 @@ export const goldPoliticsRssSources: RssSourceConfig[] = [
     homepageUrl: 'https://www.aljazeera.com',
     feedUrl: 'https://www.aljazeera.com/xml/rss/all.xml',
     includeUnmatched: true,
+    enrichArticlePage: true,
+  },
+  {
+    id: 'thoibao-de-chinh-tri',
+    name: 'Thoibao.de Chính trị',
+    kind: 'rss',
+    enabled: true,
+    homepageUrl: 'https://www.thoibao.de/blog/category/chinh-tri',
+    feedUrl: 'https://www.thoibao.de/blog/category/chinh-tri/feed',
+    includeUnmatched: true,
+    dnsOverHttpsFallback: true,
+    feedUserAgent: 'Mozilla/5.0 (compatible; TechNewsTelegramBot/1.0)',
+    enrichArticlePage: true,
+    fallbackImageUrl: 'https://www.thoibao.de/wp-content/uploads/2018/05/logotb3.jpg',
   },
 ];
 

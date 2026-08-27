@@ -219,6 +219,62 @@ describe('TelegramService', () => {
     });
   });
 
+  it('uses a DNS-over-HTTPS agent when downloading a Thoibao.de image', async () => {
+    const sendMessage = vi.fn().mockResolvedValue({});
+    const sendPhoto = vi.fn().mockResolvedValue({});
+    const http = {
+      get: vi.fn().mockResolvedValue({ data: imageBuffer }),
+    };
+    const httpsAgent = { kind: 'doh-fallback-agent' };
+    const createDohFallbackAgent = vi.fn().mockReturnValue(httpsAgent);
+    const service = new TelegramService(
+      { telegram: { sendMessage, sendPhoto } },
+      'chat-id',
+      3900,
+      '',
+      http,
+      createDohFallbackAgent,
+    );
+    const imageUrl = 'https://www.thoibao.de/wp-content/uploads/2026/08/politics.jpg';
+
+    await service.sendDigest('hello', 'https://www.thoibao.de/blog/politics', imageUrl);
+
+    expect(createDohFallbackAgent).toHaveBeenCalledOnce();
+    expect(createDohFallbackAgent).toHaveBeenCalledWith('www.thoibao.de');
+    expect(http.get).toHaveBeenCalledWith(imageUrl, {
+      responseType: 'arraybuffer',
+      httpsAgent,
+    });
+    expect(sendPhoto).toHaveBeenCalledOnce();
+  });
+
+  it('uses a browser user agent when downloading a VnExpress CDN image', async () => {
+    const sendMessage = vi.fn().mockResolvedValue({});
+    const sendPhoto = vi.fn().mockResolvedValue({});
+    const http = {
+      get: vi.fn().mockResolvedValue({ data: imageBuffer }),
+    };
+    const service = new TelegramService(
+      { telegram: { sendMessage, sendPhoto } },
+      'chat-id',
+      3900,
+      '',
+      http,
+    );
+    const imageUrl =
+      'https://i1-vnexpress.vnecdn.net/2026/08/27/Donetsk.png?w=1200&h=0&q=100';
+
+    await service.sendDigest('hello', 'https://vnexpress.net/article.html', imageUrl);
+
+    expect(http.get).toHaveBeenCalledWith(imageUrl, {
+      responseType: 'arraybuffer',
+      headers: {
+        'User-Agent': expect.stringContaining('Mozilla/5.0'),
+      },
+    });
+    expect(sendPhoto).toHaveBeenCalledOnce();
+  });
+
   it('falls back to text when sending a photo fails', async () => {
     const sendMessage = vi.fn().mockResolvedValue({});
     const sendPhoto = vi.fn().mockRejectedValue(new Error('photo rejected'));
