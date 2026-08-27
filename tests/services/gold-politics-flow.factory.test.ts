@@ -279,7 +279,7 @@ describe('createGoldPoliticsFlowService', () => {
     expect(GoldPriceHistoryStore).toHaveBeenCalledWith(envState.GOLD_PRICE_HISTORY_PATH);
     expect(GoldPriceService.mock.calls[0]?.[1]).toBe(GoldPriceHistoryStore.mock.results[0]?.value);
 
-    expect(PoliticsRssAdapter).toHaveBeenCalledTimes(17);
+    expect(PoliticsRssAdapter).toHaveBeenCalledTimes(goldPoliticsRssSources.length);
     expect(PoliticsRssAdapter.mock.calls.map((call) => call[0])).toEqual(goldPoliticsRssSources);
     expect(PoliticsXAdapter).toHaveBeenCalledOnce();
     expect(RedditSearchAdapter).toHaveBeenCalledOnce();
@@ -309,6 +309,12 @@ describe('createGoldPoliticsFlowService', () => {
       maxArticles: 10,
       maxGoldNews: 3,
       maxPerSource: 3,
+      sourceReservation: {
+        sourceId: 'thoibao-de-chinh-tri',
+        articleCount: 5,
+        replaySeen: true,
+        fallbackCategory: 'vietnam-politics',
+      },
     });
     expect(GoldPoliticsMessageService).toHaveBeenCalledWith(PoliticsEditorialService.mock.results[0]?.value);
     expect(CodexArticleEditorialGenerator).toHaveBeenCalledOnce();

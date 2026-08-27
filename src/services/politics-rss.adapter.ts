@@ -11,13 +11,15 @@ import type { PoliticsSourceAdapter, PoliticsSourceAdapterResult } from './polit
 const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 const ALLEGATION_OR_PROCEEDING =
   /cáo buộc|truy tố|khởi tố|allegation|alleged|indictment|proceeding|prosecution|lawsuit/i;
+const SUMMARY_ALLEGATION =
+  /cáo buộc|(?<!un)\b(?:alleged|allegedly|accused)\b|\ballegation(?!-free)\b/iu;
 
 export function politicsRssSourceConfig(source: RssSourceConfig): RssSourceConfig {
   return {
     ...source,
     includeUnmatched: true,
     boundedFeedFetch: true,
-    enrichArticlePage: false,
+    enrichArticlePage: source.enrichArticlePage ?? false,
     maxItems: 20,
   };
 }
@@ -65,7 +67,6 @@ function mapRssArticle(article: Article, discoveredAt: string): PoliticsSourceIt
 
   const summary = compactText(article.summary ?? '');
   const title = compactText(article.title);
-  const searchable = `${title} ${summary}`;
 
   return {
     id: url,
@@ -86,7 +87,10 @@ function mapRssArticle(article: Article, discoveredAt: string): PoliticsSourceIt
     sourceQuotaKey: publisherKey,
     sourceTextStatus: summary ? 'full' : 'incomplete',
     evidenceKind: 'identified-report',
-    evidentiaryEffect: ALLEGATION_OR_PROCEEDING.test(searchable) ? 'records-claim' : 'mentions',
+    evidentiaryEffect:
+      ALLEGATION_OR_PROCEEDING.test(title) || SUMMARY_ALLEGATION.test(summary)
+        ? 'records-claim'
+        : 'mentions',
     evidenceOriginKey: publisherKey,
     originAttribution: {
       url,

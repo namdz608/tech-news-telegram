@@ -594,7 +594,10 @@ function isOutOfScope(folded: string, synonymized: string, category: PoliticsCat
 }
 
 export class PoliticsClassificationService {
-  classify(item: PoliticsSourceItem): ClassifiedPoliticsItem | undefined {
+  classify(
+    item: PoliticsSourceItem,
+    fallbackCategory?: PoliticsCategory,
+  ): ClassifiedPoliticsItem | undefined {
     const title = compactWhitespace(item.title.normalize('NFKC'));
     const summary = item.summary === undefined ? undefined : compactWhitespace(item.summary.normalize('NFKC'));
     const foldedTitle = foldText(title);
@@ -604,7 +607,7 @@ export class PoliticsClassificationService {
     const summarySyn = applySynonyms(foldedSummary);
     const combinedSyn = compactWhitespace(`${titleSyn} ${summarySyn}`);
 
-    const category = decideCategory(combinedSyn, foldedCombined);
+    const category = decideCategory(combinedSyn, foldedCombined) ?? fallbackCategory;
     if (isOutOfScope(foldedCombined, combinedSyn, category) || !category) {
       return undefined;
     }
@@ -613,7 +616,7 @@ export class PoliticsClassificationService {
     const claimEntities = extractEntities(combinedSyn);
     const semanticClaimKey = buildSemanticClaimKey(titleSyn, summarySyn, claimEntities);
     const claimStance = detectStance(foldedCombined);
-    const claimModality = detectModality(combinedSyn, foldedCombined);
+    const claimModality = detectModality(titleSyn, foldedTitle);
     const claimText = title;
 
     return {

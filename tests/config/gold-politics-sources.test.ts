@@ -28,6 +28,7 @@ const expectedFeedUrls = [
   'https://www.theguardian.com/world/rss',
   'https://www.theguardian.com/politics/rss',
   'https://www.aljazeera.com/xml/rss/all.xml',
+  'https://www.thoibao.de/blog/category/chinh-tri/feed',
 ] as const;
 
 describe('gold-politics source catalogs', () => {
@@ -44,6 +45,29 @@ describe('gold-politics source catalogs', () => {
 
   it('allows unmatched articles from every RSS source', () => {
     expect(goldPoliticsRssSources.every((source) => source.includeUnmatched === true)).toBe(true);
+  });
+
+  it('uses the dedicated Thoibao.de politics feed with a stable source identity', () => {
+    expect(goldPoliticsRssSources.find((source) => source.id === 'thoibao-de-chinh-tri'))
+      .toMatchObject({
+        name: 'Thoibao.de Chính trị',
+        homepageUrl: 'https://www.thoibao.de/blog/category/chinh-tri',
+        feedUrl: 'https://www.thoibao.de/blog/category/chinh-tri/feed',
+        enabled: true,
+        includeUnmatched: true,
+        dnsOverHttpsFallback: true,
+        feedUserAgent: 'Mozilla/5.0 (compatible; TechNewsTelegramBot/1.0)',
+        enrichArticlePage: true,
+        fallbackImageUrl: 'https://www.thoibao.de/wp-content/uploads/2018/05/logotb3.jpg',
+      });
+  });
+
+  it('enriches Al Jazeera articles from page metadata when its RSS has no images', () => {
+    expect(goldPoliticsRssSources.find((source) => source.id === 'aljazeera-all'))
+      .toMatchObject({
+        feedUrl: 'https://www.aljazeera.com/xml/rss/all.xml',
+        enrichArticlePage: true,
+      });
   });
 
   it('defines eight stable bilingual discovery queries in the approved order', () => {

@@ -10,6 +10,7 @@ import axios from 'axios';
 import { Telegraf } from 'telegraf';
 // Nạp { env } từ `../config/env` để dùng đúng dependency/type thay vì tự triển khai lại.
 import { env } from '../config/env';
+import { createDohFallbackHttpsAgent } from '../utils/doh-dns';
 // Nạp { redditHttpsAgent } từ `../utils/reddit-dns` để dùng đúng dependency/type thay vì tự triển khai lại.
 import { redditHttpsAgent } from '../utils/reddit-dns';
 export interface TelegramMessage {
@@ -114,8 +115,16 @@ interface TelegramClientLike {
  */
 // Mở khai báo `interface HttpClientLike` để compiler kiểm tra contract cho mọi consumer.
 interface HttpClientLike {
-  get(url: string, options: { responseType: 'arraybuffer' }): Promise<{ data: ArrayBuffer | Buffer }>;
+  get(url: string, options: {
+    responseType: 'arraybuffer';
+    headers?: Record<string, string>;
+    httpsAgent?: unknown;
+  }): Promise<{ data: ArrayBuffer | Buffer }>;
 }
+
+const VNEXPRESS_IMAGE_USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+  '(KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36';
 
 /**
  * Class `TelegramService` sở hữu vòng đời dependency và điều phối các bước telegram service.
@@ -145,6 +154,8 @@ export class TelegramService {
       // Gán field `httpsAgent` từ `redditHttpsAgent,` để object khớp contract.
       httpsAgent: redditHttpsAgent,
     }),
+    private readonly createDohFallbackAgent: (hostname: string) => unknown =
+      createDohFallbackHttpsAgent,
   ) {
     // Cập nhật `this.effectSupported` bằng `Boolean(messageEffectId);` cho bước kế tiếp.
     this.effectSupported = Boolean(messageEffectId);
@@ -344,8 +355,16 @@ export class TelegramService {
    */
   // Mở method `downloadPhoto` để lấy dữ liệu từ dependency bên ngoài.
   private async downloadPhoto(imageUrl: string): Promise<TelegramPhotoUpload> {
-    // Tính `response` từ `await this.http.get(imageUrl, { responseType: 'arraybuffer' });` và giữ bất biến trong phạm vi hiện tại.
-    const response = await this.http.get(imageUrl, { responseType: 'arraybuffer' });
+    const hostname = new URL(imageUrl).hostname;
+    const response = await this.http.get(imageUrl, {
+      responseType: 'arraybuffer',
+      ...(isVnExpressImageHostname(hostname)
+        ? { headers: { 'User-Agent': VNEXPRESS_IMAGE_USER_AGENT } }
+        : {}),
+      ...(isThoibaoHostname(hostname)
+        ? { httpsAgent: this.createDohFallbackAgent(hostname) }
+        : {}),
+    });
     // Tính `data` từ `Buffer.isBuffer(response.data) ? response.data : Buffer.from(response.data);` và giữ bất biến trong phạm vi hiện tại.
     const data = Buffer.isBuffer(response.data) ? response.data : Buffer.from(response.data);
 
@@ -357,6 +376,16 @@ export class TelegramService {
       filename: getImageFilename(imageUrl),
     };
   }
+}
+
+function isThoibaoHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase().replace(/\.$/, '');
+  return normalized === 'thoibao.de' || normalized.endsWith('.thoibao.de');
+}
+
+function isVnExpressImageHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase().replace(/\.$/, '');
+  return normalized === 'vnecdn.net' || normalized.endsWith('.vnecdn.net');
 }
 
 export interface TelegramServiceFactoryOptions {

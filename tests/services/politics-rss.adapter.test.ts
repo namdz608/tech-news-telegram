@@ -36,7 +36,7 @@ function createCrawler(articles: Article[] | Error) {
 }
 
 describe('PoliticsRssAdapter', () => {
-  it('builds every approved feed with unmatched items, bounded fetch, no page enrichment, and maxItems 20', async () => {
+  it('builds every approved feed with bounded fetch and preserves per-source page enrichment', async () => {
     expect(goldPoliticsRssSources.length).toBeGreaterThan(0);
 
     for (const source of goldPoliticsRssSources) {
@@ -52,7 +52,7 @@ describe('PoliticsRssAdapter', () => {
         ...source,
         includeUnmatched: true,
         boundedFeedFetch: true,
-        enrichArticlePage: false,
+        enrichArticlePage: source.enrichArticlePage ?? false,
         maxItems: 20,
       } satisfies RssSourceConfig);
       expect(result).toEqual({ items: [], successfulSourceCount: 1, failedSources: [] });
@@ -174,6 +174,62 @@ describe('PoliticsRssAdapter', () => {
     expect(result.items[0]?.evidentiaryEffect).toBe('records-claim');
     expect(result.items[0]?.evidenceKind).toBe('identified-report');
     expect(result.items[0]?.evidentiaryEffect).not.toBe('establishes');
+  });
+
+  it('does not let an unrelated proceeding in a long summary change the headline effect', async () => {
+    const crawler = createCrawler([
+      rssArticle({
+        title:
+          'Supreme court threatens midterms mail-in voting as it backs Trump plan | First Thing',
+        summary:
+          'The court sided with Donald Trump on mail-in voting. A later section says the justice department may prioritise prosecutions of election officials.',
+      }),
+    ]);
+
+    const result = await new PoliticsRssAdapter(
+      goldPoliticsRssSources[0]!,
+      crawler,
+      () => NOW,
+    ).collect();
+
+    expect(result.items[0]?.evidentiaryEffect).toBe('mentions');
+  });
+
+  it.each([
+    'Investigators alleged that the minister accepted bribes.',
+    'Investigators say the minister allegedly accepted bribes.',
+  ])('keeps a directly alleged claim in the summary as records-claim: %s', async (summary) => {
+    const crawler = createCrawler([
+      rssArticle({
+        title: 'Minister faces new scrutiny',
+        summary,
+      }),
+    ]);
+
+    const result = await new PoliticsRssAdapter(
+      goldPoliticsRssSources[0]!,
+      crawler,
+      () => NOW,
+    ).collect();
+
+    expect(result.items[0]?.evidentiaryEffect).toBe('records-claim');
+  });
+
+  it.each([
+    'The minister was unaccused after the inquiry.',
+    'The report was allegation-free.',
+  ])('does not treat a negated allegation token as a records-claim: %s', async (summary) => {
+    const crawler = createCrawler([
+      rssArticle({ title: 'Minister faces new scrutiny', summary }),
+    ]);
+
+    const result = await new PoliticsRssAdapter(
+      goldPoliticsRssSources[0]!,
+      crawler,
+      () => NOW,
+    ).collect();
+
+    expect(result.items[0]?.evidentiaryEffect).toBe('mentions');
   });
 
   it('drops items without a valid publication time and incomplete publisher URLs', async () => {

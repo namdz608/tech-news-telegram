@@ -30,8 +30,16 @@ const PROPER_NAME = /\b[A-Z][a-z]+(?:\s+[A-Z][a-zA-Z]+)+\b/g;
 const ESTABLISHED_FINDING =
   /sự thật đã được xác lập|đã được xác lập|là sự thật|kết luận đã được xác lập|không còn là cáo buộc|established finding|established fact/iu;
 const COMPLETED_ACT = /đã (?!được đưa tin|được kiểm chứng)\p{L}+|committed|carried out/iu;
+const COMPLETED_ACT_GLOBAL = /đã (?!được đưa tin|được kiểm chứng)\p{L}+|committed|carried out/giu;
 const ALLEGATION_MODALITY =
   /bị cáo buộc|cáo buộc|allegedly|\balleged\b|đang được đưa tin/iu;
+const ANONYMOUS_REPORTING_CLAUSE =
+  /^(?:(?:một\s+)?tài khoản (?:chưa|không) xác định (?:nói|cho rằng)\s+|theo (?:một\s+)?tài khoản (?:chưa|không) xác định,\s*)([^.!?;:…—–]+)\.?$/iu;
+const ANONYMOUS_ATTRIBUTION =
+  /^(?:(?:một\s+)?tài khoản (?:chưa|không) xác định (?:nói|cho rằng)\s+|theo (?:một\s+)?tài khoản (?:chưa|không) xác định,)/iu;
+const REPORTING_FRAME = /cho rằng|\bnói\b|ghi nhận|(?:^|\s)theo\s/iu;
+const REPORTING_PIVOT_BEFORE_FACT =
+  /(?:^|[,\s])(?:và|còn|nhưng|sau đó|đồng thời|vì)\s+[^,.!?;:…—–]*$/iu;
 
 export function truncateUtf16(value: string, max: number): string {
   if (max <= 0) return '';
@@ -184,8 +192,35 @@ function claimantNames(candidate: PoliticsCandidate): string[] {
   ].filter(Boolean))];
 }
 
+function reportingBody(field: string, candidate: PoliticsCandidate): string | undefined {
+  if (actorLabel(candidate) === 'Tài khoản chưa xác định') {
+    const anonymous = ANONYMOUS_REPORTING_CLAUSE.exec(field);
+    if (anonymous?.[1]) return anonymous[1];
+  }
+  for (const name of claimantNames(candidate)) {
+    const quoted = escapeRegExp(name);
+    const match = new RegExp(
+      `^(?:(?:tài khoản\\s+${quoted}\\s+(?:nói|cho rằng|cáo buộc|ghi nhận)\\s+)|(?:theo\\s+(?:tài khoản\\s+)?${quoted},\\s*))([^.!?;:…—–]+)\\.?$`,
+      'iu',
+    ).exec(field);
+    if (match?.[1]) return match[1];
+  }
+  return undefined;
+}
+
+function hasSingleReportingClause(field: string, candidate: PoliticsCandidate): boolean {
+  return reportingBody(field, candidate) !== undefined;
+}
+
 function hasClaimantAttribution(field: string, candidate: PoliticsCandidate): boolean {
   const text = compactText(field);
+  if (
+    actorLabel(candidate) === 'Tài khoản chưa xác định'
+    && ANONYMOUS_ATTRIBUTION.test(text)
+  ) {
+    return true;
+  }
+  if (hasSingleReportingClause(text, candidate)) return true;
   return claimantNames(candidate).some((name) => {
     const quoted = escapeRegExp(name);
     return new RegExp(`tài khoản\\s+${quoted}\\b`, 'iu').test(text)
@@ -198,7 +233,35 @@ function hasClaimantAttribution(field: string, candidate: PoliticsCandidate): bo
 
 function hasAllegationModality(field: string, candidate: PoliticsCandidate): boolean {
   if (ALLEGATION_MODALITY.test(field)) return true;
-  return hasClaimantAttribution(field, candidate) && /cho rằng/iu.test(field);
+  return hasClaimantAttribution(field, candidate) && REPORTING_FRAME.test(field);
+}
+
+function hasSingleGovernedCompletedAct(
+  field: string,
+  candidate: PoliticsCandidate,
+): boolean {
+  const body = reportingBody(field, candidate);
+  if (!body) return false;
+  const completedActs = [...body.matchAll(COMPLETED_ACT_GLOBAL)];
+  if (completedActs.length !== 1 || completedActs[0]?.index === undefined) return false;
+  const beforeAct = body.slice(0, completedActs[0].index);
+  return !REPORTING_PIVOT_BEFORE_FACT.test(beforeAct)
+    && !REPORTING_FRAME.test(beforeAct)
+    && directlyGovernsClaimSubject(beforeAct, candidate);
+}
+
+function directlyGovernsClaimSubject(beforeAct: string, candidate: PoliticsCandidate): boolean {
+  const normalizedBefore = normalize(beforeAct);
+  let closestEnd = -1;
+  for (const entity of candidate.claimEntities) {
+    const normalizedEntity = normalize(entity);
+    if (!normalizedEntity) continue;
+    const index = normalizedBefore.lastIndexOf(normalizedEntity);
+    if (index >= 0) closestEnd = Math.max(closestEnd, index + normalizedEntity.length);
+  }
+  if (closestEnd < 0) return false;
+  const between = normalizedBefore.slice(closestEnd).trim();
+  return /^(?:bị cáo buộc|được cho là|allegedly|alleged)?$/iu.test(between);
 }
 
 function restatedAllegationAsFact(field: string, candidate: PoliticsCandidate): boolean {
@@ -206,18 +269,22 @@ function restatedAllegationAsFact(field: string, candidate: PoliticsCandidate): 
     return false;
   }
   if (!needsAllegationFrame(candidate)) return false;
-  if (ESTABLISHED_FINDING.test(field) || COMPLETED_ACT.test(field)) return true;
-  return /đã thực hiện/iu.test(field) && !hasAllegationModality(field, candidate);
+  if (ESTABLISHED_FINDING.test(field)) return true;
+  return COMPLETED_ACT.test(field) && !hasSingleGovernedCompletedAct(field, candidate);
 }
 
 function lostRecordsClaim(field: string, candidate: PoliticsCandidate): boolean {
   const effect = matchingAssertionEffect(candidate);
   if (effect !== 'records-claim' && candidate.evidentiaryEffect !== 'records-claim') return false;
   if (candidate.verificationState === 'confirmed') return false;
-  return ESTABLISHED_FINDING.test(field) || COMPLETED_ACT.test(field);
+  if (ESTABLISHED_FINDING.test(field)) return true;
+  return COMPLETED_ACT.test(field) && !hasSingleGovernedCompletedAct(field, candidate);
 }
 
-function lostReportedFraming(field: string, candidate: PoliticsCandidate): boolean {
+function lostReportedFraming(
+  field: string,
+  candidate: PoliticsCandidate,
+): boolean {
   if (!needsAllegationFrame(candidate)) return false;
   return !hasClaimantAttribution(field, candidate) || !hasAllegationModality(field, candidate);
 }

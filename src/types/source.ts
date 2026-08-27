@@ -37,7 +37,13 @@ export interface RssSourceConfig extends BaseSourceConfig {
   // Cho phép flow chuyên biệt tự phân loại sau khi crawl thay vì dùng tech topics mặc định.
   includeUnmatched?: boolean;
   boundedFeedFetch?: boolean;
+  // Chỉ bật cho nguồn cần fallback DoH khi DNS hệ thống trả ENOTFOUND.
+  dnsOverHttpsFallback?: boolean;
+  // User-Agent tùy nguồn khi CDN từ chối chuỗi bot mặc định.
+  feedUserAgent?: string;
   enrichArticlePage?: boolean;
+  // Ảnh nguồn dùng khi RSS và trang bài đều không cung cấp ảnh hợp lệ.
+  fallbackImageUrl?: string;
   maxItems?: number;
 }
 

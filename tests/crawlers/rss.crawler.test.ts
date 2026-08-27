@@ -582,6 +582,240 @@ describe('RssCrawler', () => {
     ]);
   });
 
+  it('extracts the widest Guardian media:content image from bounded RSS XML', async () => {
+    const xml = `
+      <rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
+        <channel>
+          <title>Guardian World</title>
+          <link>https://www.theguardian.com/world</link>
+          <description>World news</description>
+          <item>
+            <title>Typhoon Narra floods southern China</title>
+            <link>https://www.theguardian.com/world/typhoon-narra</link>
+            <description>Flooding forces evacuations.</description>
+            <pubDate>Wed, 26 Aug 2026 01:46:25 GMT</pubDate>
+            <media:content width="140" url="https://i.guim.co.uk/flood.jpg?width=140&amp;quality=85" />
+            <media:content width="700" url="https://i.guim.co.uk/flood.jpg?width=700&amp;quality=85" />
+          </item>
+        </channel>
+      </rss>
+    `;
+    const articleHttp = { get: vi.fn() };
+    const feedHttp = {
+      get: vi.fn().mockResolvedValue({
+        data: xml,
+        headers: { 'content-type': 'application/rss+xml; charset=utf-8' },
+      }),
+    };
+
+    const articles = await new RssCrawler(undefined, articleHttp, feedHttp).crawl(
+      politicsRssSource({
+        id: 'guardian-world',
+        feedUrl: 'https://www.theguardian.com/world/rss',
+      }),
+    );
+
+    expect(articles[0]?.imageUrl).toBe(
+      'https://i.guim.co.uk/flood.jpg?width=700&quality=85',
+    );
+    expect(articleHttp.get).not.toHaveBeenCalled();
+  });
+
+  it('extracts a BBC media:thumbnail image from bounded RSS XML', async () => {
+    const xml = `
+      <rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
+        <channel>
+          <title>BBC World</title>
+          <link>https://www.bbc.com/news/world</link>
+          <description>World news</description>
+          <item>
+            <title>Nepal and Tibet floods</title>
+            <link>https://www.bbc.co.uk/news/articles/example</link>
+            <description>Scientists investigate the flooding.</description>
+            <pubDate>Thu, 27 Aug 2026 01:00:00 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/flood.jpg" />
+          </item>
+        </channel>
+      </rss>
+    `;
+    const articleHttp = { get: vi.fn() };
+    const feedHttp = {
+      get: vi.fn().mockResolvedValue({
+        data: xml,
+        headers: { 'content-type': 'application/rss+xml; charset=utf-8' },
+      }),
+    };
+
+    const articles = await new RssCrawler(undefined, articleHttp, feedHttp).crawl(
+      politicsRssSource({
+        id: 'bbc-world',
+        feedUrl: 'https://feeds.bbci.co.uk/news/world/rss.xml',
+      }),
+    );
+
+    expect(articles[0]?.imageUrl).toBe('https://ichef.bbci.co.uk/flood.jpg');
+    expect(articleHttp.get).not.toHaveBeenCalled();
+  });
+
+  it('uses the opt-in DNS-over-HTTPS agent only for a bounded feed that requests it', async () => {
+    const xml = '<rss><channel></channel></rss>';
+    const parser = {
+      parseURL: vi.fn(),
+      parseString: vi.fn().mockResolvedValue({ items: [] }),
+    };
+    const articleHttp = { get: vi.fn() };
+    const feedHttp = {
+      get: vi.fn().mockResolvedValue({
+        data: xml,
+        headers: { 'content-type': 'application/rss+xml; charset=utf-8' },
+      }),
+    };
+    const httpsAgent = { kind: 'doh-fallback-agent' };
+    const createDohFallbackAgent = vi.fn().mockReturnValue(httpsAgent);
+    const crawler = new RssCrawler(parser, articleHttp, feedHttp, createDohFallbackAgent);
+
+    await crawler.crawl(
+      politicsRssSource({
+        id: 'thoibao-de-chinh-tri',
+        feedUrl: 'https://www.thoibao.de/blog/category/chinh-tri/feed',
+        dnsOverHttpsFallback: true,
+        feedUserAgent: 'Mozilla/5.0 (compatible; TechNewsTelegramBot/1.0)',
+      }),
+    );
+
+    expect(createDohFallbackAgent).toHaveBeenCalledOnce();
+    expect(createDohFallbackAgent).toHaveBeenCalledWith('www.thoibao.de');
+    expect(feedHttp.get).toHaveBeenCalledWith(
+      'https://www.thoibao.de/blog/category/chinh-tri/feed',
+      {
+        httpsAgent,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; TechNewsTelegramBot/1.0)',
+        },
+      },
+    );
+  });
+
+  it('does not create a DNS-over-HTTPS agent for ordinary bounded feeds', async () => {
+    const parser = {
+      parseURL: vi.fn(),
+      parseString: vi.fn().mockResolvedValue({ items: [] }),
+    };
+    const feedHttp = {
+      get: vi.fn().mockResolvedValue({
+        data: '<rss><channel></channel></rss>',
+        headers: { 'content-type': 'application/rss+xml' },
+      }),
+    };
+    const createDohFallbackAgent = vi.fn();
+    const crawler = new RssCrawler(parser, { get: vi.fn() }, feedHttp, createDohFallbackAgent);
+
+    await crawler.crawl(politicsRssSource());
+
+    expect(createDohFallbackAgent).not.toHaveBeenCalled();
+    expect(feedHttp.get).toHaveBeenCalledWith('https://vnexpress.net/rss/thoi-su.rss');
+  });
+
+  it('uses source-aware bounded networking to enrich an opted-in feed item from og:image', async () => {
+    const parser = {
+      parseURL: vi.fn(),
+      parseString: vi.fn().mockResolvedValue({
+        items: [
+          {
+            title: 'Quốc hội Việt Nam thảo luận chính sách quốc phòng',
+            link: 'https://www.thoibao.de/blog/2026/08/chinh-sach-quoc-phong',
+            contentSnippet: 'Tin chính trị Việt Nam.',
+            isoDate: '2026-08-26T08:00:00.000Z',
+          },
+        ],
+      }),
+    };
+    const articleHttp = { get: vi.fn() };
+    const feedHttp = {
+      get: vi.fn()
+        .mockResolvedValueOnce({
+          data: '<rss><channel></channel></rss>',
+          headers: { 'content-type': 'application/rss+xml; charset=utf-8' },
+        })
+        .mockResolvedValueOnce({
+          data: '<html><head><meta property="og:image" content="https://www.thoibao.de/uploads/politics.jpg"></head></html>',
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+        }),
+    };
+    const httpsAgent = { kind: 'doh-fallback-agent' };
+    const createDohFallbackAgent = vi.fn().mockReturnValue(httpsAgent);
+    const crawler = new RssCrawler(parser, articleHttp, feedHttp, createDohFallbackAgent);
+
+    const articles = await crawler.crawl(
+      politicsRssSource({
+        id: 'thoibao-de-chinh-tri',
+        feedUrl: 'https://www.thoibao.de/blog/category/chinh-tri/feed',
+        dnsOverHttpsFallback: true,
+        feedUserAgent: 'Mozilla/5.0 (compatible; TechNewsTelegramBot/1.0)',
+        enrichArticlePage: true,
+      }),
+    );
+
+    expect(articleHttp.get).not.toHaveBeenCalled();
+    expect(feedHttp.get).toHaveBeenNthCalledWith(
+      2,
+      'https://www.thoibao.de/blog/2026/08/chinh-sach-quoc-phong',
+      {
+        httpsAgent,
+        headers: {
+          Accept: 'text/html, application/xhtml+xml;q=0.9, */*;q=0.8',
+          'User-Agent': 'Mozilla/5.0 (compatible; TechNewsTelegramBot/1.0)',
+        },
+      },
+    );
+    expect(articles[0]?.imageUrl).toBe('https://www.thoibao.de/uploads/politics.jpg');
+  });
+
+  it('uses the configured fallback image when bounded article-page enrichment fails', async () => {
+    const parser = {
+      parseURL: vi.fn(),
+      parseString: vi.fn().mockResolvedValue({
+        items: [
+          {
+            title: 'Quốc hội Việt Nam thảo luận chính sách quốc phòng',
+            link: 'https://www.thoibao.de/blog/2026/08/chinh-sach-quoc-phong',
+            contentSnippet: 'Tin chính trị Việt Nam.',
+            isoDate: '2026-08-26T08:00:00.000Z',
+          },
+        ],
+      }),
+    };
+    const feedHttp = {
+      get: vi.fn()
+        .mockResolvedValueOnce({
+          data: '<rss><channel></channel></rss>',
+          headers: { 'content-type': 'application/rss+xml' },
+        })
+        .mockRejectedValueOnce(new Error('article-page-unavailable')),
+    };
+    const crawler = new RssCrawler(
+      parser,
+      { get: vi.fn().mockRejectedValue(new Error('unexpected-client')) },
+      feedHttp,
+      vi.fn().mockReturnValue({ kind: 'doh-fallback-agent' }),
+    );
+
+    const articles = await crawler.crawl(
+      politicsRssSource({
+        id: 'thoibao-de-chinh-tri',
+        feedUrl: 'https://www.thoibao.de/blog/category/chinh-tri/feed',
+        dnsOverHttpsFallback: true,
+        feedUserAgent: 'Mozilla/5.0 (compatible; TechNewsTelegramBot/1.0)',
+        enrichArticlePage: true,
+        fallbackImageUrl: 'https://www.thoibao.de/wp-content/uploads/2018/05/logotb3.jpg',
+      }),
+    );
+
+    expect(articles[0]?.imageUrl).toBe(
+      'https://www.thoibao.de/wp-content/uploads/2018/05/logotb3.jpg',
+    );
+  });
+
   it('rejects non-HTTP(S) and credentialed feed URLs without fetching', async () => {
     const parser = { parseURL: vi.fn(), parseString: vi.fn() };
     const articleHttp = { get: vi.fn() };
