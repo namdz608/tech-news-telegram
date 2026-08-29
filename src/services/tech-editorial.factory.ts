@@ -5,6 +5,7 @@ import {
 } from './article-editorial.service';
 import type { ArticleEditorialGenerator } from './article-editorial.types';
 import { CodexDigestTranslator } from './codex-digest-translator';
+import { GoogleArticleEditorialGenerator } from './google-article-editorial.generator';
 import { GoogleTranslationService } from './google-translation.service';
 import { TranslationService } from './translation.service';
 import type { DigestTranslator } from './translation.types';
@@ -32,6 +33,21 @@ export function createTechDigestTranslator(
 export function createTechArticleEditorialService(
   provider: TechEditorialProvider = env.TECH_EDITORIAL_PROVIDER,
 ): ArticleEditorialService {
+  if (provider === 'codex') {
+    return new ArticleEditorialService(
+      createTechArticleEditorialGenerator(provider) ?? null,
+      {
+        fallbackGenerator: new GoogleArticleEditorialGenerator(),
+        failClosed: true,
+      },
+    );
+  }
+  if (provider === 'google') {
+    return new ArticleEditorialService(
+      createTechArticleEditorialGenerator(provider) ?? null,
+      { failClosed: true },
+    );
+  }
   return new ArticleEditorialService(
     createTechArticleEditorialGenerator(provider) ?? null,
   );
