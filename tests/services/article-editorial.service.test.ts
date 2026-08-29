@@ -141,6 +141,157 @@ describe('ArticleEditorialService', () => {
     ]);
   });
 
+  it('uses verified Google translations when the primary batch generator fails', async () => {
+    const secondArticle = { ...article, id: 'second', title: 'Second article' };
+    const primary = {
+      generate: vi.fn(),
+      generateBatch: vi.fn().mockRejectedValue(new Error('codex unavailable')),
+    };
+    const translations = new Map([
+      [article.title, 'Lỗ hổng nghiêm trọng'],
+      [article.summary, 'Một lỗ hổng đang bị khai thác.'],
+      [secondArticle.title, 'Bài viết thứ hai'],
+    ]);
+    const translator = {
+      translateDigest: vi.fn(),
+      translateDigestVerified: vi.fn(async (text: string) => ({
+        text: translations.get(text) ?? text,
+        succeeded: true,
+      })),
+    };
+    const service = new ArticleEditorialService(primary, {
+      fallbackGenerator: new GoogleArticleEditorialGenerator(translator),
+      failClosed: true,
+    });
+
+    await expect(service.editArticles([
+      { article, topic: 'security' },
+      { article: secondArticle, topic: 'ai' },
+    ])).resolves.toEqual([
+      expect.objectContaining({
+        title: 'Lỗ hổng nghiêm trọng',
+        summary: 'Một lỗ hổng đang bị khai thác.',
+      }),
+      expect.objectContaining({
+        title: 'Bài viết thứ hai',
+        summary: 'Một lỗ hổng đang bị khai thác.',
+      }),
+    ]);
+  });
+
+  it('uses Google when the primary batch returns complete English editorial text', async () => {
+    const primary = {
+      generate: vi.fn(),
+      generateBatch: vi.fn().mockResolvedValue(JSON.stringify([{
+        title: 'Critical gateway vulnerability',
+        summary: 'A gateway vulnerability is being actively exploited.',
+        whyImportant: 'Internet-facing gateways are exposed.',
+        actionLevel: 'urgent',
+        actionText: 'Patch immediately.',
+      }])),
+    };
+    const translator = {
+      translateDigest: vi.fn(),
+      translateDigestVerified: vi
+        .fn()
+        .mockResolvedValueOnce({ text: 'Lỗ hổng nghiêm trọng', succeeded: true })
+        .mockResolvedValueOnce({ text: 'Lỗ hổng đang bị khai thác.', succeeded: true }),
+    };
+    const service = new ArticleEditorialService(primary, {
+      fallbackGenerator: new GoogleArticleEditorialGenerator(translator),
+      failClosed: true,
+    });
+
+    await expect(service.editArticles([
+      { article, topic: 'security' },
+    ])).resolves.toEqual([
+      expect.objectContaining({
+        title: 'Lỗ hổng nghiêm trọng',
+        summary: 'Lỗ hổng đang bị khai thác.',
+      }),
+    ]);
+  });
+
+  it('rejects the batch when primary and fallback translation both fail', async () => {
+    const primary = {
+      generate: vi.fn(),
+      generateBatch: vi.fn().mockRejectedValue(new Error('codex unavailable')),
+    };
+    const translator = {
+      translateDigest: vi.fn(),
+      translateDigestVerified: vi.fn(async (text: string) => ({
+        text,
+        succeeded: false,
+      })),
+    };
+    const service = new ArticleEditorialService(primary, {
+      fallbackGenerator: new GoogleArticleEditorialGenerator(translator),
+      failClosed: true,
+    });
+
+    await expect(service.editArticles([
+      { article, topic: 'security' },
+    ])).rejects.toThrow('Article editorial unavailable');
+  });
+
+  it('rejects Google output that reports success but remains English', async () => {
+    const primary = {
+      generate: vi.fn(),
+      generateBatch: vi.fn().mockRejectedValue(new Error('codex unavailable')),
+    };
+    const translator = {
+      translateDigest: vi.fn(),
+      translateDigestVerified: vi.fn(async (text: string) => ({
+        text,
+        succeeded: true,
+      })),
+    };
+    const service = new ArticleEditorialService(primary, {
+      fallbackGenerator: new GoogleArticleEditorialGenerator(translator),
+      failClosed: true,
+    });
+
+    await expect(service.editArticles([
+      { article, topic: 'security' },
+    ])).rejects.toThrow('Article editorial unavailable');
+  });
+
+  it.each([
+    {
+      name: 'Vietnamese title with English summary',
+      translatedTitle: 'Bản tin bảo mật mới',
+      translatedSummary: article.summary,
+    },
+    {
+      name: 'English title with Vietnamese summary',
+      translatedTitle: article.title,
+      translatedSummary: 'Lỗ hổng đang bị khai thác.',
+    },
+  ])('rejects partially untranslated Google output: $name', async ({
+    translatedTitle,
+    translatedSummary,
+  }) => {
+    const primary = {
+      generate: vi.fn(),
+      generateBatch: vi.fn().mockRejectedValue(new Error('codex unavailable')),
+    };
+    const translator = {
+      translateDigest: vi.fn(),
+      translateDigestVerified: vi.fn(async (text: string) => ({
+        text: text === article.title ? translatedTitle : translatedSummary,
+        succeeded: true,
+      })),
+    };
+    const service = new ArticleEditorialService(primary, {
+      fallbackGenerator: new GoogleArticleEditorialGenerator(translator),
+      failClosed: true,
+    });
+
+    await expect(service.editArticles([
+      { article, topic: 'security' },
+    ])).rejects.toThrow('Article editorial unavailable');
+  });
+
   it('adds trusted verification metadata for successful Google translations', async () => {
     const translator = {
       translateDigest: vi.fn(),

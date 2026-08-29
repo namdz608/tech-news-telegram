@@ -46,6 +46,21 @@ const fallbackWhyImportant: Record<TopicKey, string> = {
     'Tin tuyển dụng này có thể phù hợp nếu bạn đang tìm vị trí giáo viên hoặc trợ giảng tiếng Anh mầm non / tiểu học.',
 };
 
+const VIETNAMESE_CHAR =
+  /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/iu;
+
+export interface ArticleEditorialServiceOptions {
+  fallbackGenerator?: ArticleEditorialGenerator;
+  failClosed?: boolean;
+}
+
+export class ArticleEditorialUnavailableError extends Error {
+  constructor() {
+    super('Article editorial unavailable');
+    this.name = 'ArticleEditorialUnavailableError';
+  }
+}
+
 /**
  * Class `ArticleEditorialService` sở hữu vòng đời dependency và điều phối các bước article editorial service.
  *
@@ -59,6 +74,7 @@ export class ArticleEditorialService {
   constructor(
     private readonly generator: ArticleEditorialGenerator | null =
       createArticleEditorialGenerator() ?? null,
+    private readonly options: ArticleEditorialServiceOptions = {},
   ) {}
 
   /**
@@ -80,23 +96,64 @@ export class ArticleEditorialService {
       return fallback;
     }
 
-    // Cô lập thao tác có thể lỗi để module còn cơ hội log và trả fallback an toàn.
+    // Cô lập thao tác có thể lỗi để module còn cơ hội thử provider dự phòng.
     try {
-      // Tính `raw` từ `await this.generator.generate({` và giữ bất biến trong phạm vi hiện tại.
-      const raw = await this.generator.generate(createEditorialInput(article, topicContext));
-      // Tính `parsed` từ `parseJsonObject(raw);` và giữ bất biến trong phạm vi hiện tại.
-      const parsed = parseJsonObject(raw);
-      return createEditorialFromParsed(
-        parsed,
+      return await this.generateEditorial(
+        this.generator,
+        createEditorialInput(article, topicContext),
         fallback,
-        this.generator instanceof GoogleArticleEditorialGenerator,
       );
-    // Bắt lỗi từ khối try, không để một dependency ngoài làm hỏng toàn bộ đợt xử lý.
     } catch {
-      console.warn('Article editorial generation failed, using fallback');
-      // Trả `fallback;` cho caller và kết thúc nhánh hiện tại.
-      return fallback;
+      if (this.options.fallbackGenerator) {
+        try {
+          return await this.generateEditorial(
+            this.options.fallbackGenerator,
+            createEditorialInput(article, topicContext),
+            fallback,
+          );
+        } catch {
+          return this.handleGenerationFailure(fallback);
+        }
+      }
+      return this.handleGenerationFailure(fallback);
     }
+  }
+
+  private async generateEditorial(
+    generator: ArticleEditorialGenerator,
+    input: ArticleEditorialInput,
+    fallback: ArticleEditorial,
+  ): Promise<ArticleEditorial> {
+    const parsed = parseJsonObject(await generator.generate(input));
+    if (this.options.failClosed && !(generator instanceof GoogleArticleEditorialGenerator)) {
+      assertCompleteEditorial(parsed);
+    }
+    const editorial = createEditorialFromParsed(
+      parsed,
+      fallback,
+      generator instanceof GoogleArticleEditorialGenerator,
+    );
+    if (this.options.failClosed) {
+      assertVietnameseEditorial(editorial);
+    }
+    if (
+      this.options.failClosed
+      && generator instanceof GoogleArticleEditorialGenerator
+      && editorial[verifiedVietnameseEditorial] !== true
+    ) {
+      throw new ArticleEditorialUnavailableError();
+    }
+    return editorial;
+  }
+
+  private handleGenerationFailure(fallback: ArticleEditorial): ArticleEditorial {
+    if (this.options.failClosed) {
+      console.warn('Article editorial generation failed, aborting delivery');
+      throw new ArticleEditorialUnavailableError();
+    }
+
+    console.warn('Article editorial generation failed, using fallback');
+    return fallback;
   }
 
   async editArticles(
@@ -120,17 +177,48 @@ export class ArticleEditorialService {
     const inputs = requests.map(({ article }, index) =>
       createEditorialInput(article, contexts[index]));
 
+    let parsed: unknown[];
     try {
-      const parsed = parseJsonArray(await this.generator.generateBatch(inputs));
-      return requests.map((_request, index) => {
-        const item = parsed[index];
-        return isJsonObject(item)
-          ? createEditorialFromParsed(item, fallbacks[index])
-          : fallbacks[index];
-      });
+      parsed = parseJsonArray(await this.generator.generateBatch(inputs));
     } catch {
+      return Promise.all(inputs.map((input, index) =>
+        this.generateFallbackEditorial(input, fallbacks[index])));
+    }
+
+    return Promise.all(requests.map((_request, index) => {
+      const item = parsed[index];
+      if (isJsonObject(item)) {
+        try {
+          if (this.options.failClosed) assertCompleteEditorial(item);
+          const editorial = createEditorialFromParsed(item, fallbacks[index]);
+          if (this.options.failClosed) assertVietnameseEditorial(editorial);
+          return editorial;
+        } catch {
+          return this.generateFallbackEditorial(inputs[index], fallbacks[index]);
+        }
+      }
+      return this.generateFallbackEditorial(inputs[index], fallbacks[index]);
+    }));
+  }
+
+  private async generateFallbackEditorial(
+    input: ArticleEditorialInput,
+    fallback: ArticleEditorial,
+  ): Promise<ArticleEditorial> {
+    if (!this.options.fallbackGenerator) {
+      if (this.options.failClosed) {
+        console.warn('Article editorial batch generation failed, aborting delivery');
+        throw new ArticleEditorialUnavailableError();
+      }
       console.warn('Article editorial batch generation failed, using fallback');
-      return fallbacks;
+      return fallback;
+    }
+
+    try {
+      return await this.generateEditorial(this.options.fallbackGenerator, input, fallback);
+    } catch {
+      console.warn('Article editorial fallback generation failed, aborting delivery');
+      throw new ArticleEditorialUnavailableError();
     }
   }
 }
@@ -271,6 +359,26 @@ function parseJsonArray(raw: string): unknown[] {
 
 function isJsonObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function assertCompleteEditorial(value: Record<string, unknown>): void {
+  if (
+    !cleanString(value.title)
+    || !cleanString(value.summary)
+    || !cleanString(value.whyImportant)
+    || !isActionLevel(value.actionLevel)
+    || !cleanString(value.actionText)
+  ) {
+    throw new Error('Editorial response is incomplete');
+  }
+}
+
+function assertVietnameseEditorial(editorial: ArticleEditorial): void {
+  const title = editorial.title.normalize('NFC');
+  const summary = editorial.summary.normalize('NFC');
+  if (!VIETNAMESE_CHAR.test(title) || !VIETNAMESE_CHAR.test(summary)) {
+    throw new Error('Editorial response is not Vietnamese');
+  }
 }
 
 /**
