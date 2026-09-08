@@ -49,6 +49,14 @@ const fallbackWhyImportant: Record<TopicKey, string> = {
 const VIETNAMESE_CHAR =
   /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/iu;
 
+export function hasVietnameseEditorialText(editorial: {
+  title: string;
+  summary: string;
+}): boolean {
+  return VIETNAMESE_CHAR.test(editorial.title.normalize('NFC'))
+    && VIETNAMESE_CHAR.test(editorial.summary.normalize('NFC'));
+}
+
 export interface ArticleEditorialServiceOptions {
   fallbackGenerator?: ArticleEditorialGenerator;
   failClosed?: boolean;
@@ -374,9 +382,7 @@ function assertCompleteEditorial(value: Record<string, unknown>): void {
 }
 
 function assertVietnameseEditorial(editorial: ArticleEditorial): void {
-  const title = editorial.title.normalize('NFC');
-  const summary = editorial.summary.normalize('NFC');
-  if (!VIETNAMESE_CHAR.test(title) || !VIETNAMESE_CHAR.test(summary)) {
+  if (!hasVietnameseEditorialText(editorial)) {
     throw new Error('Editorial response is not Vietnamese');
   }
 }

@@ -1526,4 +1526,73 @@ describe('PoliticsEditorialService', () => {
     expect(result.title).toContain('Chưa dịch được tiêu đề');
     expect(result.summary).toContain('Chưa có bản dịch tiếng Việt đã xác minh');
   });
+
+  it('keeps Codex Vietnamese for an identified BBC report whose source already states a conviction', async () => {
+    const input = candidate({
+      sourceName: 'BBC World',
+      title: "Thousands turn out in Serbia for funeral of 'Butcher of Bosnia' Ratko Mladić",
+      summary:
+        'Mladić was jailed for genocide during the 1990s Bosnian war and the EU warned Serbia not to glorify the convicted war criminal.',
+      author: '',
+      originalAuthor: '',
+      originalAccount: '',
+      originAttribution: {
+        url: 'https://www.bbc.com/news/articles/mladic-funeral',
+        account: '',
+        publishedAt: '2026-09-07T14:50:00.000Z',
+        discoveredAt: '2026-09-08T01:30:00.000Z',
+      },
+      claimStance: 'neutral',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      evidenceKind: 'identified-report',
+      evidenceAssertions: [assertion({
+        semanticClaimKey: 'mladic|funeral',
+        claimText: "Thousands turn out in Serbia for funeral of 'Butcher of Bosnia' Ratko Mladić",
+        stance: 'neutral',
+        modality: 'reported',
+        effect: 'mentions',
+        sourceId: 'bbc-world',
+        sourceUrl: 'https://www.bbc.com/news/articles/mladic-funeral',
+        evidenceOriginKey: 'bbc.com',
+      })],
+      semanticClaimKey: 'mladic|funeral',
+      claimEntities: ['serbia', 'eu'],
+      verificationState: 'reported',
+      discoveryChannel: 'rss',
+      corroborationNote: 'BBC World đang tường thuật tang lễ.',
+    });
+    const vietnamese = {
+      title: 'Hàng nghìn người tới Serbia dự tang lễ tội phạm chiến tranh Ratko Mladić',
+      summary:
+        'Theo BBC World, Mladić bị kết án tù vì diệt chủng trong chiến tranh Bosnia thập niên 1990 và EU cảnh báo Serbia không tôn vinh tội phạm chiến tranh đã bị kết án.',
+      whyImportant:
+        'Theo BBC World, tang lễ của tội phạm chiến tranh đã bị kết án đang được đưa tin, chưa phải kết luận cuối.',
+    };
+    const editorial = {
+      editArticle: vi.fn().mockResolvedValue({
+        ...vietnamese,
+        actionLevel: 'monitor' as const,
+        actionText: 'Theo dõi nguồn gốc và các tường thuật độc lập; không đưa lời khuyên.',
+      }),
+    };
+    const translator = {
+      translateDigestVerified: vi.fn(async (text: string) => ({ text, succeeded: true })),
+    };
+
+    const result = await new PoliticsEditorialService(
+      editorial,
+      translator,
+      new PoliticsEditorialValidator(),
+      politicsEditorialServiceOptions('codex'),
+    ).edit(input);
+
+    expect(translator.translateDigestVerified).not.toHaveBeenCalled();
+    expect(result.title).toBe(vietnamese.title);
+    expect(result.summary).toBe(vietnamese.summary);
+    expect(result.whyImportant).toBe(vietnamese.whyImportant);
+    expect(`${result.title} ${result.summary} ${result.whyImportant}`).not.toMatch(
+      /chưa dịch|Chưa có bản dịch/iu,
+    );
+  });
 });

@@ -1,9 +1,12 @@
 import { env } from '../config/env';
 import type { Article } from '../types/article';
 import type { GadgetDigestEntry, GadgetMessage, GadgetSelectionResult } from '../types/gadget';
+import { ArticleEditorialService } from './article-editorial.service';
+import { CodexArticleEditorialGenerator } from './codex-article-editorial.generator';
 import { CuratedTelegramFlow } from './curated-telegram-flow.service';
 import { GadgetDeliveryService } from './gadget-delivery.service';
 import { GadgetMessageService } from './gadget-message.service';
+import { GoogleArticleEditorialGenerator } from './google-article-editorial.generator';
 import { GadgetSelectionService } from './gadget-selection.service';
 import { type GadgetCollectionResult, GadgetSourceService } from './gadget-source.service';
 import { SentHistoryStore } from './sent-history.store';
@@ -62,7 +65,12 @@ export function createGadgetFlowService(): GadgetFlowService {
   const source = new GadgetSourceService();
   const history = new SentHistoryStore();
   const selection = new GadgetSelectionService();
-  const messages = new GadgetMessageService();
+  const messages = new GadgetMessageService(
+    new ArticleEditorialService(
+      new CodexArticleEditorialGenerator(),
+      { fallbackGenerator: new GoogleArticleEditorialGenerator() },
+    ),
+  );
   const telegram = createTelegramService(env.GADGET_TELEGRAM_BOT_TOKEN, env.GADGET_TELEGRAM_CHAT_ID);
   return new GadgetFlowService(
     source,

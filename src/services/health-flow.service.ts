@@ -1,7 +1,10 @@
 import { env } from '../config/env';
 import type { Article } from '../types/article';
 import type { HealthDigestEntry, HealthMessage, HealthSelectionResult } from '../types/health';
+import { ArticleEditorialService } from './article-editorial.service';
+import { CodexArticleEditorialGenerator } from './codex-article-editorial.generator';
 import { CuratedTelegramFlow } from './curated-telegram-flow.service';
+import { GoogleArticleEditorialGenerator } from './google-article-editorial.generator';
 import { HealthMessageService } from './health-message.service';
 import { HealthSelectionService } from './health-selection.service';
 import { type HealthCollectionResult, HealthSourceService } from './health-source.service';
@@ -67,7 +70,12 @@ export function createHealthFlowService(): HealthFlowService {
     env.HEALTH_HISTORY_RETENTION_DAYS,
   );
   const selection = new HealthSelectionService();
-  const messages = new HealthMessageService();
+  const messages = new HealthMessageService(
+    new ArticleEditorialService(
+      new CodexArticleEditorialGenerator(),
+      { fallbackGenerator: new GoogleArticleEditorialGenerator() },
+    ),
+  );
   const telegram = createTelegramService(
     env.HEALTH_TELEGRAM_BOT_TOKEN,
     env.HEALTH_TELEGRAM_CHAT_ID,

@@ -318,7 +318,7 @@ function hasUnguardedGuiltyLanguage(field: string): boolean {
     const start = match.index ?? 0;
     const before = field.slice(Math.max(0, start - 48), start);
     if (/(?:không phải|chưa)(?:\s+\S+){0,4}\s*$/iu.test(before)) continue;
-    if (/\b(?:not|no)\b(?:\s+\S+){0,4}\s*$/iu.test(before)) continue;
+    if (/\b(?:not|no)(?:\s+(?:a|an|the|been|found|yet)){0,3}\s*$/iu.test(before)) continue;
     return true;
   }
   return false;
@@ -343,7 +343,11 @@ function isFieldSafe(
     return false;
   }
   if (mode === 'source-facts') return true;
-  if (MOTIVE.test(compact) || hasUnguardedGuiltyLanguage(compact) || restatedAllegationAsFact(compact, candidate)) {
+  if (
+    MOTIVE.test(compact)
+    || (hasUnguardedGuiltyLanguage(compact) && !hasUnguardedGuiltyLanguage(corpus))
+    || restatedAllegationAsFact(compact, candidate)
+  ) {
     return false;
   }
   if (candidate.verificationState !== 'confirmed' && CERTAINTY.test(compact)) return false;
