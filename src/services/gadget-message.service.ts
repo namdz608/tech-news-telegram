@@ -1,7 +1,7 @@
 import { gadgetTopics } from '../config/gadget-topics';
 import type { Article } from '../types/article';
 import type { GadgetDigestEntry, GadgetMessage, GadgetTopicKey } from '../types/gadget';
-import { ArticleEditorialService } from './article-editorial.service';
+import { ArticleEditorialService, hasVietnameseEditorialText } from './article-editorial.service';
 import type { ArticleEditorial, EditorialTopicContext } from './article-editorial.types';
 import { getArticleMessageImageUrl, renderArticleMessageWithPresentation } from './article-message.service';
 
@@ -13,13 +13,16 @@ export class GadgetMessageService {
   constructor(private readonly editor: GadgetArticleEditor = new ArticleEditorialService()) {}
 
   async buildMessages(entries: GadgetDigestEntry[]): Promise<GadgetMessage[]> {
-    return Promise.all(
+    const messages = await Promise.all(
       entries.map(async (entry) => {
         const topic = getTopic(entry.topic);
         const editorial = await this.editor.editArticle(entry.article, {
           key: topic.key,
           fallbackWhyImportant: topic.fallbackWhyImportant,
         });
+        if (!hasVietnameseEditorialText(editorial)) {
+          return undefined;
+        }
         return {
           text: renderArticleMessageWithPresentation(entry.article, topic, editorial),
           url: entry.article.url,
@@ -29,6 +32,7 @@ export class GadgetMessageService {
         };
       }),
     );
+    return messages.filter((message): message is GadgetMessage => message !== undefined);
   }
 }
 

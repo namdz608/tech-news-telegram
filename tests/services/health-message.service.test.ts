@@ -126,6 +126,30 @@ it('forces an evidence limitation for research messages', async () => {
   expect(message.text).toMatch(/mẫu nhỏ/iu);
 });
 
+it('keeps Codex Vietnamese for international articles without calling Google Translate', async () => {
+  const editor = { editArticle: vi.fn().mockResolvedValue({
+    title: 'Thói quen ngủ lành mạnh',
+    summary: 'Giữ lịch ngủ ổn định có thể hỗ trợ sức khỏe.',
+    whyImportant: 'Khuyến nghị chung có thể không phù hợp với mọi người.',
+    actionLevel: 'monitor' as const,
+    actionText: 'Duy trì giờ ngủ đều.',
+  }) };
+  const translator = {
+    translateDigestVerified: vi.fn(async (text: string) => ({ text, succeeded: false })),
+  };
+  const service = new HealthMessageService(editor, translator);
+  const [message] = await service.buildMessages([{
+    article,
+    topic: 'sleep-recovery', evidence: 'guidance', score: 100,
+  }]);
+
+  expect(translator.translateDigestVerified).not.toHaveBeenCalled();
+  expect(message.text).toContain('Thói quen ngủ lành mạnh');
+  expect(message.text).toContain('Giữ lịch ngủ ổn định');
+  expect(message.text).not.toContain('Bản tin sức khỏe từ nguồn quốc tế');
+  expect(message.text).not.toContain('Healthy sleep habits');
+});
+
 it('uses deterministic Vietnamese copy when an international article is not translated', async () => {
   const editor = { editArticle: vi.fn().mockResolvedValue({
     title: 'Healthy sleep habits',

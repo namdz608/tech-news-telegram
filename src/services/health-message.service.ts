@@ -7,7 +7,7 @@ import type {
   HealthTopicKey,
 } from '../types/health';
 import { escapeHtml } from '../utils/text';
-import { ArticleEditorialService } from './article-editorial.service';
+import { ArticleEditorialService, hasVietnameseEditorialText } from './article-editorial.service';
 import {
   type ArticleEditorial,
   type EditorialTopicContext,
@@ -93,7 +93,9 @@ export class HealthMessageService {
       });
       const international = internationalSourceIds.has(entry.article.sourceId);
       const sourceText = `${entry.article.title} ${entry.article.summary ?? ''}`;
-      const translated = editorial[verifiedVietnameseEditorial] === true
+      const nativeVietnamese = editorial[verifiedVietnameseEditorial] === true
+        || hasVietnameseEditorialText(editorial);
+      const translated = nativeVietnamese
         ? {
             title: editorial.title,
             summary: editorial.summary,
@@ -124,9 +126,7 @@ export class HealthMessageService {
         520,
       );
       let safeTakeaway = sanitizeHealthEditorialText(
-        editorial[verifiedVietnameseEditorial] === true
-          ? editorial.actionText
-          : topic.fallbackSafeTakeaway,
+        nativeVietnamese ? editorial.actionText : topic.fallbackSafeTakeaway,
         topic.fallbackSafeTakeaway,
         sourceText,
       );
@@ -135,9 +135,7 @@ export class HealthMessageService {
       }
       safeTakeaway = truncateArticleMessageText(safeTakeaway, 320);
       let evidenceNote = sanitizeHealthEditorialText(
-        editorial[verifiedVietnameseEditorial] === true
-          ? editorial.whyImportant
-          : topic.fallbackEvidenceNote,
+        nativeVietnamese ? editorial.whyImportant : topic.fallbackEvidenceNote,
         topic.fallbackEvidenceNote,
         sourceText,
       );
