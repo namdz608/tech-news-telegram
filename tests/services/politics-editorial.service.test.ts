@@ -1487,7 +1487,7 @@ describe('PoliticsEditorialService', () => {
     expect(result.title).toContain('Mark Carney');
   });
 
-  it('keeps the untranslated notice when Codex retry stays English and does not call Google Translate', async () => {
+  it('translates the original claim when Codex retry stays English', async () => {
     const input = candidate({
       sourceName: 'The Guardian Politics',
       title: 'PM Mark Carney says we got attacked as tariffs come into force',
@@ -1522,7 +1522,56 @@ describe('PoliticsEditorialService', () => {
     ).edit(input);
 
     expect(editorial.editArticle).toHaveBeenCalledTimes(2);
-    expect(translator.translateDigestVerified).not.toHaveBeenCalled();
+    expect(translator.translateDigestVerified).toHaveBeenCalled();
+    expect(result.title).toContain('Theo The Guardian Politics');
+    expect(result.title).not.toContain('Chưa dịch được tiêu đề');
+    expect(result.summary).not.toContain('Chưa có bản dịch tiếng Việt đã xác minh');
+    expect(result.summary).toContain('Mark Carney');
+  });
+
+  it('keeps the untranslated notice when Codex retry and Google Translate both fail', async () => {
+    const input = candidate({
+      sourceName: 'BBC World',
+      title: 'UK announces sanctions on West Bank settlements prompting furious Israeli response',
+      summary:
+        'Britain\'s foreign secretary accuses settlers of carrying out the "ethnic cleansing" of Palestinians, as Israel responds by shutting the UK consulate in East Jerusalem.',
+      author: '',
+      originalAuthor: '',
+      originalAccount: '',
+      originAttribution: {
+        url: 'https://www.bbc.com/news/articles/uk-west-bank-sanctions',
+        account: undefined,
+        publishedAt: '2026-09-08T19:11:00.000Z',
+        discoveredAt: '2026-09-09T01:30:00.000Z',
+      },
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      semanticClaimKey: 'uk|west-bank-sanctions',
+      verificationState: 'reported',
+    });
+    const editorial = {
+      editArticle: vi.fn().mockResolvedValue({
+        title: 'UK announces sanctions on West Bank settlements prompting furious Israeli response',
+        summary:
+          'Britain\'s foreign secretary accuses settlers of carrying out the "ethnic cleansing" of Palestinians.',
+        whyImportant: 'The story is being reported.',
+        actionLevel: 'monitor' as const,
+        actionText: 'Follow independent sources.',
+      }),
+    };
+    const translator = {
+      translateDigestVerified: vi.fn(async (text: string) => ({ text, succeeded: false })),
+    };
+
+    const result = await new PoliticsEditorialService(
+      editorial,
+      translator,
+      new PoliticsEditorialValidator(),
+      politicsEditorialServiceOptions('codex'),
+    ).edit(input);
+
+    expect(editorial.editArticle).toHaveBeenCalledTimes(2);
+    expect(translator.translateDigestVerified).toHaveBeenCalled();
     expect(result.title).toContain('Chưa dịch được tiêu đề');
     expect(result.summary).toContain('Chưa có bản dịch tiếng Việt đã xác minh');
   });

@@ -246,9 +246,9 @@ export class PoliticsEditorialService {
         return this.validator.validate(candidate, accepted, conservative, 'translated');
       }
     } catch {
-      // Keep the explicit untranslated notice. Do not call unofficial Google Translate.
+      // Last resort: translate the original title/summary instead of posting English.
     }
-    return this.validator.validate(candidate, conservative, conservative);
+    return this.translateFallback(candidate, createProviderFallbackEditorial);
   }
 
   private async translateFallback(

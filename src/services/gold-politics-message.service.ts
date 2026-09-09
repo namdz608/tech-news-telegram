@@ -8,6 +8,7 @@ import type {
 } from '../types/gold-politics';
 import { compactText, escapeHtml } from '../utils/text';
 import { getArticleMessageImageUrl } from './article-message.service';
+import { isTranslationFallbackEditorial } from './politics-editorial-validator';
 import {
   PoliticsEditorialService,
   type PoliticsEditorial,
@@ -83,19 +84,24 @@ export class GoldPoliticsMessageService {
   }
 
   async buildNewsMessages(candidates: readonly PoliticsCandidate[]): Promise<PoliticsMessage[]> {
-    return Promise.all(candidates.map(async (item) => {
+    const messages = await Promise.all(candidates.map(async (item): Promise<PoliticsMessage | undefined> => {
       const editorial = await this.editorial.edit(item);
-      const text = this.renderNews(item, editorial);
-      return {
-        text,
+      if (isTranslationFallbackEditorial(editorial)) {
+        return undefined;
+      }
+      const imageUrl = getArticleMessageImageUrl(
+        item,
+        goldPoliticsFallbackImageUrls[item.primaryCategory],
+      );
+      const message: PoliticsMessage = {
+        text: this.renderNews(item, editorial),
         url: item.claimOriginUrl,
-        imageUrl: getArticleMessageImageUrl(
-          item,
-          goldPoliticsFallbackImageUrls[item.primaryCategory],
-        ),
         candidate: item,
       };
+      if (imageUrl) message.imageUrl = imageUrl;
+      return message;
     }));
+    return messages.filter((message): message is PoliticsMessage => message !== undefined);
   }
 
   private renderQuote(quote: GoldQuote): string {

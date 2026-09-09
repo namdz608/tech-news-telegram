@@ -104,14 +104,25 @@ export function createProviderFallbackEditorial(candidate: PoliticsCandidate): P
   };
 }
 
+const UNTRANSLATED_TITLE_PREFIX = 'Chưa dịch được tiêu đề';
+const UNTRANSLATED_SUMMARY_PREFIX = 'Chưa có bản dịch tiếng Việt đã xác minh';
+
+export function isTranslationFallbackEditorial(editorial: {
+  title: string;
+  summary: string;
+}): boolean {
+  return compactText(editorial.title).startsWith(UNTRANSLATED_TITLE_PREFIX)
+    || compactText(editorial.summary).startsWith(UNTRANSLATED_SUMMARY_PREFIX);
+}
+
 export function createTranslationFallbackEditorial(candidate: PoliticsCandidate): PoliticsEditorial {
   const actor = actorLabel(candidate);
   const originalTitle = truncateUtf16(compactText(candidate.title), CLAIM_BOUND);
   const originalSummary = truncateUtf16(compactText(candidate.summary ?? candidate.title), SUMMARY_BOUND - 80);
   return {
-    title: truncateUtf16(`Chưa dịch được tiêu đề. ${actor} cho rằng: ${originalTitle}`, TITLE_BOUND),
+    title: truncateUtf16(`${UNTRANSLATED_TITLE_PREFIX}. ${actor} cho rằng: ${originalTitle}`, TITLE_BOUND),
     summary: truncateUtf16(
-      `Chưa có bản dịch tiếng Việt đã xác minh. ${actor} cho rằng: ${originalSummary}`,
+      `${UNTRANSLATED_SUMMARY_PREFIX}. ${actor} cho rằng: ${originalSummary}`,
       SUMMARY_BOUND,
     ),
     whyImportant: truncateUtf16(

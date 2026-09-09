@@ -538,4 +538,43 @@ describe('GoldPoliticsMessageService.buildNewsMessages', () => {
     expect(message.text).toContain('&amp;');
     expect(message.text.length).toBeLessThanOrEqual(3900);
   });
+
+  it('omits politics items whose editorial is the untranslated notice', async () => {
+    const editorial = {
+      edit: vi.fn()
+        .mockResolvedValueOnce({
+          title: 'Theo BBC World, Anh công bố trừng phạt các khu định cư Bờ Tây',
+          summary: 'Ngoại trưởng Anh cáo buộc người định cư đang thanh lọc sắc tộc người Palestine.',
+          whyImportant: 'Theo BBC World, sự việc đang được đưa tin, chưa phải kết luận cuối.',
+        })
+        .mockResolvedValueOnce({
+          title: 'Chưa dịch được tiêu đề. Tài khoản chưa xác định cho rằng: UK announces sanctions',
+          summary: 'Chưa có bản dịch tiếng Việt đã xác minh. Tài khoản chưa xác định cho rằng: Britain accuses settlers.',
+          whyImportant: 'Theo BBC World, Tài khoản chưa xác định cho rằng nội dung gốc chưa dịch được.',
+        }),
+    };
+    const translated = candidate({
+      id: 'https://www.bbc.com/news/translated',
+      url: 'https://www.bbc.com/news/translated',
+      claimOriginUrl: 'https://www.bbc.com/news/translated',
+    });
+    const untranslated = candidate({
+      id: 'https://www.bbc.com/news/untranslated',
+      url: 'https://www.bbc.com/news/untranslated',
+      title: 'UK announces sanctions on West Bank settlements prompting furious Israeli response',
+      summary: 'Britain\'s foreign secretary accuses settlers of carrying out ethnic cleansing.',
+      claimOriginUrl: 'https://www.bbc.com/news/untranslated',
+    });
+
+    const messages = await new GoldPoliticsMessageService(editorial).buildNewsMessages([
+      translated,
+      untranslated,
+    ]);
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].url).toBe(translated.claimOriginUrl);
+    expect(messages[0].text).toContain('Anh công bố trừng phạt');
+    expect(messages[0].text).not.toContain('Chưa dịch được tiêu đề');
+    expect(messages[0].text).not.toContain('UK announces sanctions');
+  });
 });
