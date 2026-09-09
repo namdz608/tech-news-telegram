@@ -8,7 +8,7 @@ import type {
 } from '../types/gold-politics';
 import { compactText, escapeHtml } from '../utils/text';
 import { getArticleMessageImageUrl } from './article-message.service';
-import { isTranslationFallbackEditorial } from './politics-editorial-validator';
+import { shouldOmitUntranslatedPoliticsEditorial } from './politics-editorial-validator';
 import {
   PoliticsEditorialService,
   type PoliticsEditorial,
@@ -86,7 +86,7 @@ export class GoldPoliticsMessageService {
   async buildNewsMessages(candidates: readonly PoliticsCandidate[]): Promise<PoliticsMessage[]> {
     const messages = await Promise.all(candidates.map(async (item): Promise<PoliticsMessage | undefined> => {
       const editorial = await this.editorial.edit(item);
-      if (isTranslationFallbackEditorial(editorial)) {
+      if (shouldOmitUntranslatedPoliticsEditorial(item, editorial)) {
         return undefined;
       }
       const imageUrl = getArticleMessageImageUrl(

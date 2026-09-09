@@ -115,6 +115,22 @@ export function isTranslationFallbackEditorial(editorial: {
     || compactText(editorial.summary).startsWith(UNTRANSLATED_SUMMARY_PREFIX);
 }
 
+const VIETNAMESE_CHAR =
+  /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/iu;
+
+export function shouldOmitUntranslatedPoliticsEditorial(
+  candidate: { title: string; verificationState?: string },
+  editorial: { title: string; summary: string },
+): boolean {
+  if (isTranslationFallbackEditorial(editorial)) return true;
+  if (candidate.verificationState === 'unverified') return false;
+  const original = compactText(candidate.title);
+  if (original.length < 24) return false;
+  if (VIETNAMESE_CHAR.test(original.normalize('NFC'))) return false;
+  const needle = original.slice(0, Math.min(40, original.length));
+  return `${compactText(editorial.title)}\n${compactText(editorial.summary)}`.includes(needle);
+}
+
 export function createTranslationFallbackEditorial(candidate: PoliticsCandidate): PoliticsEditorial {
   const actor = actorLabel(candidate);
   const originalTitle = truncateUtf16(compactText(candidate.title), CLAIM_BOUND);

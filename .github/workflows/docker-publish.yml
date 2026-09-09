@@ -6,6 +6,9 @@ on:
       - main
     tags:
       - "v*"
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -31,9 +34,11 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npm run build
+      - name: Test
+        run: npm test
 
   publish:
-    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main')
     needs: typecheck
     runs-on: ubuntu-latest
 

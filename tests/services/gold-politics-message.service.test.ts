@@ -577,4 +577,23 @@ describe('GoldPoliticsMessageService.buildNewsMessages', () => {
     expect(messages[0].text).not.toContain('Chưa dịch được tiêu đề');
     expect(messages[0].text).not.toContain('UK announces sanctions');
   });
+
+  it('omits politics items that still echo the English title inside a Vietnamese wrapper', async () => {
+    const title = 'UK announces sanctions on West Bank settlements prompting furious Israeli response';
+    const editorial = editorialOf({
+      title: `Theo BBC World, Tài khoản chưa xác định cho rằng ${title}`,
+      summary: `Theo BBC World, Tài khoản chưa xác định cho rằng ${title}. Sự việc đang được đưa tin.`,
+      whyImportant: 'Theo BBC World, sự việc đang được đưa tin, chưa phải kết luận cuối.',
+    });
+    const input = candidate({
+      title,
+      summary: 'Britain\'s foreign secretary accuses settlers of carrying out ethnic cleansing.',
+      sourceName: 'BBC World',
+      claimOriginUrl: 'https://www.bbc.com/news/uk-west-bank',
+    });
+
+    const messages = await new GoldPoliticsMessageService(editorial).buildNewsMessages([input]);
+
+    expect(messages).toHaveLength(0);
+  });
 });

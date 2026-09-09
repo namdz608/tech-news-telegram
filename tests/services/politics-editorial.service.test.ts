@@ -1576,6 +1576,43 @@ describe('PoliticsEditorialService', () => {
     expect(result.summary).toContain('Chưa có bản dịch tiếng Việt đã xác minh');
   });
 
+  it('treats English Google Translate output as a failed translation', async () => {
+    const input = candidate({
+      sourceName: 'BBC World',
+      title: 'UK announces sanctions on West Bank settlements prompting furious Israeli response',
+      summary:
+        'Britain\'s foreign secretary accuses settlers of carrying out the "ethnic cleansing" of Palestinians.',
+      originalAccount: '',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      semanticClaimKey: 'uk|west-bank-sanctions',
+      verificationState: 'reported',
+    });
+    const editorial = {
+      editArticle: vi.fn().mockResolvedValue({
+        title: input.title,
+        summary: input.summary ?? '',
+        whyImportant: 'The story is being reported.',
+        actionLevel: 'monitor' as const,
+        actionText: 'Follow independent sources.',
+      }),
+    };
+    const translator = {
+      translateDigestVerified: vi.fn(async (text: string) => ({ text, succeeded: true })),
+    };
+
+    const result = await new PoliticsEditorialService(
+      editorial,
+      translator,
+      new PoliticsEditorialValidator(),
+      politicsEditorialServiceOptions('codex'),
+    ).edit(input);
+
+    expect(translator.translateDigestVerified).toHaveBeenCalled();
+    expect(result.title).toContain('Chưa dịch được tiêu đề');
+    expect(result.summary).not.toContain('UK announces sanctions');
+  });
+
   it('keeps Codex Vietnamese for an identified BBC report whose source already states a conviction', async () => {
     const input = candidate({
       sourceName: 'BBC World',
