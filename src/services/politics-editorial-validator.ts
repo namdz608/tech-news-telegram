@@ -219,13 +219,23 @@ function claimantNames(candidate: PoliticsCandidate): string[] {
   ].filter(Boolean))];
 }
 
+const INTERPOLATED_NAME_BOUND = 160;
+const ROLE_SWAP_WINDOW = 48;
+const ROLE_SWAP_VERBS = ['buộc tội', 'cáo buộc', 'accused'] as const;
+
+function interpolatableName(name: string): string | undefined {
+  if (!name || name.length > INTERPOLATED_NAME_BOUND) return undefined;
+  return escapeRegExp(name);
+}
+
 function reportingBody(field: string, candidate: PoliticsCandidate): string | undefined {
   if (actorLabel(candidate) === 'Tài khoản chưa xác định') {
     const anonymous = ANONYMOUS_REPORTING_CLAUSE.exec(field);
     if (anonymous?.[1]) return anonymous[1];
   }
   for (const name of claimantNames(candidate)) {
-    const quoted = escapeRegExp(name);
+    const quoted = interpolatableName(name);
+    if (!quoted) continue;
     const match = new RegExp(
       `^(?:(?:tài khoản\\s+${quoted}\\s+(?:nói|cho rằng|cáo buộc|ghi nhận)\\s+)|(?:theo\\s+(?:tài khoản\\s+)?${quoted},\\s*))([^.!?;:…—–]+)\\.?$`,
       'iu',
@@ -249,12 +259,13 @@ function hasClaimantAttribution(field: string, candidate: PoliticsCandidate): bo
   }
   if (hasSingleReportingClause(text, candidate)) return true;
   return claimantNames(candidate).some((name) => {
-    const quoted = escapeRegExp(name);
+    const quoted = interpolatableName(name);
+    if (!quoted) return false;
     return new RegExp(`tài khoản\\s+${quoted}\\b`, 'iu').test(text)
       || new RegExp(`(?:^|\\s)theo\\s+${quoted}\\b`, 'iu').test(text)
       || new RegExp(`(?:according to|reported by)\\s+${quoted}\\b`, 'iu').test(text)
       || new RegExp(`${quoted}\\s+reported\\b`, 'iu').test(text)
-      || new RegExp(`${quoted}.{0,48}(?:cho rằng|cáo buộc|reported|ghi nhận)`, 'iu').test(text);
+      || new RegExp(`${quoted}.{0,${ROLE_SWAP_WINDOW}}(?:cho rằng|cáo buộc|reported|ghi nhận)`, 'iu').test(text);
   });
 }
 
@@ -321,13 +332,26 @@ function swappedRoles(field: string, candidate: PoliticsCandidate): boolean {
     candidate.originAttribution.account || candidate.originalAccount || '',
   );
   const subject = normalize(candidate.claimEntities[0] ?? '');
-  if (!claimant || !subject) return false;
+  if (!claimant || !subject || claimant === subject) return false;
+  if (claimant.length > INTERPOLATED_NAME_BOUND || subject.length > INTERPOLATED_NAME_BOUND) {
+    return false;
+  }
   const text = normalize(field);
-  const swap = new RegExp(
-    `${escapeRegExp(subject)}.{0,48}(?:buộc tội|cáo buộc|accused).{0,48}${escapeRegExp(claimant)}`,
-    'iu',
-  );
-  return swap.test(text);
+  let from = 0;
+  while (from < text.length) {
+    const subjectAt = text.indexOf(subject, from);
+    if (subjectAt < 0) return false;
+    const afterSubject = subjectAt + subject.length;
+    for (const verb of ROLE_SWAP_VERBS) {
+      const verbAt = text.indexOf(verb, afterSubject);
+      if (verbAt < 0 || verbAt - afterSubject > ROLE_SWAP_WINDOW) continue;
+      const afterVerb = verbAt + verb.length;
+      const claimantAt = text.indexOf(claimant, afterVerb);
+      if (claimantAt >= 0 && claimantAt - afterVerb <= ROLE_SWAP_WINDOW) return true;
+    }
+    from = subjectAt + 1;
+  }
+  return false;
 }
 
 function escapeRegExp(value: string): string {
