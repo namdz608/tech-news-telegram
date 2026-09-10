@@ -49,12 +49,15 @@ const fallbackWhyImportant: Record<TopicKey, string> = {
 const VIETNAMESE_CHAR =
   /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/iu;
 
+export function hasVietnameseText(text: string): boolean {
+  return VIETNAMESE_CHAR.test(text.normalize('NFC'));
+}
+
 export function hasVietnameseEditorialText(editorial: {
   title: string;
   summary: string;
 }): boolean {
-  return VIETNAMESE_CHAR.test(editorial.title.normalize('NFC'))
-    && VIETNAMESE_CHAR.test(editorial.summary.normalize('NFC'));
+  return hasVietnameseText(editorial.title) && hasVietnameseText(editorial.summary);
 }
 
 export interface ArticleEditorialServiceOptions {

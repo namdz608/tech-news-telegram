@@ -14,7 +14,7 @@ export class GadgetMessageService {
 
   async buildMessages(entries: GadgetDigestEntry[]): Promise<GadgetMessage[]> {
     const messages = await Promise.all(
-      entries.map(async (entry) => {
+      entries.map(async (entry): Promise<GadgetMessage | undefined> => {
         const topic = getTopic(entry.topic);
         const editorial = await this.editor.editArticle(entry.article, {
           key: topic.key,
@@ -23,13 +23,15 @@ export class GadgetMessageService {
         if (!hasVietnameseEditorialText(editorial)) {
           return undefined;
         }
-        return {
+        const imageUrl = getArticleMessageImageUrl(entry.article, topic.fallbackImageUrl);
+        const message: GadgetMessage = {
           text: renderArticleMessageWithPresentation(entry.article, topic, editorial),
           url: entry.article.url,
-          imageUrl: getArticleMessageImageUrl(entry.article, topic.fallbackImageUrl),
           article: entry.article,
           topic: entry.topic,
         };
+        if (imageUrl) message.imageUrl = imageUrl;
+        return message;
       }),
     );
     return messages.filter((message): message is GadgetMessage => message !== undefined);

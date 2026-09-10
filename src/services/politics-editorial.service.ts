@@ -1,7 +1,11 @@
 import { env } from '../config/env';
 import type { Article } from '../types/article';
 import type { PoliticsCandidate } from '../types/gold-politics';
-import { ArticleEditorialService } from './article-editorial.service';
+import {
+  ArticleEditorialService,
+  hasVietnameseEditorialText,
+  hasVietnameseText,
+} from './article-editorial.service';
 import {
   type ArticleEditorial,
   type EditorialTopicContext,
@@ -51,16 +55,6 @@ export function shouldSkipPoliticsModelEditor(
   provider: string,
 ): boolean {
   return editorial instanceof ArticleEditorialService && provider === 'google';
-}
-
-const VIETNAMESE_CHAR =
-  /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/iu;
-
-export function hasVietnameseEditorialText(editorial: {
-  title: string;
-  summary: string;
-}): boolean {
-  return VIETNAMESE_CHAR.test(`${editorial.title}\n${editorial.summary}`.normalize('NFC'));
 }
 
 export function politicsEditorialServiceOptions(
@@ -246,9 +240,9 @@ export class PoliticsEditorialService {
         return this.validator.validate(candidate, accepted, conservative, 'translated');
       }
     } catch {
-      // Keep the explicit untranslated notice. Do not call unofficial Google Translate.
+      // Last resort: translate the original title/summary instead of posting English.
     }
-    return this.validator.validate(candidate, conservative, conservative);
+    return this.translateFallback(candidate, createProviderFallbackEditorial);
   }
 
   private async translateFallback(
@@ -263,7 +257,14 @@ export class PoliticsEditorialService {
           ? this.translator.translateDigestVerified(compactText(candidate.summary))
           : Promise.resolve({ text: '', succeeded: true }),
       ]);
-      if (!title.succeeded || !summary.succeeded) {
+      if (
+        !title.succeeded
+        || !summary.succeeded
+        || !isUsableVietnameseTranslation(candidate.title, title.text)
+        || (candidate.summary
+          ? !isUsableVietnameseTranslation(candidate.summary, summary.text)
+          : false)
+      ) {
         return this.validator.validate(candidate, conservative, conservative);
       }
       const translatedCandidate: PoliticsCandidate = {
@@ -304,6 +305,13 @@ export class PoliticsEditorialService {
       if (!title.succeeded || !summary.succeeded || !whyImportant.succeeded) {
         return createTranslationFallbackEditorial(candidate);
       }
+      if (
+        !isUsableVietnameseTranslation(plain.title, title.text)
+        || !isUsableVietnameseTranslation(plain.summary, summary.text)
+        || !isUsableVietnameseTranslation(plain.whyImportant, whyImportant.text)
+      ) {
+        return createTranslationFallbackEditorial(candidate);
+      }
       return {
         title: toPlainEditorial(title.text),
         summary: toPlainEditorial(summary.text),
@@ -313,6 +321,13 @@ export class PoliticsEditorialService {
       return createTranslationFallbackEditorial(candidate);
     }
   }
+}
+
+function isUsableVietnameseTranslation(original: string, translated: string): boolean {
+  const source = compactText(original);
+  if (!source) return true;
+  if (hasVietnameseText(source)) return true;
+  return hasVietnameseText(translated);
 }
 
 function toPlainEditorial(value: string): string {
