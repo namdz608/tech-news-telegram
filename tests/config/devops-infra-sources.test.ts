@@ -95,6 +95,10 @@ describe('devops-infra source catalogs', () => {
     expect(DEVOPS_INFRA_X_QUERY).toMatch(/sự cố|kubernetes|hạ tầng|infra/i);
   });
 
+  it('groups the language filter so both languages keep -is:retweet', () => {
+    expect(DEVOPS_INFRA_X_QUERY).toContain('(lang:en OR lang:vi) -is:retweet');
+  });
+
   it('contains no gold-politics query strings', () => {
     const catalogText = [
       ...devopsInfraRedditQueries.map((query) => query.text),

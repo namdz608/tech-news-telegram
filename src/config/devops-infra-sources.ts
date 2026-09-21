@@ -139,4 +139,4 @@ export function buildDevopsInfraWebSearchQueries(max: number): DevopsInfraSearch
 }
 
 export const DEVOPS_INFRA_X_QUERY =
-  '(kubernetes OR terraform OR nginx OR "state lock" OR CrashLoopBackOff OR OOMKilled OR "AccessDenied" OR sự cố hạ tầng OR "kubernetes lỗi") (devops OR infra OR sysadmin) lang:en OR lang:vi -is:retweet';
+  '(kubernetes OR terraform OR nginx OR "state lock" OR CrashLoopBackOff OR OOMKilled OR "AccessDenied" OR sự cố hạ tầng OR "kubernetes lỗi") (devops OR infra OR sysadmin) (lang:en OR lang:vi) -is:retweet';
