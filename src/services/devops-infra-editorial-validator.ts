@@ -21,7 +21,8 @@ const SHELL_COMMAND =
   /\b(?:curl|wget)\b[^;\r\n]*|\b[A-Za-z][A-Za-z0-9_./-]{1,}(?:\s+[^|;\r\n]+)?\s*\|\s*(?:bash|sh)\b[^;\r\n]*/gu;
 const FLAGGED_COMMAND =
   /(?:^|[;&]\s*)([^.!?;\r\n]*\s--?[A-Za-z0-9][A-Za-z0-9_-]*(?:[=\s][^;&\r\n]+)?)/gu;
-const PATH_LIKE = /(?:^|\s)((?:\.\/|~\/|\/)[^\s`'"]+|[A-Za-z0-9_.-]+\/[A-Za-z0-9_./-]+)/gu;
+const PATH_LIKE =
+  /(?:^|[\s("'`])((?:\.\/|~\/|\/)[^\s`'"]+|(?:[A-Za-z0-9_.-]+\/)*(?:bin|usr|etc|var|opt|home|tmp)\/[A-Za-z0-9_./-]+|[A-Za-z0-9_./-]+\.(?:yaml|yml|json|conf|sh|service|toml)\b)/giu;
 const COMMAND_WORD = /^[A-Za-z][A-Za-z0-9_.-]*$/u;
 // Only technical identifiers must survive the English → Vietnamese rewrite:
 // error ids (CrashLoopBackOff, OOMKilled), CVE ids, backtick spans, paths,
@@ -29,12 +30,13 @@ const COMMAND_WORD = /^[A-Za-z][A-Za-z0-9_.-]*$/u;
 // words are expected to be translated, so they are deliberately not protected.
 const CVE_ID = /\bCVE-\d{4}-\d{4,}\b/giu;
 const CLI_FLAG = /(?:^|[^\p{L}\p{N}_-])(--?[A-Za-z][A-Za-z0-9-]*)/gu;
-const DOTTED_IDENTIFIER = /\b[a-z][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)+\b/gu;
+const DOTTED_IDENTIFIER =
+  /\b(?:(?=[A-Za-z0-9_.-]*(?:[a-z][A-Z]|\d|_))[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)+|[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)*\.(?:com|net|org|io|dev|cloud|local|internal|yaml|yml|json|conf|service|toml))\b/gu;
 const VERSIONED_IDENTIFIER = /\b[A-Za-z][A-Za-z0-9_-]*\d[A-Za-z0-9_-]*\b/gu;
 const WORD = /\b[A-Za-z][A-Za-z0-9]+\b/gu;
 // Binaries whose names are also ordinary English words; protecting them would
 // force English back into the Vietnamese rewrite.
-const AMBIGUOUS_BINARY = new Set(['go', 'make', 'ip', 'sh', 'rm', 'az']);
+const AMBIGUOUS_BINARY = new Set(['go', 'make', 'ip', 'node', 'sh', 'rm', 'az']);
 const KNOWN_TOOL =
   /\b(?:nginx|apache|httpd|haproxy|envoy|traefik|istio|etcd|kubelet|kubeadm|crictl|containerd|runc|dockerd|systemd|journalctl|postgres|postgresql|mysql|mariadb|mongodb|redis|kafka|rabbitmq|elasticsearch|grafana|prometheus|alertmanager|loki|vault|consul|nomad|argocd|jenkins|gitlab|coredns|calico|cilium|longhorn|ceph|minio|nfs|iscsi|keepalived|pfsense|openvpn|wireguard|cloudflared|nodejs|nginxinc)\b/giu;
 const TECH_TOKEN_STOPWORDS = new Set([
@@ -138,6 +140,7 @@ function protectedTokens(value: string): Set<string> {
     tokens.add(normalized);
   };
   for (const span of value.matchAll(BACKTICK_SPAN)) add(span[1]);
+  for (const span of value.matchAll(COMMAND_SUBSTITUTION)) add(span[1]);
   for (const match of value.matchAll(CVE_ID)) add(match[0]);
   for (const match of value.matchAll(CLI_FLAG)) add(match[1]);
   for (const match of value.matchAll(PATH_LIKE)) add(match[1]);

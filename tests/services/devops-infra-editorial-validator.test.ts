@@ -202,6 +202,73 @@ describe('validateDevopsInfraEditorial', () => {
     ]);
   });
 
+  it('does not treat slash and dotted English prose as protected tokens', () => {
+    const source = candidate({
+      item: {
+        ...candidate().item,
+        title: 'Resource checks',
+        body: 'Check CPU/memory and/or read/write limits e.g. 24/7.',
+        answers: [],
+      },
+      problem: 'Check CPU/memory and/or read/write limits e.g. 24/7.',
+      solutionSteps: ['Compare CPU/memory and/or read/write limits e.g. 24/7.'],
+    });
+    const result = validateDevopsInfraEditorial({
+      title: 'Kiểm tra tài nguyên',
+      problem: 'Cần kiểm tra giới hạn CPU và bộ nhớ liên tục.',
+      solutionSteps: ['So sánh CPU, bộ nhớ, giới hạn đọc và ghi liên tục.'],
+      caution: 'Hãy kiểm tra trước.',
+    }, source);
+
+    expect(result.problem).toBe('Cần kiểm tra giới hạn CPU và bộ nhớ liên tục.');
+    expect(result.solutionSteps).toEqual([
+      'So sánh CPU, bộ nhớ, giới hạn đọc và ghi liên tục.',
+    ]);
+  });
+
+  it('does not protect node when it is plain cluster prose', () => {
+    const source = candidate({
+      item: {
+        ...candidate().item,
+        title: 'Cluster capacity issue',
+        body: 'A cluster node has insufficient capacity.',
+        answers: [],
+      },
+      problem: 'A cluster node has insufficient capacity.',
+      solutionSteps: ['Move the workload to another node.'],
+    });
+    const result = validateDevopsInfraEditorial({
+      title: 'Thiếu tài nguyên cụm',
+      problem: 'Một máy trong cụm không đủ tài nguyên.',
+      solutionSteps: ['Chuyển workload sang một máy khác.'],
+      caution: 'Hãy kiểm tra trước.',
+    }, source);
+
+    expect(result.solutionSteps).toEqual(['Chuyển workload sang một máy khác.']);
+    expect(result.problem).toBe('Một máy trong cụm không đủ tài nguyên.');
+  });
+
+  it('still protects real paths and error identifiers', () => {
+    const source = candidate({
+      item: {
+        ...candidate().item,
+        body: 'CrashLoopBackOff follows a bad /etc/nginx/nginx.conf change.',
+        answers: [],
+      },
+      problem: 'The service enters CrashLoopBackOff.',
+      solutionSteps: ['Inspect /etc/nginx/nginx.conf.'],
+    });
+    const result = validateDevopsInfraEditorial({
+      title: 'Dịch vụ lỗi',
+      problem: 'Dịch vụ liên tục khởi động lại.',
+      solutionSteps: ['Kiểm tra tệp cấu hình.'],
+      caution: 'Hãy kiểm tra trước.',
+    }, source);
+
+    expect(result.problem).toContain('CrashLoopBackOff');
+    expect(result.solutionSteps).toEqual(['Inspect /etc/nginx/nginx.conf.']);
+  });
+
   it('preserves HTML characters but rejects javascript schemes', () => {
     const safe = validateDevopsInfraEditorial({
       title: 'A < B & C > D',
