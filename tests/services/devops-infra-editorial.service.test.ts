@@ -34,7 +34,7 @@ const candidate: DevopsInfraCandidate = {
 
 const validEditorial = {
   title: 'Pod Kubernetes gặp CrashLoopBackOff',
-  problem: 'Pod gặp CrashLoopBackOff.',
+  problem: 'Kubernetes: The pod restarts continuously and enters CrashLoopBackOff.',
   solutionSteps: ['Run `kubectl logs pod/api`.'],
   caution: 'Đây không phải runbook chính thức.',
 };

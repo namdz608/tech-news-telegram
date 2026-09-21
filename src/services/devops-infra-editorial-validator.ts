@@ -13,9 +13,14 @@ const DESTRUCTIVE_COMMAND =
   /rm\s+-rf|mkfs|drop\s+database|disable.*auth|kubectl\s+delete/iu;
 const JAVASCRIPT_SCHEME = /javascript\s*:/iu;
 const BACKTICK_SPAN = /`([^`\r\n]+)`/gu;
+const COMMAND_SUBSTITUTION = /\$\(([^)\r\n]+)\)/gu;
 const TOKEN = /[A-Za-z][A-Za-z0-9_.-]{2,}/gu;
 const COMMAND =
   /\b(?:kubectl|terraform|systemctl|helm|docker|podman|ansible|gcloud|aws|az|rm|mkfs)\b[^.!?;\r\n]*/giu;
+const SHELL_COMMAND =
+  /\b(?:curl|wget)\b[^;\r\n]*|\b[A-Za-z][A-Za-z0-9_./-]{1,}(?:\s+[^|;\r\n]+)?\s*\|\s*(?:bash|sh)\b[^;\r\n]*/gu;
+const FLAGGED_COMMAND =
+  /(?:^|[;&]\s*)([A-Za-z][A-Za-z0-9_./-]{1,}(?:\s+--?[A-Za-z0-9][A-Za-z0-9_-]*(?:[=\s][^;&\r\n]+)?)?)/gu;
 
 export function truncateUtf16(value: string, max: number): string {
   if (max <= 0) return '';
@@ -44,15 +49,19 @@ function safe(value: unknown): value is string {
 
 function normalizeCommand(value: string): string {
   return compactText(value)
-    .replace(/^[`'"]+|[`'",:]+$/gu, '')
-    .toLowerCase();
+    .replace(/^[`'"]+|[`'",:]+$/gu, '');
 }
 
 function hasInventedCommand(step: string, corpus: string): boolean {
   const normalizedCorpus = normalizeCommand(corpus);
   const commands = [
     ...[...step.matchAll(BACKTICK_SPAN)].map((match) => match[1] ?? ''),
+    ...[...step.matchAll(COMMAND_SUBSTITUTION)].map((match) => match[1] ?? ''),
     ...(step.match(COMMAND) ?? []),
+    ...(step.match(SHELL_COMMAND) ?? []),
+    ...[...step.matchAll(FLAGGED_COMMAND)]
+      .map((match) => match[1] ?? '')
+      .filter((command) => /(?:^|\s)--?[A-Za-z0-9]/u.test(command)),
   ];
   return commands.some((command) => {
     const normalized = normalizeCommand(command);
@@ -66,19 +75,19 @@ function technicalTokens(value: string): Set<string> {
     if (span[1]) tokens.add(span[1]);
   }
   for (const token of value.match(TOKEN) ?? []) {
-    if (
-      /[A-Z].*[A-Z]|[a-z][A-Z]|[0-9_.-]/u.test(token)
-      || token === token.toUpperCase()
-      || ['kubectl', 'terraform', 'systemctl'].includes(token.toLowerCase())
-    ) {
-      tokens.add(token);
-    }
+    tokens.add(token);
   }
   return tokens;
 }
 
-function keepsTokens(generated: string, source: string): boolean {
-  return [...technicalTokens(source)].every((token) => generated.includes(token));
+function missingTokens(generated: string, source: string): Set<string> {
+  return new Set(
+    [...technicalTokens(source)].filter((token) => !generated.includes(token)),
+  );
+}
+
+function containsAnyToken(value: string, tokens: Set<string>): boolean {
+  return [...tokens].some((token) => value.includes(token));
 }
 
 export function deterministicDevopsInfraEditorial(
@@ -110,21 +119,23 @@ export function validateDevopsInfraEditorial(
   const corpus = sourceCorpus(candidate);
   const title = safe(editorial.title) ? compactText(editorial.title) : fallback.title;
   const generatedProblem = safe(editorial.problem) ? compactText(editorial.problem) : '';
-  const problem = generatedProblem
-    && keepsTokens(generatedProblem, candidate.problem)
-    ? generatedProblem
-    : fallback.problem;
+  let problem = generatedProblem || fallback.problem;
   const generatedSteps = Array.isArray(editorial.solutionSteps)
     ? editorial.solutionSteps
       .filter(safe)
       .map(compactText)
       .filter((step) => !hasInventedCommand(step, corpus))
     : [];
-  const stepsText = generatedSteps.join('\n');
-  const solutionSteps = generatedSteps.length > 0
-    && keepsTokens(stepsText, candidate.solutionSteps.join('\n'))
+  let solutionSteps = generatedSteps.length > 0
     ? generatedSteps
     : fallback.solutionSteps;
+  const missing = missingTokens(`${problem}\n${solutionSteps.join('\n')}`, corpus);
+  if (containsAnyToken(fallback.problem, missing)) {
+    problem = fallback.problem;
+  }
+  if (containsAnyToken(fallback.solutionSteps.join('\n'), missing)) {
+    solutionSteps = fallback.solutionSteps;
+  }
   const caution = safe(editorial.caution) ? compactText(editorial.caution) : fallback.caution;
 
   return {
