@@ -15,7 +15,6 @@ const JAVASCRIPT_SCHEME = /javascript\s*:/iu;
 const BACKTICK_SPAN = /`([^`\r\n]+)`/gu;
 const COMMAND_SUBSTITUTION = /\$\(([^)\r\n]+)\)/gu;
 const VARIABLE_SUBSTITUTION = /\$\{([^}\r\n]+)\}/gu;
-const TOKEN = /[A-Za-z][A-Za-z0-9_.-]{2,}/gu;
 const KNOWN_BINARY =
   /\b(?:kubectl|terraform|systemctl|helm|docker|podman|ansible|gcloud|aws|az|rm|mkfs|curl|wget|sudo|reboot|bash|sh|zsh|apt|yum|dnf|chmod|chown|kill|pkill|nsenter|iptables|ip|ssh|scp|rsync|python|python3|node|npm|go|make|cargo|git)\b/giu;
 const SHELL_COMMAND =
@@ -24,6 +23,20 @@ const FLAGGED_COMMAND =
   /(?:^|[;&]\s*)([^.!?;\r\n]*\s--?[A-Za-z0-9][A-Za-z0-9_-]*(?:[=\s][^;&\r\n]+)?)/gu;
 const PATH_LIKE = /(?:^|\s)((?:\.\/|~\/|\/)[^\s`'"]+|[A-Za-z0-9_.-]+\/[A-Za-z0-9_./-]+)/gu;
 const COMMAND_WORD = /^[A-Za-z][A-Za-z0-9_.-]*$/u;
+// Only technical identifiers must survive the English → Vietnamese rewrite:
+// error ids (CrashLoopBackOff, OOMKilled), CVE ids, backtick spans, paths,
+// CLI flags, dotted/versioned identifiers and known binaries. Ordinary English
+// words are expected to be translated, so they are deliberately not protected.
+const CVE_ID = /\bCVE-\d{4}-\d{4,}\b/giu;
+const CLI_FLAG = /(?:^|[^\p{L}\p{N}_-])(--?[A-Za-z][A-Za-z0-9-]*)/gu;
+const DOTTED_IDENTIFIER = /\b[a-z][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)+\b/gu;
+const VERSIONED_IDENTIFIER = /\b[A-Za-z][A-Za-z0-9_-]*\d[A-Za-z0-9_-]*\b/gu;
+const WORD = /\b[A-Za-z][A-Za-z0-9]+\b/gu;
+// Binaries whose names are also ordinary English words; protecting them would
+// force English back into the Vietnamese rewrite.
+const AMBIGUOUS_BINARY = new Set(['go', 'make', 'ip', 'sh', 'rm', 'az']);
+const KNOWN_TOOL =
+  /\b(?:nginx|apache|httpd|haproxy|envoy|traefik|istio|etcd|kubelet|kubeadm|crictl|containerd|runc|dockerd|systemd|journalctl|postgres|postgresql|mysql|mariadb|mongodb|redis|kafka|rabbitmq|elasticsearch|grafana|prometheus|alertmanager|loki|vault|consul|nomad|argocd|jenkins|gitlab|coredns|calico|cilium|longhorn|ceph|minio|nfs|iscsi|keepalived|pfsense|openvpn|wireguard|cloudflared|nodejs|nginxinc)\b/giu;
 const TECH_TOKEN_STOPWORDS = new Set([
   'the', 'and', 'for', 'with', 'this', 'that', 'from', 'into', 'when', 'then',
   'still', 'after', 'before', 'using', 'onto', 'over', 'under', 'than', 'also',
@@ -113,25 +126,41 @@ function normalizeTechToken(token: string): string {
     .replace(/[.,:;!?]+$/gu, '');
 }
 
-function technicalTokens(value: string): Set<string> {
+function isErrorIdentifier(token: string): boolean {
+  return token.length >= 3 && /[A-Z]/u.test(token.slice(1));
+}
+
+function protectedTokens(value: string): Set<string> {
   const tokens = new Set<string>();
-  for (const span of value.matchAll(BACKTICK_SPAN)) {
-    const normalized = span[1] ? normalizeTechToken(span[1]) : '';
-    if (normalized && !TECH_TOKEN_STOPWORDS.has(normalized.toLowerCase())) {
-      tokens.add(normalized);
-    }
+  const add = (raw: string | undefined): void => {
+    const normalized = raw ? normalizeTechToken(raw) : '';
+    if (!normalized || TECH_TOKEN_STOPWORDS.has(normalized.toLowerCase())) return;
+    tokens.add(normalized);
+  };
+  for (const span of value.matchAll(BACKTICK_SPAN)) add(span[1]);
+  for (const match of value.matchAll(CVE_ID)) add(match[0]);
+  for (const match of value.matchAll(CLI_FLAG)) add(match[1]);
+  for (const match of value.matchAll(PATH_LIKE)) add(match[1]);
+  for (const match of value.matchAll(DOTTED_IDENTIFIER)) add(match[0]);
+  for (const match of value.matchAll(VERSIONED_IDENTIFIER)) add(match[0]);
+  for (const match of value.matchAll(KNOWN_BINARY)) {
+    if (!AMBIGUOUS_BINARY.has(match[0].toLowerCase())) add(match[0]);
   }
-  for (const token of value.match(TOKEN) ?? []) {
-    const normalized = normalizeTechToken(token);
-    if (!normalized) continue;
-    if (!TECH_TOKEN_STOPWORDS.has(normalized.toLowerCase())) tokens.add(normalized);
+  for (const match of value.matchAll(KNOWN_TOOL)) add(match[0]);
+  for (const match of value.matchAll(WORD)) {
+    if (isErrorIdentifier(match[0])) add(match[0]);
   }
   return tokens;
 }
 
 function missingTokens(generated: string, source: string): Set<string> {
+  const dropped = [...protectedTokens(source)]
+    .filter((token) => !generated.includes(token))
+    .sort((left, right) => right.length - left.length);
+  // `kubectl` and `pod/api` add nothing once `kubectl logs pod/api` is restored.
   return new Set(
-    [...technicalTokens(source)].filter((token) => !generated.includes(token)),
+    dropped.filter((token, index) =>
+      !dropped.slice(0, index).some((longer) => longer.includes(token))),
   );
 }
 
@@ -186,10 +215,9 @@ export function validateDevopsInfraEditorial(
     ? generatedSteps
     : fallback.solutionSteps;
   let missing = missingTokens(`${problem}\n${solutionSteps.join('\n')}`, corpus);
-  if (containsAnyToken(fallback.problem, missing)) {
-    problem = fallback.problem;
-    missing = missingTokens(`${problem}\n${solutionSteps.join('\n')}`, corpus);
-  }
+  // Steps carry commands, so fall back to the source steps when the rewrite
+  // dropped one. The problem statement only gets the dropped tokens appended so
+  // a Vietnamese rewrite is never replaced by the English source.
   if (containsAnyToken(fallback.solutionSteps.join('\n'), missing)) {
     solutionSteps = fallback.solutionSteps;
     missing = missingTokens(`${problem}\n${solutionSteps.join('\n')}`, corpus);

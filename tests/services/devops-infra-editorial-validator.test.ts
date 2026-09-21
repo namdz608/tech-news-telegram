@@ -127,7 +127,7 @@ describe('validateDevopsInfraEditorial', () => {
     expect(result.solutionSteps.join(' ')).toContain('kubectl logs pod/api');
   });
 
-  it('restores the problem when a full-corpus technical token is translated away', () => {
+  it('keeps the Vietnamese problem and re-adds a technical token translated away', () => {
     const source = candidate({
       problem: 'The nginx proxy returns an error.',
       solutionSteps: ['Inspect the proxy logs.'],
@@ -161,7 +161,7 @@ describe('validateDevopsInfraEditorial', () => {
     expect(result.problem).toContain('nginx');
   });
 
-  it('preserves infra tokens deployment and node when model omits them', () => {
+  it('preserves the host identifier worker-3 while translating ordinary words', () => {
     const source = candidate({
       item: {
         ...candidate().item,
@@ -177,8 +177,29 @@ describe('validateDevopsInfraEditorial', () => {
       caution: 'Hãy kiểm tra trước.',
     }, source);
 
-    expect(result.problem).toContain('deployment');
-    expect(result.problem).toContain('node');
+    expect(result.problem).toContain('Quá trình triển khai gặp sự cố trên máy chủ.');
+    expect(result.problem).toContain('worker-3');
+    expect(result.solutionSteps).toEqual(['Khởi động lại dịch vụ.']);
+  });
+
+  it('keeps the Vietnamese rewrite when no protected token was dropped', () => {
+    const result = validateDevopsInfraEditorial({
+      title: 'Pod Kubernetes lặp CrashLoopBackOff',
+      problem: 'Pod api liên tục khởi động lại ở trạng thái CrashLoopBackOff.',
+      solutionSteps: [
+        'Chạy `kubectl logs pod/api` để đọc log lần chạy trước.',
+        'Bổ sung biến môi trường còn thiếu.',
+      ],
+      caution: 'Hãy kiểm tra trước.',
+    }, candidate());
+
+    expect(result.problem).toBe(
+      'Pod api liên tục khởi động lại ở trạng thái CrashLoopBackOff.',
+    );
+    expect(result.solutionSteps).toEqual([
+      'Chạy `kubectl logs pod/api` để đọc log lần chạy trước.',
+      'Bổ sung biến môi trường còn thiếu.',
+    ]);
   });
 
   it('preserves HTML characters but rejects javascript schemes', () => {

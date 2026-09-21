@@ -74,8 +74,8 @@ describe('DevopsInfraEditorialService', () => {
 
     const result = await new DevopsInfraEditorialService(generator).edit(candidate);
 
-    expect(result.problem).toContain(candidate.problem);
-    expect(result.problem).toContain('Kubernetes');
+    expect(result.problem).toContain('Pod bị lỗi.');
+    expect(result.problem).toContain('CrashLoopBackOff');
     expect(result.solutionSteps).toEqual(candidate.solutionSteps);
   });
 
