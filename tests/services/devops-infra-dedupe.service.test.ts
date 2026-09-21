@@ -7,7 +7,6 @@ import {
 import type {
   DevopsInfraCandidate,
   DevopsInfraSourceItem,
-  SolutionConfidence,
 } from "../../src/types/devops-infra";
 
 const NOW = "2026-09-21T03:00:00.000Z";
