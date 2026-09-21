@@ -16,6 +16,10 @@ import {
   isAllGoldPoliticsSourcesFailedError,
 } from '../services/gold-politics-flow.service';
 import {
+  createDevopsInfraFlowService,
+  isAllDevopsInfraSourcesFailedError,
+} from '../services/devops-infra-flow.service';
+import {
   createHealthFlowService,
   isAllHealthSourcesFailedError,
 } from '../services/health-flow.service';
@@ -36,6 +40,8 @@ let healthFlowService: ReturnType<typeof createHealthFlowService> | undefined;
 let healthDigestRunning = false;
 let goldPoliticsFlowService: ReturnType<typeof createGoldPoliticsFlowService> | undefined;
 let goldPoliticsDigestRunning = false;
+let devopsInfraFlowService: ReturnType<typeof createDevopsInfraFlowService> | undefined;
+let devopsInfraDigestRunning = false;
 
 /**
  * Thu thập, biên tập và gửi một đợt message Telegram (tech digest).
@@ -117,6 +123,27 @@ export async function sendGoldPolitics(_req: Request, res: Response) {
     throw error;
   } finally {
     goldPoliticsDigestRunning = false;
+  }
+}
+
+/** Thu thập và gửi bản tin DevOps/hạ tầng bằng bot/chat riêng. */
+export async function sendDevopsInfra(_req: Request, res: Response) {
+  if (devopsInfraDigestRunning) {
+    res.status(409).json({ error: 'DevOps infra digest is already running' });
+    return;
+  }
+  devopsInfraDigestRunning = true;
+  try {
+    devopsInfraFlowService ??= createDevopsInfraFlowService();
+    res.json(await devopsInfraFlowService.run());
+  } catch (error) {
+    if (isAllDevopsInfraSourcesFailedError(error)) {
+      res.status(503).json({ error: 'All devops-infra sources failed' });
+      return;
+    }
+    throw error;
+  } finally {
+    devopsInfraDigestRunning = false;
   }
 }
 
