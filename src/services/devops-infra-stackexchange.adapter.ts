@@ -137,7 +137,6 @@ function mapQuestion(
   const communityKey = `stackexchange:${site}`;
   const author = readText(asRecord(question.owner)?.display_name) || undefined;
   const score = finiteNumber(question.score);
-  const answerCount = finiteNumber(question.answer_count);
 
   return {
     id: url,
@@ -156,13 +155,7 @@ function mapQuestion(
     sourceQuotaKey: communityKey,
     sourceTextStatus: "full",
     answers: [selectedAnswer],
-    engagement:
-      score === undefined && answerCount === undefined
-        ? undefined
-        : {
-            ...(score === undefined ? {} : { score }),
-            ...(answerCount === undefined ? {} : { comments: answerCount }),
-          },
+    ...(score === undefined ? {} : { engagement: { score } }),
   };
 }
 

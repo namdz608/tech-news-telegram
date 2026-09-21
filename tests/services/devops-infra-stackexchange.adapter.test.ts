@@ -161,7 +161,69 @@ describe("DevopsInfraStackExchangeAdapter", () => {
             accepted: true,
           },
         ],
-        engagement: { score: 8, comments: 2 },
+        engagement: { score: 8 },
+      },
+    ]);
+  });
+
+  it("maps a single embedded answer when answers=1 returns the accepted answer", async () => {
+    const singleAccepted = question({
+      answer_count: 3,
+      answers: [
+        {
+          answer_id: 456,
+          body: "<p>Inspect previous container logs.</p>",
+          score: 3,
+          is_accepted: true,
+        },
+      ],
+    });
+    const http = createHttp(async (params) =>
+      params.site === "serverfault" ? response([singleAccepted]) : response(),
+    );
+
+    const result = await new DevopsInfraStackExchangeAdapter(
+      http,
+      () => NOW,
+    ).collect();
+
+    expect(result.items[0]?.answers).toEqual([
+      {
+        body: "<p>Inspect previous container logs.</p>",
+        score: 3,
+        accepted: true,
+      },
+    ]);
+    expect(result.items[0]?.engagement).toEqual({ score: 8 });
+  });
+
+  it("maps a single embedded answer when answers=1 returns the top-scoring answer", async () => {
+    const singleTopScored = question({
+      answer_count: 5,
+      accepted_answer_id: undefined,
+      answers: [
+        {
+          answer_id: 789,
+          body: "<p>Increase the memory limit.</p>",
+          score: 10,
+          is_accepted: false,
+        },
+      ],
+    });
+    const http = createHttp(async (params) =>
+      params.site === "serverfault" ? response([singleTopScored]) : response(),
+    );
+
+    const result = await new DevopsInfraStackExchangeAdapter(
+      http,
+      () => NOW,
+    ).collect();
+
+    expect(result.items[0]?.answers).toEqual([
+      {
+        body: "<p>Increase the memory limit.</p>",
+        score: 10,
+        accepted: false,
       },
     ]);
   });
