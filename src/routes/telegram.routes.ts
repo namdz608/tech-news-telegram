@@ -5,7 +5,14 @@
  * dựng/biên tập message → `TelegramService` gửi separator và từng bài tới chat cấu hình.
  */
 import { Router } from 'express';
-import { sendDigest, sendGadgets, sendGoldPolitics, sendHealth, sendJobs } from '../controllers/telegram.controller';
+import {
+  sendDevopsInfra,
+  sendDigest,
+  sendGadgets,
+  sendGoldPolitics,
+  sendHealth,
+  sendJobs,
+} from '../controllers/telegram.controller';
 
 /**
  * Router con cho tác vụ Telegram.
@@ -19,5 +26,6 @@ telegramRoutes.post('/telegram/send-digest', sendDigest);
 telegramRoutes.post('/telegram/send-gadgets', sendGadgets);
 telegramRoutes.post('/telegram/send-health', sendHealth);
 telegramRoutes.post('/telegram/send-gold-politics', sendGoldPolitics);
+telegramRoutes.post('/telegram/send-devops-infra', sendDevopsInfra);
 // Endpoint riêng cho tin tuyển dụng VN; không trộn vào digest tech.
 telegramRoutes.post('/telegram/send-jobs', sendJobs);

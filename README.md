@@ -323,6 +323,45 @@ Merely recreating the JSON while the sentinel exists must not resume sending.
 Volume `/app/data` cũng lưu `data/gold-politics-sent-history.json` và
 `data/gold-price-history.json`.
 
+## Luồng DevOps infra
+
+`POST /telegram/send-devops-infra` là luồng riêng gom **bài toán + cách xử lý**
+từ diễn đàn công khai (cloud và on-prem) và một phần nhỏ thread sự cố/CVE/outage,
+biên tập sang tiếng Việt rồi gửi lên **bot và chat Telegram riêng**
+(`DEVOPS_INFRA_TELEGRAM_*`), tách hẳn tech/gadget/health/gold-politics.
+
+Mỗi lần gọi gửi tối đa **12** tin; trong đó tối đa **3** tin loại `incident`, phần
+còn lại là `problem-solution`. Nội dung giữ nguyên thuật ngữ kỹ thuật gốc
+(`CrashLoopBackOff`, `IAM`, `systemctl`, `terraform apply`, …). Luồng không tự
+bịa lệnh hay runbook ngoài thread nguồn.
+
+**Nguồn:** Reddit, Stack Exchange, Hacker News (public API/RSS-less search); tùy chọn
+Brave web search, X Recent Search (`X_BEARER_TOKEN`), Discord và Facebook Graph khi
+operator cấp token chính thức và allowlist. `BRAVE_SEARCH_API_KEY`, `X_BEARER_TOKEN`,
+`DISCORD_BOT_TOKEN` / `DISCORD_CHANNEL_ALLOWLIST`, `FACEBOOK_ACCESS_TOKEN` /
+`FACEBOOK_PAGE_ALLOWLIST` **để trống → adapter tương ứng tắt**, không coi là lỗi nguồn.
+
+- Discord allowlist: `guildId:channelId,guildId:channelId` (ID số, ví dụ `123456789012345678:987654321098765432`).
+- Facebook allowlist: danh sách **page ID** số, phân tách bằng dấu phẩy.
+
+App **không đăng nhập**, không vượt CAPTCHA, không vào nhóm kín/private, không đọc
+Discord DM hay cộng đồng ngoài allowlist. URL đã gửi lưu **7 ngày** tại
+`DEVOPS_INFRA_HISTORY_PATH`. Trigger chỉ qua API; trong app không có scheduler. Chart Helm sibling
+(`helm/tech-news-telegram`) gọi endpoint lúc **08:40** `Asia/Ho_Chi_Minh`
+(`40 8 * * *`), lệch sau gold-politics.
+
+Mỗi tin có disclaimer bắt buộc: *Tham khảo từ diễn đàn, kiểm tra trên môi trường
+của bạn trước khi áp dụng.* Thread diễn đàn không phải runbook chính thức.
+
+```bash
+curl -X POST http://localhost:3000/telegram/send-devops-infra
+```
+
+Credential `replace_me` hoặc placeholder test fail trước khi crawl (cùng pattern
+gold-politics). HTTP **409** khi một lượt devops-infra đang chạy; **503** khi mọi
+nguồn **đang bật** đều lỗi. Endpoint không có auth/rate limit ở tầng app — chỉ expose
+trong mạng riêng hoặc reverse proxy có xác thực.
+
 Gửi tin tuyển dụng Việt Nam (TopCV, ITviec, VietnamWorks) — **gom 1 PDF gửi email** (không Telegram):
 
 ```bash

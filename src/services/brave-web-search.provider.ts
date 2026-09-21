@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { env } from '../config/env';
-import type { PoliticsSearchQuery } from '../types/gold-politics';
 import { compactText } from '../utils/text';
 import type { WebSearchProvider, WebSearchResult } from './web-search.provider';
 
@@ -42,7 +41,7 @@ export class BraveWebSearchProvider implements WebSearchProvider {
     return this.apiKey.trim() !== '';
   }
 
-  async search(query: PoliticsSearchQuery): Promise<WebSearchResult[]> {
+  async search(query: { key: string; text: string }): Promise<WebSearchResult[]> {
     if (!this.isEnabled()) {
       return [];
     }
