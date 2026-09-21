@@ -4,6 +4,7 @@ import {
   devopsInfraRedditQueries,
 } from '../../src/config/devops-infra-sources';
 import { DevopsInfraRedditAdapter } from '../../src/services/devops-infra-reddit.adapter';
+import { redditHttpsAgent } from '../../src/utils/reddit-dns';
 
 const NOW = new Date('2026-09-21T03:00:00.000Z');
 const CREATED_UTC = 1_757_905_200;
@@ -65,6 +66,14 @@ function emptyHttp() {
 }
 
 describe('DevopsInfraRedditAdapter', () => {
+  it('uses the Reddit Fastly DNS fallback agent', () => {
+    const adapter = new DevopsInfraRedditAdapter();
+    expect(
+      (adapter as unknown as { http: { defaults?: { httpsAgent?: unknown } } }).http.defaults
+        ?.httpsAgent,
+    ).toBe(redditHttpsAgent);
+  });
+
   it('is always enabled and calls every subreddit listing and catalog search', async () => {
     const http = emptyHttp();
     const adapter = new DevopsInfraRedditAdapter(http, () => NOW);
@@ -76,13 +85,18 @@ describe('DevopsInfraRedditAdapter', () => {
 
     for (const subreddit of DEVOPS_INFRA_SUBREDDITS) {
       expect(http.get).toHaveBeenCalledWith(
-        `https://www.reddit.com/r/${subreddit}/new.json`,
-        expect.objectContaining({ params: { limit: 10 } }),
+        `https://old.reddit.com/r/${subreddit}/new.json`,
+        expect.objectContaining({
+          params: { limit: 10 },
+          headers: expect.objectContaining({
+            'User-Agent': 'web:tech-news-telegram:1.0',
+          }),
+        }),
       );
     }
     for (const query of devopsInfraRedditQueries) {
       expect(http.get).toHaveBeenCalledWith(
-        'https://www.reddit.com/search.json',
+        'https://old.reddit.com/search.json',
         expect.objectContaining({
           params: { q: query.text, sort: 'new', t: 'week', limit: 10 },
         }),
@@ -99,12 +113,12 @@ describe('DevopsInfraRedditAdapter', () => {
   it('maps a self-post and attaches scored, author-confirmed answers', async () => {
     const permalink = '/r/devops/comments/abc123/kubernetes_pod_keeps_restarting/';
     const http = createHttp(async (url) => {
-      if (url === 'https://www.reddit.com/r/devops/new.json') {
+      if (url === 'https://old.reddit.com/r/devops/new.json') {
         return { data: listing([post()]), headers: JSON_HEADERS };
       }
       if (
         url ===
-        'https://www.reddit.com/r/devops/comments/abc123/kubernetes_pod_keeps_restarting.json'
+        'https://old.reddit.com/r/devops/comments/abc123/kubernetes_pod_keeps_restarting.json'
       ) {
         return {
           data: comments([
@@ -158,41 +172,99 @@ describe('DevopsInfraRedditAdapter', () => {
       engagement: { score: 12, comments: 3 },
     });
     expect(http.get).toHaveBeenCalledWith(
-      `https://www.reddit.com${permalink.slice(0, -1)}.json`,
+      `https://old.reddit.com${permalink.slice(0, -1)}.json`,
       expect.any(Object),
     );
   });
 
   it('isolates a rate-limited query with credential-free fixtures', async () => {
     const failedQuery = devopsInfraRedditQueries[0];
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const http = createHttp(async (url, params) => {
-      if (url === 'https://www.reddit.com/search.json' && params.q === failedQuery.text) {
+      if (url === 'https://old.reddit.com/search.json' && params.q === failedQuery.text) {
         throw Object.assign(new Error('429'), {
           response: {
             status: 429,
             headers: { 'content-type': 'application/json' },
-            data: { error: 'rate limited' },
+            data: { error: 'rate limited secret-token' },
           },
         });
       }
       return { data: listing(), headers: JSON_HEADERS };
     });
 
-    const result = await new DevopsInfraRedditAdapter(http, () => NOW).collect();
-
-    expect(result.successfulSourceCount).toBe(
-      DEVOPS_INFRA_SUBREDDITS.length + devopsInfraRedditQueries.length - 1,
-    );
+    const sleep = vi.fn(async () => undefined);
+    const result = await new DevopsInfraRedditAdapter(http, () => NOW, sleep).collect();
     expect(result.failedSources).toEqual([`reddit:${failedQuery.key}`]);
+    expect(warn).toHaveBeenCalledWith(
+      'devops-infra reddit failed',
+      `reddit:${failedQuery.key}`,
+      429,
+      'Error',
+    );
+    expect(sleep).toHaveBeenCalledWith(500);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('secret-token');
     expect(JSON.stringify(http.get.mock.calls)).not.toMatch(
       /authorization|cookie|token|api[-_]?key/i,
     );
+    warn.mockRestore();
+  });
+
+  it('logs a DNS code instead of unknown when Reddit does not resolve', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const http = createHttp(async () => {
+      throw Object.assign(new Error('getaddrinfo ENOTFOUND www.reddit.com'), {
+        code: 'ENOTFOUND',
+      });
+    });
+
+    try {
+      const result = await new DevopsInfraRedditAdapter(http, () => NOW).collect();
+      expect(result.successfulSourceCount).toBe(0);
+      expect(result.failedSources).toContain('reddit:r/devops');
+      expect(warn).toHaveBeenCalledWith(
+        'devops-infra reddit failed',
+        'reddit:r/devops',
+        'ENOTFOUND',
+        'Error',
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('retries a 429 listing once after waiting', async () => {
+    const failedQuery = devopsInfraRedditQueries[0];
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const sleep = vi.fn(async () => undefined);
+    let attempts = 0;
+    const http = createHttp(async (url, params) => {
+      if (url === 'https://old.reddit.com/search.json' && params.q === failedQuery.text) {
+        attempts += 1;
+        if (attempts === 1) {
+          throw Object.assign(new Error('429'), {
+            response: {
+              status: 429,
+              headers: { 'retry-after': '1', 'content-type': 'application/json' },
+            },
+          });
+        }
+      }
+      return { data: listing(), headers: JSON_HEADERS };
+    });
+
+    const result = await new DevopsInfraRedditAdapter(http, () => NOW, sleep).collect();
+
+    expect(result.failedSources).toEqual([]);
+    expect(sleep).toHaveBeenCalledWith(1000);
+    expect(attempts).toBe(2);
+    warn.mockRestore();
   });
 
   it('skips removed, deleted, and permalink-less posts', async () => {
     const http = createHttp(async (url) => ({
       data:
-        url === 'https://www.reddit.com/r/devops/new.json'
+        url === 'https://old.reddit.com/r/devops/new.json'
           ? listing([
               post({ selftext: '[removed]' }),
               post({ title: '[deleted]', selftext: '[deleted]' }),
@@ -211,8 +283,9 @@ describe('DevopsInfraRedditAdapter', () => {
   });
 
   it('keeps the post as incomplete when its comment request fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const http = createHttp(async (url) => {
-      if (url === 'https://www.reddit.com/r/devops/new.json') {
+      if (url === 'https://old.reddit.com/r/devops/new.json') {
         return { data: listing([post()]), headers: JSON_HEADERS };
       }
       if (url.endsWith('.json') && url.includes('/comments/')) {
@@ -230,6 +303,13 @@ describe('DevopsInfraRedditAdapter', () => {
       }),
     ]);
     expect(result.failedSources).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(
+      'devops-infra reddit failed',
+      'reddit:r/devops',
+      'unknown',
+      'Error',
+    );
+    warn.mockRestore();
   });
 
   it('fetches comments for at most fifteen unique posts per run', async () => {
@@ -241,7 +321,7 @@ describe('DevopsInfraRedditAdapter', () => {
       }),
     );
     const http = createHttp(async (url) => {
-      if (url === 'https://www.reddit.com/r/devops/new.json') {
+      if (url === 'https://old.reddit.com/r/devops/new.json') {
         return { data: listing(posts), headers: JSON_HEADERS };
       }
       if (url.includes('/comments/')) {
@@ -260,6 +340,39 @@ describe('DevopsInfraRedditAdapter', () => {
     expect(commentCalls.some(([url]) => String(url).includes('/post15/'))).toBe(false);
     expect(result.items[15]).toEqual(
       expect.objectContaining({ answers: [], sourceTextStatus: 'incomplete' }),
+    );
+  });
+
+  it('keeps a public Reddit preview image', async () => {
+    const http = createHttp(async (url) => {
+      if (url === 'https://old.reddit.com/r/devops/new.json') {
+        return {
+          data: listing([
+            post({
+              preview: {
+                images: [
+                  {
+                    source: {
+                      url: 'https://preview.redd.it/pod.png?auto=webp&amp;s=abc',
+                    },
+                  },
+                ],
+              },
+            }),
+          ]),
+          headers: JSON_HEADERS,
+        };
+      }
+      if (url.endsWith('.json') && url.includes('/comments/')) {
+        return { data: comments([]), headers: JSON_HEADERS };
+      }
+      return { data: listing(), headers: JSON_HEADERS };
+    });
+
+    const result = await new DevopsInfraRedditAdapter(http, () => NOW).collect();
+
+    expect(result.items[0]?.imageUrl).toBe(
+      'https://preview.redd.it/pod.png?auto=webp&s=abc',
     );
   });
 });

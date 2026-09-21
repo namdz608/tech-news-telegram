@@ -170,7 +170,10 @@ export class DevopsInfraSelectionService {
     const selected: DevopsInfraCandidate[] = [];
     const selectedUrls = new Set<string>();
 
-    const canTake = (candidate: DevopsInfraCandidate): boolean => {
+    const canTake = (
+      candidate: DevopsInfraCandidate,
+      options: { reserveEnvironment?: boolean } = {},
+    ): boolean => {
       if (selected.length >= this.maxArticles) return false;
       if (
         candidate.kind === "incident" &&
@@ -178,17 +181,19 @@ export class DevopsInfraSelectionService {
           this.maxIncidents
       )
         return false;
-      if (
-        selected.filter((entry) => entry.category === candidate.category)
-          .length >= MAX_PER_CATEGORY
-      )
-        return false;
-      if (
-        CLOUD_FAMILY.has(candidate.category) &&
-        selected.filter((entry) => CLOUD_FAMILY.has(entry.category)).length >=
-          MAX_CLOUD_FAMILY
-      )
-        return false;
+      if (!options.reserveEnvironment) {
+        if (
+          selected.filter((entry) => entry.category === candidate.category)
+            .length >= MAX_PER_CATEGORY
+        )
+          return false;
+        if (
+          CLOUD_FAMILY.has(candidate.category) &&
+          selected.filter((entry) => CLOUD_FAMILY.has(entry.category)).length >=
+            MAX_CLOUD_FAMILY
+        )
+          return false;
+      }
       if (
         selected.filter(
           (entry) =>
@@ -199,11 +204,14 @@ export class DevopsInfraSelectionService {
       return true;
     };
 
-    const take = (candidate: DevopsInfraCandidate | undefined): void => {
+    const take = (
+      candidate: DevopsInfraCandidate | undefined,
+      options: { reserveEnvironment?: boolean } = {},
+    ): void => {
       if (
         !candidate ||
         selectedUrls.has(candidate.item.url) ||
-        !canTake(candidate)
+        !canTake(candidate, options)
       )
         return;
       selected.push(candidate);
@@ -211,8 +219,12 @@ export class DevopsInfraSelectionService {
     };
 
     // 5. Seed deterministic cloud and on-prem coverage anchors.
-    take(ranked.find((candidate) => candidate.environment === "cloud"));
-    take(ranked.find((candidate) => candidate.environment === "onprem"));
+    take(ranked.find((candidate) => candidate.environment === "cloud"), {
+      reserveEnvironment: true,
+    });
+    take(ranked.find((candidate) => candidate.environment === "onprem"), {
+      reserveEnvironment: true,
+    });
 
     // 6–7. Backfill by score while enforcing every cap, then stop at max.
     for (const candidate of ranked) {

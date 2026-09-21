@@ -55,6 +55,7 @@ export interface DevopsInfraSourceItem {
   sourceQuotaKey: string;
   sourceTextStatus: SourceTextStatus;
   answers: readonly DevopsInfraAnswer[];
+  topicTags?: readonly string[];
   engagement?: { score?: number; comments?: number };
 }
 

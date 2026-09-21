@@ -52,6 +52,44 @@ describe("classifyDevopsInfraItem", () => {
     expect(result?.problem).toContain("CrashLoopBackOff");
   });
 
+  it("uses the title and opening sentences, not the whole body, as the problem", () => {
+    const result = classifyDevopsInfraItem(
+      item({
+        title: "nginx VirtualHost TLS mismatch",
+        body: [
+          "The second HTTPS vhost never matches the hostname.",
+          "I created a second VirtualHost named pocserver.",
+          "Tomcat9-hosted dnsnotify.com RequestHeader combinedXFF servername resolve connect DNS vk leftover details.",
+        ].join(" "),
+        answers: [{ body: "Use SNI and test HTTPS with curl.", accepted: true }],
+      }),
+    );
+
+    expect(result?.problem).toContain("The second HTTPS vhost never matches the hostname.");
+    expect(result?.problem).not.toContain("combinedXFF");
+  });
+
+  it("splits a long answer into sentence-sized solution steps", () => {
+    const result = classifyDevopsInfraItem(
+      item({
+        title: "nginx VirtualHost TLS mismatch",
+        body: "The second HTTPS vhost never matches the hostname.",
+        answers: [
+          {
+            body: "Those two *:443 VirtualHosts should work. Apache uses SNI to select the correct HTTPS VirtualHost. Test HTTPS directly with curl.",
+            accepted: true,
+          },
+        ],
+      }),
+    );
+
+    expect(result?.solutionSteps).toEqual([
+      "Those two *:443 VirtualHosts should work.",
+      "Apache uses SNI to select the correct HTTPS VirtualHost.",
+      "Test HTTPS directly with curl.",
+    ]);
+  });
+
   it("rejects a problem thread with no solution", () => {
     expect(
       classifyDevopsInfraItem(
@@ -278,6 +316,46 @@ describe("classifyDevopsInfraItem", () => {
     expect(confidence([{ body: "Set `replicas: 2` in the config." }])).toBe(
       "anecdotal",
     );
+  });
+
+  it("treats a non-empty Hacker News comment as anecdotal", () => {
+    const result = classifyDevopsInfraItem(
+      item({
+        title: "Kubernetes pod CrashLoopBackOff after deploy",
+        body: "The pod restarts continuously.",
+        discoveryChannel: "hn",
+        answers: [{ body: "Raise the memory limit." }],
+      }),
+    );
+
+    expect(result?.solutionConfidence).toBe("anecdotal");
+  });
+
+  it("treats a non-empty Stack Exchange answer as anecdotal", () => {
+    const result = classifyDevopsInfraItem(
+      item({
+        title: "Kubernetes pod CrashLoopBackOff after deploy",
+        body: "The pod restarts continuously.",
+        answers: [{ body: "Raise the memory limit." }],
+      }),
+    );
+
+    expect(result?.kind).toBe("problem-solution");
+    expect(result?.solutionConfidence).toBe("anecdotal");
+    expect(result?.solutionSteps).toEqual(["Raise the memory limit."]);
+  });
+
+  it("uses Stack Exchange tags when the title omits the topic", () => {
+    const result = classifyDevopsInfraItem(
+      item({
+        title: "Workload never becomes ready",
+        body: "The replica stays on 0/1 forever.",
+        topicTags: ["kubernetes"],
+        answers: [{ body: "Increase the memory limit." }],
+      }),
+    );
+
+    expect(result?.category).toBe("k8s-containers");
   });
 
   it("keeps incidents that have no solution", () => {

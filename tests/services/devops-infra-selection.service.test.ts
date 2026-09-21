@@ -228,6 +228,44 @@ describe("DevopsInfraSelectionService", () => {
     ]);
   });
 
+  it("keeps cloud and on-prem anchors when they share a category already at cap", () => {
+    const input = [
+      candidate("hybrid-k8s-1", {
+        category: "k8s-containers",
+        environment: "hybrid",
+        solutionConfidence: "accepted",
+        rootCause: "known",
+        solutionSteps: Array(5).fill("step"),
+      }),
+      candidate("hybrid-k8s-2", {
+        category: "k8s-containers",
+        environment: "hybrid",
+        solutionConfidence: "accepted",
+        rootCause: "known",
+        solutionSteps: Array(5).fill("step"),
+      }),
+      candidate("cloud-k8s", {
+        category: "k8s-containers",
+        environment: "cloud",
+        solutionConfidence: "none",
+        solutionSteps: [],
+      }),
+      candidate("onprem-k8s", {
+        category: "k8s-containers",
+        environment: "onprem",
+        solutionConfidence: "none",
+        solutionSteps: [],
+      }),
+    ];
+
+    const environments = service()
+      .select(input, new Set())
+      .selected.map((entry) => entry.environment);
+
+    expect(environments).toContain("cloud");
+    expect(environments).toContain("onprem");
+  });
+
   it("At most 3 incident.", () => {
     const input = Array.from({ length: 6 }, (_, index) =>
       candidate(`incident-${index}`, {

@@ -76,23 +76,27 @@ export const DEVOPS_INFRA_STACKEXCHANGE_SITES: {
 export const devopsInfraHnQueries: DevopsInfraSearchQuery[] = [
   {
     key: 'k8s-pod-failures',
-    text: 'kubernetes CrashLoopBackOff OOMKilled ImagePullBackOff',
+    text: 'CrashLoopBackOff OR OOMKilled OR ImagePullBackOff',
   },
   {
     key: 'terraform-apply-failed',
-    text: 'terraform state lock apply failed backend',
+    text: 'terraform "state lock" OR "apply failed"',
   },
   {
     key: 'cloud-outage-postmortem',
-    text: 'AWS GCP Azure outage postmortem status page incident',
+    text: 'outage OR postmortem AWS OR GCP OR Azure',
   },
   {
     key: 'onprem-homelab',
-    text: 'on-prem VPN Proxmox bare-metal Kubernetes homelab',
+    text: 'Proxmox OR wireguard OR homelab',
   },
   {
     key: 'nginx-dns-cert-iam',
-    text: 'nginx 502 DNS cert expiry IAM AccessDenied troubleshooting',
+    text: 'nginx 502 OR AccessDenied',
+  },
+  {
+    key: 'k8s-terraform-nginx',
+    text: 'kubernetes OR terraform OR nginx OR prometheus OR docker',
   },
 ];
 

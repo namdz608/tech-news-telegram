@@ -3,6 +3,8 @@ import { devopsInfraHnQueries } from "../config/devops-infra-sources";
 import { env } from "../config/env";
 import type { DevopsInfraSourceItem } from "../types/devops-infra";
 import { htmlToCompactText } from "../utils/html-text";
+import { devopsInfraFailureParts } from "../utils/devops-infra-http-error";
+import { createDohFallbackHttpsAgent } from "../utils/doh-dns";
 import { compactText } from "../utils/text";
 import type {
   DevopsInfraSourceAdapter,
@@ -10,8 +12,12 @@ import type {
 } from "./devops-infra-source.adapter";
 
 const SEARCH_URL = "https://hn.algolia.com/api/v1/search";
+const ITEM_URL = "https://hn.algolia.com/api/v1/items";
 const MAX_BODY_BYTES = 512 * 1024;
 const HITS_PER_PAGE = 10;
+const MAX_COMMENTS = 8;
+const MAX_COMMENT_FETCHES = 15;
+const MAX_COMMENT_DEPTH = 3;
 
 interface HttpResponse {
   data: unknown;
@@ -35,6 +41,7 @@ function createDefaultHttpClient(): HttpClientLike {
     maxContentLength: MAX_BODY_BYTES,
     maxBodyLength: MAX_BODY_BYTES,
     headers: { "User-Agent": env.USER_AGENT },
+    httpsAgent: createDohFallbackHttpsAgent("hn.algolia.com"),
   }) as HttpClientLike;
 }
 
@@ -65,6 +72,7 @@ export class DevopsInfraHnAdapter implements DevopsInfraSourceAdapter {
             },
             params: {
               query: query.text,
+              tags: "story",
               numericFilters: `created_at_i>${fromUnix}`,
               hitsPerPage: HITS_PER_PAGE,
             },
@@ -77,7 +85,14 @@ export class DevopsInfraHnAdapter implements DevopsInfraSourceAdapter {
             },
           );
           return { ok: true as const, items };
-        } catch {
+        } catch (error) {
+          const failure = devopsInfraFailureParts(error);
+          console.warn(
+            "devops-infra hn failed",
+            `hn:${query.key}`,
+            failure.statusOrCode,
+            failure.name,
+          );
           return { ok: false as const, sourceKey: `hn:${query.key}` };
         }
       }),
@@ -99,11 +114,42 @@ export class DevopsInfraHnAdapter implements DevopsInfraSourceAdapter {
       }
     }
 
+    const uniqueList = [...uniqueItems.values()];
+    const withComments = await mapLimited(
+      uniqueList.slice(0, MAX_COMMENT_FETCHES),
+      3,
+      async (item) => {
+        try {
+          const comments = await this.collectComments(item.id);
+          if (comments.length === 0) return item;
+          return {
+            ...item,
+            answers: comments,
+            sourceTextStatus: "full" as const,
+          };
+        } catch {
+          return item;
+        }
+      },
+    );
+
     return {
-      items: [...uniqueItems.values()],
+      items: [...withComments, ...uniqueList.slice(MAX_COMMENT_FETCHES)],
       successfulSourceCount,
       failedSources,
     };
+  }
+
+  private async collectComments(objectID: string): Promise<DevopsInfraSourceItem["answers"]> {
+    const response = await this.http.get(`${ITEM_URL}/${encodeURIComponent(objectID)}`, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": env.USER_AGENT,
+      },
+      params: { hitsPerPage: MAX_COMMENTS },
+    });
+    assertJsonContentType(response.headers);
+    return mapItemComments(readJsonBody(response.data));
   }
 }
 
@@ -170,6 +216,49 @@ function mapHit(
     answers: [],
     ...(engagement ? { engagement } : {}),
   };
+}
+
+function mapItemComments(value: unknown): DevopsInfraSourceItem["answers"] {
+  const answers: DevopsInfraSourceItem["answers"][number][] = [];
+  const visit = (node: unknown, depth: number): void => {
+    if (answers.length >= MAX_COMMENTS || depth > MAX_COMMENT_DEPTH) return;
+    const record = asRecord(node);
+    if (!record) return;
+    const body = readHtmlText(record.text);
+    if (body) {
+      const score = finiteNumber(record.points);
+      answers.push({
+        body,
+        ...(score === undefined ? {} : { score }),
+      });
+    }
+    const children = record.children;
+    if (!Array.isArray(children)) return;
+    for (const child of children) {
+      visit(child, depth + 1);
+    }
+  };
+  const root = asRecord(value);
+  const children = root?.children;
+  if (Array.isArray(children)) {
+    for (const child of children) {
+      visit(child, 0);
+    }
+  }
+  return answers;
+}
+
+async function mapLimited<T, R>(
+  values: readonly T[],
+  concurrency: number,
+  worker: (value: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let index = 0; index < values.length; index += concurrency) {
+    const batch = values.slice(index, index + concurrency);
+    results.push(...(await Promise.all(batch.map(worker))));
+  }
+  return results;
 }
 
 function parseHits(payload: unknown): unknown[] {

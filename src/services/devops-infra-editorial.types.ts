@@ -7,6 +7,7 @@ export const devopsInfraEditorialInstructions = [
   'Do not invent commands, flags, file paths, IPs, or root causes absent from the input.',
   'Keep technical tokens unchanged (CrashLoopBackOff, IAM, kubectl, terraform, systemctl, CVE IDs).',
   'A forum thread is not an official runbook.',
+  'Do not wrap the JSON object in Markdown fences and do not add explanation.',
 ].join('\n');
 
 export interface DevopsInfraEditorial {
@@ -41,9 +42,58 @@ export function devopsInfraEditorialPayload(candidate: DevopsInfraCandidate): {
   };
 }
 
+function sliceBalancedObject(value: string, start: number): string | undefined {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < value.length; index += 1) {
+    const character = value[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (character === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      continue;
+    }
+    if (character === '{') depth += 1;
+    if (character === '}') {
+      depth -= 1;
+      if (depth === 0) return value.slice(start, index + 1);
+    }
+  }
+  return undefined;
+}
+
+function extractJsonObject(raw: string): string {
+  const stripped = raw.trim().replace(/^```(?:json)?\s*|\s*```$/giu, '');
+  for (let index = 0; index < stripped.length; index += 1) {
+    if (stripped[index] !== '{') continue;
+    const candidate = sliceBalancedObject(stripped, index);
+    if (!candidate) continue;
+    try {
+      const parsed: unknown = JSON.parse(candidate);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return candidate;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return stripped;
+}
+
 export function parseDevopsInfraEditorial(value: string): DevopsInfraEditorial {
-  const parsed: unknown = JSON.parse(value.trim());
-  if (!parsed || typeof parsed !== 'object') {
+  const parsed: unknown = JSON.parse(extractJsonObject(value));
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new TypeError('Invalid devops-infra editorial');
   }
   const record = parsed as Record<string, unknown>;

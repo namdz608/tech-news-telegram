@@ -5,6 +5,7 @@ import {
   devopsInfraOnpremEnvironmentKeywords,
 } from "../config/devops-infra-topics";
 import type {
+  DevopsDiscoveryChannel,
   DevopsEnvironment,
   DevopsInfraAnswer,
   DevopsInfraCandidate,
@@ -13,6 +14,7 @@ import type {
   IncidentVerification,
   SolutionConfidence,
 } from "../types/devops-infra";
+import { compactText } from "../utils/text";
 
 const categories = Object.keys(
   devopsInfraCategoryKeywords,
@@ -28,6 +30,8 @@ const fixPattern =
   /\b(?:fix(?:ed)? by|solution\s*:|resolved by|workaround\s*:|to fix|recovered (?:after|by))\b/i;
 const commandOrConfigPattern =
   /`[^`]+`|\b(?:kubectl|helm|docker|systemctl|terraform|ansible|sudo|set|add|remove|edit|update|configure|config(?:uration)?|yaml|yml)\b/i;
+const MAX_PROBLEM_SENTENCES = 2;
+const MAX_SOLUTION_STEPS = 5;
 
 function includesKeyword(text: string, keyword: string): boolean {
   const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -75,6 +79,7 @@ function environmentFor(text: string): DevopsEnvironment {
 function answerConfidence(
   answers: readonly DevopsInfraAnswer[],
   sourceText: string,
+  channel: DevopsDiscoveryChannel,
 ): SolutionConfidence {
   if (answers.some((answer) => answer.accepted)) return "accepted";
   if (answers.some((answer) => answer.authorConfirmed))
@@ -97,7 +102,43 @@ function answerConfidence(
   ) {
     return "anecdotal";
   }
+  if (
+    (channel === "hn" || channel === "stackexchange" || channel === "reddit") &&
+    answers.some((answer) => compactText(answer.body).length > 0)
+  ) {
+    return "anecdotal";
+  }
   return "none";
+}
+
+function tagSearchText(tags: readonly string[] | undefined): string {
+  if (!tags?.length) return "";
+  return tags
+    .flatMap((tag) => {
+      const spaced = tag.replace(/-/g, " ").trim();
+      return spaced && spaced !== tag ? [tag, spaced] : [tag];
+    })
+    .join(" ");
+}
+
+function openingSentences(text: string, max: number): string {
+  const sentences = compactText(text)
+    .split(/(?<=[.!?])(?:\s+|$)/u)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+  return sentences.slice(0, max).join(" ");
+}
+
+function problemFor(title: string, body: string): string {
+  const opening = openingSentences(body, MAX_PROBLEM_SENTENCES);
+  return opening ? `${title.trim()}: ${opening}` : title.trim();
+}
+
+function splitSteps(text: string): string[] {
+  return compactText(text)
+    .split(/\n+|(?<=[.!?])\s+/u)
+    .map((step) => step.trim())
+    .filter(Boolean);
 }
 
 function solutionStepsFor(
@@ -112,15 +153,21 @@ function solutionStepsFor(
         (answer.score ?? 0) >= 2 ||
         commandOrConfigPattern.test(answer.body),
     )
-    .map((answer) => answer.body.trim())
-    .filter(Boolean);
+    .flatMap((answer) => splitSteps(answer.body))
+    .slice(0, MAX_SOLUTION_STEPS);
   if (answerSteps.length > 0) return answerSteps;
 
+  const answeredSteps = answers
+    .map((answer) => compactText(answer.body))
+    .filter(Boolean)
+    .flatMap((text) => splitSteps(text))
+    .slice(0, MAX_SOLUTION_STEPS);
+  if (answeredSteps.length > 0) return answeredSteps;
+
   if (!fixPattern.test(body)) return [];
-  const matchingSentence = body
-    .split(/(?<=[.!?])\s+/)
+  const matchingSentence = splitSteps(body)
     .find((sentence) => fixPattern.test(sentence));
-  return matchingSentence ? [matchingSentence.trim()] : [];
+  return matchingSentence ? [matchingSentence] : [];
 }
 
 function rootCauseFor(
@@ -167,7 +214,11 @@ function fingerprintFor(title: string, problem: string): string {
 export function classifyDevopsInfraItem(
   item: DevopsInfraSourceItem,
 ): DevopsInfraCandidate | undefined {
-  const sourceBody = [item.summary, item.body].filter(Boolean).join(" ");
+  const sourceBody = [
+    item.summary,
+    item.body,
+    tagSearchText(item.topicTags),
+  ].filter(Boolean).join(" ");
   const fullText = `${item.title} ${sourceBody}`;
 
   if (advertisementPattern.test(fullText)) return undefined;
@@ -180,12 +231,14 @@ export function classifyDevopsInfraItem(
   const incident = devopsInfraIncidentKeywords.some((keyword) =>
     includesKeyword(fullText, keyword),
   );
-  const confidence = answerConfidence(item.answers, sourceBody);
+  const confidence = answerConfidence(
+    item.answers,
+    sourceBody,
+    item.discoveryChannel,
+  );
   if (!incident && confidence === "none") return undefined;
 
-  const problem = sourceBody
-    ? `${item.title}: ${sourceBody}`.trim()
-    : item.title.trim();
+  const problem = problemFor(item.title, sourceBody);
   const fingerprint = fingerprintFor(item.title, problem);
   if (fingerprint.length < 8) return undefined;
 

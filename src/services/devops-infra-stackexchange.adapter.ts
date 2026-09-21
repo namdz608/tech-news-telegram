@@ -5,7 +5,9 @@ import type {
   DevopsInfraAnswer,
   DevopsInfraSourceItem,
 } from "../types/devops-infra";
-import { htmlToCompactText } from "../utils/html-text";
+import { htmlFirstContentImageUrl, htmlToCompactText } from "../utils/html-text";
+import { devopsInfraFailureParts } from "../utils/devops-infra-http-error";
+import { createDohFallbackHttpsAgent } from "../utils/doh-dns";
 import type {
   DevopsInfraSourceAdapter,
   DevopsInfraSourceAdapterResult,
@@ -20,6 +22,7 @@ const BODY_FILTER = "withbody";
 // Stack Exchange caps a vectorized id list at 100 and a page at 100 items.
 const MAX_VECTOR_IDS = 100;
 const MAX_PAGE_SIZE = 100;
+const JOB_CONCURRENCY = 3;
 
 interface HttpResponse {
   data: unknown;
@@ -43,6 +46,7 @@ function createDefaultHttpClient(): HttpClientLike {
     maxContentLength: MAX_BODY_BYTES,
     maxBodyLength: MAX_BODY_BYTES,
     headers: { "User-Agent": env.USER_AGENT },
+    httpsAgent: createDohFallbackHttpsAgent("api.stackexchange.com"),
   }) as HttpClientLike;
 }
 
@@ -60,9 +64,24 @@ export class DevopsInfraStackExchangeAdapter implements DevopsInfraSourceAdapter
 
   async collect(): Promise<DevopsInfraSourceAdapterResult> {
     const collectedAt = this.now();
-    const settled = await Promise.all(
-      DEVOPS_INFRA_STACKEXCHANGE_SITES.map(async ({ site, tags }) => {
-        const sourceKey = `stackexchange:${site}`;
+    const jobs: Array<{
+      site: (typeof DEVOPS_INFRA_STACKEXCHANGE_SITES)[number]["site"];
+      tag?: string;
+      sourceKey: string;
+    }> = DEVOPS_INFRA_STACKEXCHANGE_SITES.flatMap(({ site, tags }) =>
+      tags?.length
+        ? tags.map((tag) => ({
+          site,
+          tag,
+          sourceKey: `stackexchange:${site}:${tag}`,
+        }))
+        : [{ site, sourceKey: `stackexchange:${site}` }],
+    );
+    const settled = await mapLimited(
+      jobs,
+      JOB_CONCURRENCY,
+      async ({ site, tag, sourceKey }) => {
+        const sourceKeyForSite = sourceKey;
         try {
           const params: Record<string, string | number> = {
             order: "desc",
@@ -72,9 +91,11 @@ export class DevopsInfraStackExchangeAdapter implements DevopsInfraSourceAdapter
               Math.floor(collectedAt.getTime() / 1000) -
               env.DEVOPS_INFRA_MAX_AGE_HOURS * 3600,
             filter: BODY_FILTER,
+            answers: 1,
+            pagesize: MAX_PAGE_SIZE,
           };
-          if (tags?.length) {
-            params.tagged = tags.join(";");
+          if (tag) {
+            params.tagged = tag;
           }
           if (env.STACKEXCHANGE_KEY) {
             params.key = env.STACKEXCHANGE_KEY;
@@ -101,14 +122,22 @@ export class DevopsInfraStackExchangeAdapter implements DevopsInfraSourceAdapter
               site,
               collectedAt.toISOString(),
               answers,
+              tag,
             );
             return item ? [item] : [];
           });
           return { ok: true as const, items };
-        } catch {
-          return { ok: false as const, sourceKey };
+        } catch (error) {
+          const failure = devopsInfraFailureParts(error);
+          console.warn(
+            "devops-infra stackexchange failed",
+            sourceKeyForSite,
+            failure.statusOrCode,
+            failure.name,
+          );
+          return { ok: false as const, sourceKey: sourceKeyForSite };
         }
-      }),
+      },
     );
 
     const items: DevopsInfraSourceItem[] = [];
@@ -188,6 +217,7 @@ function mapQuestion(
   site: string,
   discoveredAt: string,
   fetchedAnswers: ReadonlyMap<number, Record<string, unknown>[]>,
+  jobTag?: string,
 ): DevopsInfraSourceItem | undefined {
   if (finiteNumber(question.answer_count) === 0) {
     return undefined;
@@ -195,6 +225,7 @@ function mapQuestion(
 
   const title = readHtmlText(question.title);
   const url = readPublicHttpUrl(question.link);
+  const bodyHtml = typeof question.body === "string" ? question.body : "";
   const body = readHtmlText(question.body);
   const publishedAt = unixSecondsToIso(question.creation_date);
   const questionId = finiteNumber(question.question_id);
@@ -206,10 +237,14 @@ function mapQuestion(
   if (!title || !url || !body || !publishedAt || !selectedAnswer) {
     return undefined;
   }
+  const imageUrl = [bodyHtml, ...rawAnswerHtml(rawAnswers)]
+    .map((html) => htmlFirstContentImageUrl(html, url))
+    .find(Boolean);
 
   const communityKey = `stackexchange:${site}`;
   const author = readHtmlText(asRecord(question.owner)?.display_name) || undefined;
   const score = finiteNumber(question.score);
+  const topicTags = readTopicTags(question.tags, jobTag);
 
   return {
     id: url,
@@ -219,6 +254,7 @@ function mapQuestion(
     url,
     summary: body,
     body,
+    ...(imageUrl ? { imageUrl } : {}),
     ...(author ? { author } : {}),
     publishedAt,
     collectedAt: discoveredAt,
@@ -228,8 +264,27 @@ function mapQuestion(
     sourceQuotaKey: communityKey,
     sourceTextStatus: "full",
     answers: [selectedAnswer],
+    ...(topicTags.length > 0 ? { topicTags } : {}),
     ...(score === undefined ? {} : { engagement: { score } }),
   };
+}
+
+function readTopicTags(value: unknown, jobTag?: string): string[] {
+  const tags = Array.isArray(value)
+    ? value.flatMap((tag) => {
+        const text = typeof tag === "string" ? tag.trim() : "";
+        return text ? [text] : [];
+      })
+    : [];
+  if (jobTag && !tags.includes(jobTag)) tags.push(jobTag);
+  return tags;
+}
+
+function rawAnswerHtml(rawAnswers: readonly unknown[]): string[] {
+  return rawAnswers.flatMap((value) => {
+    const body = asRecord(value)?.body;
+    return typeof body === "string" && body.includes("<img") ? [body] : [];
+  });
 }
 
 function selectAnswer(
@@ -356,4 +411,17 @@ function assertJsonContentType(
   ) {
     throw new Error("stackexchange-content-type");
   }
+}
+
+async function mapLimited<T, R>(
+  values: readonly T[],
+  concurrency: number,
+  worker: (value: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let index = 0; index < values.length; index += concurrency) {
+    const batch = values.slice(index, index + concurrency);
+    results.push(...(await Promise.all(batch.map(worker))));
+  }
+  return results;
 }

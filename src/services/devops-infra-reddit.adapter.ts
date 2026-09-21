@@ -5,18 +5,21 @@ import {
 } from '../config/devops-infra-sources';
 import { env } from '../config/env';
 import type { DevopsInfraAnswer, DevopsInfraSourceItem } from '../types/devops-infra';
+import { devopsInfraFailureParts } from '../utils/devops-infra-http-error';
+import { redditHttpsAgent } from '../utils/reddit-dns';
 import { compactText } from '../utils/text';
 import type {
   DevopsInfraSourceAdapter,
   DevopsInfraSourceAdapterResult,
 } from './devops-infra-source.adapter';
 
+const FETCH_ORIGIN = 'https://old.reddit.com';
 const REDDIT_ORIGIN = 'https://www.reddit.com';
-const SEARCH_URL = `${REDDIT_ORIGIN}/search.json`;
 const MAX_BODY_BYTES = 512 * 1024;
 const QUERY_CONCURRENCY = 2;
 const QUERY_LIMIT = 10;
 const MAX_COMMENT_FETCHES = 15;
+const DEFAULT_RETRY_MS = 500;
 
 interface HttpResponse {
   data: unknown;
@@ -52,6 +55,7 @@ function createDefaultHttpClient(): HttpClientLike {
     maxContentLength: MAX_BODY_BYTES,
     maxBodyLength: MAX_BODY_BYTES,
     headers: { 'User-Agent': env.USER_AGENT },
+    httpsAgent: redditHttpsAgent,
   }) as HttpClientLike;
 }
 
@@ -61,6 +65,10 @@ export class DevopsInfraRedditAdapter implements DevopsInfraSourceAdapter {
   constructor(
     private readonly http: HttpClientLike = createDefaultHttpClient(),
     private readonly now: () => Date = () => new Date(),
+    private readonly sleep: (ms: number) => Promise<void> = (ms) =>
+      new Promise((resolve) => {
+        setTimeout(resolve, ms);
+      }),
   ) {}
 
   isEnabled(): boolean {
@@ -94,7 +102,14 @@ export class DevopsInfraRedditAdapter implements DevopsInfraSourceAdapter {
       posts.slice(0, MAX_COMMENT_FETCHES).map(async (post) => {
         try {
           post.item.answers = await this.collectComments(post.permalink, post.author);
-        } catch {
+        } catch (error) {
+          const failure = devopsInfraFailureParts(error);
+          console.warn(
+            'devops-infra reddit failed',
+            post.item.communityKey,
+            failure.statusOrCode,
+            failure.name,
+          );
           post.item.answers = [];
           post.item.sourceTextStatus = 'incomplete';
         }
@@ -128,7 +143,38 @@ export class DevopsInfraRedditAdapter implements DevopsInfraSourceAdapter {
           return post ? [post] : [];
         }),
       };
-    } catch {
+    } catch (error) {
+      const status = httpStatus(error);
+      const failure = devopsInfraFailureParts(error);
+      console.warn(
+        'devops-infra reddit failed',
+        request.key,
+        failure.statusOrCode,
+        failure.name,
+      );
+      if (status === 429) {
+        try {
+          await this.sleep(retryAfterMs(error) ?? DEFAULT_RETRY_MS);
+          const response = await this.http.get(request.url, requestConfig(request.params));
+          assertJsonContentType(response.headers);
+          const discoveredAt = this.now().toISOString();
+          return {
+            ok: true,
+            posts: parseListingChildren(readJsonBody(response.data)).flatMap((child) => {
+              const post = mapRedditPost(child, discoveredAt);
+              return post ? [post] : [];
+            }),
+          };
+        } catch (retryError) {
+          const retryFailure = devopsInfraFailureParts(retryError);
+          console.warn(
+            'devops-infra reddit failed',
+            request.key,
+            retryFailure.statusOrCode,
+            retryFailure.name,
+          );
+        }
+      }
       return { ok: false, key: request.key };
     }
   }
@@ -137,7 +183,16 @@ export class DevopsInfraRedditAdapter implements DevopsInfraSourceAdapter {
     permalink: string,
     originalAuthor?: string,
   ): Promise<DevopsInfraAnswer[]> {
-    const response = await this.http.get(`${permalink}.json`, requestConfig({ limit: 50 }));
+    const url = `${permalink.replace(REDDIT_ORIGIN, FETCH_ORIGIN)}.json`;
+    const params = { limit: 50 };
+    let response: HttpResponse;
+    try {
+      response = await this.http.get(url, requestConfig(params));
+    } catch (error) {
+      if (httpStatus(error) !== 429) throw error;
+      await this.sleep(retryAfterMs(error) ?? DEFAULT_RETRY_MS);
+      response = await this.http.get(url, requestConfig(params));
+    }
     assertJsonContentType(response.headers);
     const payload = readJsonBody(response.data);
     if (!Array.isArray(payload) || payload.length < 2) {
@@ -151,12 +206,12 @@ function buildSourceRequests(): SourceRequest[] {
   return [
     ...DEVOPS_INFRA_SUBREDDITS.map((subreddit) => ({
       key: `reddit:r/${subreddit}`,
-      url: `${REDDIT_ORIGIN}/r/${subreddit}/new.json`,
+      url: `${FETCH_ORIGIN}/r/${subreddit}/new.json`,
       params: { limit: QUERY_LIMIT },
     })),
     ...devopsInfraRedditQueries.map((query) => ({
       key: `reddit:${query.key}`,
-      url: SEARCH_URL,
+      url: `${FETCH_ORIGIN}/search.json`,
       params: {
         q: query.text,
         sort: 'new',
@@ -171,10 +226,30 @@ function requestConfig(params: Record<string, string | number>) {
   return {
     headers: {
       Accept: 'application/json',
-      'User-Agent': env.USER_AGENT,
+      'User-Agent': 'web:tech-news-telegram:1.0',
     },
     params,
   };
+}
+
+function httpStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object' || !('response' in error)) {
+    return undefined;
+  }
+  const status = (error as { response?: { status?: unknown } }).response?.status;
+  return typeof status === 'number' ? status : undefined;
+}
+
+function retryAfterMs(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object' || !('response' in error)) {
+    return undefined;
+  }
+  const headers = (error as { response?: { headers?: Record<string, string | undefined> } })
+    .response?.headers;
+  const raw = headers?.['retry-after'] ?? headers?.['Retry-After'];
+  const seconds = Number(raw);
+  if (!Number.isFinite(seconds) || seconds < 0) return undefined;
+  return Math.min(seconds * 1000, 5_000);
 }
 
 async function mapLimited<T, R>(
@@ -206,6 +281,7 @@ function mapRedditPost(child: unknown, discoveredAt: string): MappedPost | undef
 
   const communityKey = `reddit:r/${subreddit.toLowerCase()}`;
   const author = parseAuthor(post.author);
+  const imageUrl = redditPreviewImage(post);
   const score = finiteNumber(post.score);
   const comments = finiteNumber(post.num_comments);
   const engagement =
@@ -228,6 +304,7 @@ function mapRedditPost(child: unknown, discoveredAt: string): MappedPost | undef
       summary: body,
       body,
       author,
+      ...(imageUrl ? { imageUrl } : {}),
       publishedAt,
       collectedAt: discoveredAt,
       discoveredAt,
@@ -289,6 +366,22 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
     return undefined;
   }
   return value as Record<string, unknown>;
+}
+
+function redditPreviewImage(post: Record<string, unknown>): string | undefined {
+  const preview = asRecord(post.preview);
+  const images = preview?.images;
+  if (Array.isArray(images) && images[0]) {
+    const source = asRecord(asRecord(images[0])?.source);
+    const previewUrl = readText(source?.url).replace(/&amp;/gu, '&');
+    const parsed = parsePublicHttpUrl(previewUrl);
+    if (parsed) return parsed;
+  }
+  const thumbnail = readText(post.thumbnail);
+  if (thumbnail.startsWith('http://') || thumbnail.startsWith('https://')) {
+    return parsePublicHttpUrl(thumbnail);
+  }
+  return undefined;
 }
 
 function parseListingChildren(payload: unknown): unknown[] {

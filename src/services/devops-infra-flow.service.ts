@@ -92,6 +92,12 @@ export class DevopsInfraFlowService {
   async run(): Promise<DevopsInfraFlowResult> {
     const { source, history, selection, messages, delivery } = this.dependencies;
     const collection = await source.collectLatest();
+    console.warn(
+      'devops-infra collect',
+      collection.collectedCount,
+      collection.successfulSourceCount,
+      collection.failedSources.join(',') || 'none',
+    );
     if (collection.successfulSourceCount === 0) {
       throw new AllDevopsInfraSourcesFailedError();
     }
@@ -114,7 +120,21 @@ export class DevopsInfraFlowService {
       failedSources: collection.failedSources,
       language: 'vi' as const,
     };
+    console.warn(
+      'devops-infra selected',
+      result.selected.length,
+      'eligible',
+      result.eligibleCount,
+      'skippedSeen',
+      result.skippedSeenCount,
+    );
     if (result.selected.length === 0) {
+      console.warn(
+        'devops-infra skip send',
+        'no_new_articles',
+        result.skippedSeenCount,
+        collection.collectedCount,
+      );
       return {
         sent: false,
         reason: 'no_new_articles',
@@ -123,7 +143,9 @@ export class DevopsInfraFlowService {
       };
     }
 
+    console.warn('devops-infra editorial start', result.selected.length);
     const builtMessages = await messages.buildMessages(result.selected);
+    console.warn('devops-infra telegram send', builtMessages.length);
     await delivery.send(builtMessages);
     return {
       sent: true,

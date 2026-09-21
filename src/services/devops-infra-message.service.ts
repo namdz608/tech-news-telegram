@@ -6,8 +6,9 @@ import type {
   SolutionConfidence,
 } from '../types/devops-infra';
 import { compactText, escapeHtml } from '../utils/text';
-import { DevopsInfraEditorialService } from './devops-infra-editorial.service';
 import type { DevopsInfraEditorial } from './devops-infra-editorial.types';
+import { DevopsInfraEditorialService } from './devops-infra-editorial.service';
+import { devopsInfraFallbackImageUrls } from '../config/devops-infra-images';
 
 interface DevopsInfraEditorialEditor {
   edit(candidate: DevopsInfraCandidate): Promise<DevopsInfraEditorial>;
@@ -39,6 +40,7 @@ const CONFIDENCE_LABELS: Record<Exclude<SolutionConfidence, 'none'>, string> = {
   anecdotal: 'Chỉ là trải nghiệm',
 };
 
+const PHOTO_CAPTION_MAX = 1000;
 const DISCLAIMER =
   'Tham khảo từ diễn đàn, kiểm tra trên môi trường của bạn trước khi áp dụng.';
 const DESTRUCTIVE_CAUTION =
@@ -56,16 +58,29 @@ export class DevopsInfraMessageService {
   async buildMessages(
     candidates: readonly DevopsInfraCandidate[],
   ): Promise<DevopsInfraMessage[]> {
-    return Promise.all(candidates.map(async (candidate) => {
+    const messages: DevopsInfraMessage[] = [];
+    for (const [index, candidate] of candidates.entries()) {
+      console.warn(
+        'devops-infra editorial',
+        index + 1,
+        candidates.length,
+        candidate.item.sourceName,
+      );
       const editorial = await this.editorial.edit(candidate);
+      const text = this.render(candidate, editorial);
       const message: DevopsInfraMessage = {
-        text: this.render(candidate, editorial),
+        text,
         url: candidate.item.url,
       };
-      const imageUrl = publicImageUrl(candidate.item.imageUrl);
+      const sourceImage = publicImageUrl(candidate.item.imageUrl);
+      const fallbackImage = text.length <= PHOTO_CAPTION_MAX
+        ? publicImageUrl(devopsInfraFallbackImageUrls[candidate.category])
+        : undefined;
+      const imageUrl = sourceImage ?? fallbackImage;
       if (imageUrl) message.imageUrl = imageUrl;
-      return message;
-    }));
+      messages.push(message);
+    }
+    return messages;
   }
 
   private render(

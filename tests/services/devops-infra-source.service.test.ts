@@ -102,6 +102,40 @@ describe('DevopsInfraSourceService', () => {
     });
   });
 
+  it('time-boxes a hanging adapter so other sources can finish', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const hanging: DevopsInfraSourceAdapter = {
+      key: 'hanging',
+      isEnabled: () => true,
+      collect: vi.fn(() => new Promise<DevopsInfraSourceAdapterResult>(() => undefined)),
+    };
+    const ok = adapter('ok', {
+      items: [item('one')],
+      successfulSourceCount: 1,
+      failedSources: [],
+    });
+
+    try {
+      const result = await new DevopsInfraSourceService(
+        [hanging, ok],
+        72,
+        () => NOW,
+        30,
+      ).collectLatest();
+
+      expect(result.items.map(({ id }) => id)).toEqual(['one']);
+      expect(result.successfulSourceCount).toBe(1);
+      expect(result.failedSources).toEqual(['hanging']);
+      expect(warn).toHaveBeenCalledWith(
+        'devops-infra collect timeout',
+        'hanging',
+        expect.stringMatching(/ms$/),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it('normalizes URLs and keeps the first duplicate in adapter order', async () => {
     const first = adapter('first', {
       items: [

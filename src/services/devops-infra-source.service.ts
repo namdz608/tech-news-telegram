@@ -4,19 +4,25 @@ import type {
   DevopsInfraSourceItem,
 } from '../types/devops-infra';
 import { normalizeUrl } from '../utils/normalize-url';
-import type { DevopsInfraSourceAdapter } from './devops-infra-source.adapter';
+import type {
+  DevopsInfraSourceAdapter,
+  DevopsInfraSourceAdapterResult,
+} from './devops-infra-source.adapter';
+
+const DEFAULT_ADAPTER_TIMEOUT_MS = 60_000;
 
 export class DevopsInfraSourceService {
   constructor(
     private readonly adapters: DevopsInfraSourceAdapter[],
     private readonly maxAgeHours = env.DEVOPS_INFRA_MAX_AGE_HOURS,
     private readonly now = () => new Date(),
+    private readonly adapterTimeoutMs = DEFAULT_ADAPTER_TIMEOUT_MS,
   ) {}
 
   async collectLatest(): Promise<DevopsInfraCollectionResult> {
     const enabled = this.adapters.filter((adapter) => adapter.isEnabled());
     const settled = await Promise.allSettled(
-      enabled.map((adapter) => adapter.collect()),
+      enabled.map((adapter) => this.collectAdapter(adapter)),
     );
     const collected: DevopsInfraSourceItem[] = [];
     const failedSources: string[] = [];
@@ -41,6 +47,52 @@ export class DevopsInfraSourceService {
       successfulSourceCount,
       failedSources: [...new Set(failedSources)],
     };
+  }
+
+  private collectAdapter(
+    adapter: DevopsInfraSourceAdapter,
+  ): Promise<DevopsInfraSourceAdapterResult> {
+    const started = Date.now();
+    console.warn('devops-infra collect start', adapter.key);
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        console.warn(
+          'devops-infra collect timeout',
+          adapter.key,
+          `${Date.now() - started}ms`,
+        );
+        reject(new Error(`adapter-timeout:${adapter.key}`));
+      }, this.adapterTimeoutMs);
+
+      adapter.collect().then(
+        (result) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          console.warn(
+            'devops-infra collect done',
+            adapter.key,
+            result.items.length,
+            `${Date.now() - started}ms`,
+          );
+          resolve(result);
+        },
+        (error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          console.warn(
+            'devops-infra collect failed',
+            adapter.key,
+            `${Date.now() - started}ms`,
+          );
+          reject(error);
+        },
+      );
+    });
   }
 
   private normalizeFilterAndDedupe(

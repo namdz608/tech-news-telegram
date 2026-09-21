@@ -27,6 +27,7 @@ vi.mock('../../src/services/gold-politics-flow.service', async (importOriginal) 
 }));
 
 import request from 'supertest';
+import { releaseDevopsInfraDigestLock } from '../../src/services/devops-infra-digest-lock';
 
 const success = {
   sent: true,
@@ -77,6 +78,7 @@ function expectNoSecrets(value: unknown) {
 describe('POST /telegram/send-devops-infra', () => {
   beforeEach(() => {
     vi.resetModules();
+    releaseDevopsInfraDigestLock();
     Object.values(mocks).forEach((mock) => mock.mockReset());
     mocks.createDevopsInfraFlowService.mockImplementation(() => ({ run: mocks.devopsRun }));
   });

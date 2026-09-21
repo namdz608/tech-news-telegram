@@ -34,8 +34,8 @@ const candidate: DevopsInfraCandidate = {
 
 const validEditorial = {
   title: 'Pod Kubernetes gặp CrashLoopBackOff',
-  problem: 'Kubernetes: The pod restarts continuously and enters CrashLoopBackOff.',
-  solutionSteps: ['Run `kubectl logs pod/api`.'],
+  problem: 'Pod liên tục khởi động lại và vào CrashLoopBackOff.',
+  solutionSteps: ['Chạy `kubectl logs pod/api`.'],
   caution: 'Đây không phải runbook chính thức.',
 };
 
@@ -99,6 +99,99 @@ describe('DevopsInfraEditorialService', () => {
     expect(fallback.generate).toHaveBeenCalledWith(candidate);
     warn.mockRestore();
   });
+
+  it('uses deterministic copy when generator output is not Vietnamese', async () => {
+    const generator = {
+      generate: vi.fn().mockResolvedValue({
+        title: 'Kubernetes pod CrashLoopBackOff',
+        problem: 'The pod restarts continuously and enters CrashLoopBackOff.',
+        solutionSteps: ['Run `kubectl logs pod/api`.'],
+        caution: 'A forum thread is not an official runbook.',
+      }),
+    };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const result = await new DevopsInfraEditorialService(generator).edit(candidate);
+
+    expect(result.title).toBe(candidate.item.title);
+    expect(result.problem).toBe(candidate.problem);
+    warn.mockRestore();
+  });
+
+  it('falls back to Google when Codex leaves English prose in the solution steps', async () => {
+    const primary = {
+      generate: vi.fn().mockResolvedValue({
+        ...validEditorial,
+        solutionSteps: [
+          'Those two VirtualHosts should work. Apache uses SNI to select the host.',
+        ],
+      }),
+    };
+    const fallback = { generate: vi.fn().mockResolvedValue(validEditorial) };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await expect(new DevopsInfraEditorialService(primary, fallback).edit(candidate))
+      .resolves.toEqual(validEditorial);
+    expect(fallback.generate).toHaveBeenCalledWith(candidate);
+    warn.mockRestore();
+  });
+
+  it('falls back to Google when Codex output is English', async () => {
+    const primary = {
+      generate: vi.fn().mockResolvedValue({
+        title: 'Kubernetes pod CrashLoopBackOff',
+        problem: 'The pod restarts continuously and enters CrashLoopBackOff.',
+        solutionSteps: ['Run `kubectl logs pod/api`.'],
+        caution: 'A forum thread is not an official runbook.',
+      }),
+    };
+    const fallback = { generate: vi.fn().mockResolvedValue(validEditorial) };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await expect(new DevopsInfraEditorialService(primary, fallback).edit(candidate))
+      .resolves.toEqual(validEditorial);
+    expect(fallback.generate).toHaveBeenCalledWith(candidate);
+    warn.mockRestore();
+  });
+
+  it('omits an English rootCause and keeps the Vietnamese title and problem', async () => {
+    const sourced = {
+      ...candidate,
+      rootCause: 'The container exits on startup.',
+    };
+    const primary = {
+      generate: vi.fn().mockResolvedValue({
+        ...validEditorial,
+        rootCause: 'The container exits on startup.',
+      }),
+    };
+    const fallback = { generate: vi.fn().mockResolvedValue(validEditorial) };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await expect(new DevopsInfraEditorialService(primary, fallback).edit(sourced))
+      .resolves.toEqual(validEditorial);
+    expect(fallback.generate).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('keeps Vietnamese title and problem when Google also leaves English steps', async () => {
+    const englishSteps = {
+      ...validEditorial,
+      solutionSteps: [
+        'Those two VirtualHosts should work. Apache uses SNI to select the host.',
+      ],
+    };
+    const primary = { generate: vi.fn().mockResolvedValue(englishSteps) };
+    const fallback = { generate: vi.fn().mockResolvedValue(englishSteps) };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const result = await new DevopsInfraEditorialService(primary, fallback).edit(candidate);
+
+    expect(result.title).toBe(validEditorial.title);
+    expect(result.problem).toBe(validEditorial.problem);
+    expect(result.solutionSteps).toEqual(candidate.solutionSteps);
+    warn.mockRestore();
+  });
 });
 
 describe('DevopsInfraCodexEditorialGenerator', () => {
@@ -110,6 +203,8 @@ describe('DevopsInfraCodexEditorialGenerator', () => {
     const [instructions, payload, timeout] = runner.run.mock.calls[0];
     expect(instructions).toContain('Do not invent commands');
     expect(instructions).toContain('Keep technical tokens unchanged');
+    expect(instructions).toMatch(/JSON object/u);
+    expect(instructions).toMatch(/Markdown/u);
     expect(JSON.parse(payload)).toEqual({
       title: candidate.item.title,
       body: candidate.item.body,
@@ -120,6 +215,21 @@ describe('DevopsInfraCodexEditorialGenerator', () => {
       kind: candidate.kind,
     });
     expect(timeout).toBe(1234);
+  });
+
+  it.each([
+    ['a markdown fence', `\`\`\`json\n${JSON.stringify(validEditorial)}\n\`\`\``],
+    ['a prose preamble', `Here is the JSON:\n${JSON.stringify(validEditorial)}`],
+    ['trailing commentary', `${JSON.stringify(validEditorial)}\nHope this helps.`],
+    [
+      'a brace in the preamble',
+      `Note {ignore this}\n${JSON.stringify(validEditorial)}\nextra } trailing`,
+    ],
+  ])('parses Codex last-message JSON wrapped in %s', async (_label, output) => {
+    const runner = { run: vi.fn().mockResolvedValue(output) };
+
+    await expect(new DevopsInfraCodexEditorialGenerator(runner).generate(candidate))
+      .resolves.toEqual(validEditorial);
   });
 
   it('rejects incomplete JSON', async () => {

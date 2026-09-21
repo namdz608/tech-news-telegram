@@ -28,17 +28,18 @@ function hit(overrides: Record<string, unknown> = {}) {
 function createHttp(
   handle: (
     params: Record<string, string | number>,
+    url: string,
   ) => Promise<{ data: unknown; headers?: Record<string, string> }>,
 ) {
   return {
     get: vi.fn(
       async (
-        _url: string,
+        url: string,
         config: {
           headers: Record<string, string>;
           params: Record<string, string | number>;
         },
-      ) => handle(config.params),
+      ) => handle(config.params, url),
     ),
   };
 }
@@ -58,11 +59,12 @@ describe("DevopsInfraHnAdapter", () => {
       expect(http.get).toHaveBeenCalledWith(
         "https://hn.algolia.com/api/v1/search",
         expect.objectContaining({
-          params: {
-            query: query.text,
-            numericFilters: `created_at_i>${fromUnix}`,
-            hitsPerPage: 10,
-          },
+            params: {
+              query: query.text,
+              tags: "story",
+              numericFilters: `created_at_i>${fromUnix}`,
+              hitsPerPage: 10,
+            },
         }),
       );
     }
@@ -155,20 +157,31 @@ describe("DevopsInfraHnAdapter", () => {
   it("isolates one failed query while other queries succeed", async () => {
     const failedQuery = devopsInfraHnQueries[0];
     const successfulQuery = devopsInfraHnQueries[1];
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const http = createHttp(async (params) => {
       if (params.query === failedQuery.text) {
-        throw new Error("429");
+        throw Object.assign(new Error("429"), { response: { status: 429 } });
       }
       return params.query === successfulQuery.text
         ? response([hit()])
         : response();
     });
 
-    const result = await new DevopsInfraHnAdapter(http, () => NOW).collect();
+    try {
+      const result = await new DevopsInfraHnAdapter(http, () => NOW).collect();
 
-    expect(result.items).toHaveLength(1);
-    expect(result.successfulSourceCount).toBe(devopsInfraHnQueries.length - 1);
-    expect(result.failedSources).toEqual([`hn:${failedQuery.key}`]);
+      expect(result.items).toHaveLength(1);
+      expect(result.successfulSourceCount).toBe(devopsInfraHnQueries.length - 1);
+      expect(result.failedSources).toEqual([`hn:${failedQuery.key}`]);
+      expect(warn).toHaveBeenCalledWith(
+        "devops-infra hn failed",
+        `hn:${failedQuery.key}`,
+        429,
+        "Error",
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("reports every query when all requests fail", async () => {
@@ -199,5 +212,44 @@ describe("DevopsInfraHnAdapter", () => {
 
     expect(result.items).toEqual([]);
     expect(result.successfulSourceCount).toBe(devopsInfraHnQueries.length);
+  });
+
+  it("uses OR catalog queries instead of multi-word AND", () => {
+    expect(devopsInfraHnQueries.every((query) => query.text.includes("OR"))).toBe(
+      true,
+    );
+  });
+
+  it("attaches HN item comments as answers", async () => {
+    const firstQuery = devopsInfraHnQueries[0];
+    const http = createHttp(async (params, url) => {
+      if (url === "https://hn.algolia.com/api/v1/items/456") {
+        return {
+          data: {
+            children: [
+              {
+                text: "<p>Raise the memory limit.</p>",
+                points: 4,
+                children: [
+                  {
+                    text: "<p>Also bump the limit in the Helm values.</p>",
+                    points: 2,
+                  },
+                ],
+              },
+            ],
+          },
+          headers: JSON_HEADERS,
+        };
+      }
+      return params.query === firstQuery.text ? response([hit()]) : response();
+    });
+
+    const result = await new DevopsInfraHnAdapter(http, () => NOW).collect();
+
+    expect(result.items[0]?.answers).toEqual([
+      { body: "Raise the memory limit.", score: 4 },
+      { body: "Also bump the limit in the Helm values.", score: 2 },
+    ]);
   });
 });

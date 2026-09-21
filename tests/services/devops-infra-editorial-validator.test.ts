@@ -85,7 +85,7 @@ describe('validateDevopsInfraEditorial', () => {
     expect(JSON.stringify(result)).not.toContain('sudo reboot now');
   });
 
-  it('keeps a command whose command tokens repeat a corpus command', () => {
+  it('drops extra resource names absent from the source', () => {
     const source = candidate({
       item: {
         ...candidate().item,
@@ -100,7 +100,41 @@ describe('validateDevopsInfraEditorial', () => {
       caution: 'Hãy kiểm tra trước.',
     }, source);
 
+    expect(result.solutionSteps).toEqual(['kubectl rollout restart']);
+    expect(JSON.stringify(result)).not.toContain('deployment/api');
+  });
+
+  it('keeps an extra resource name that already appears in the source', () => {
+    const source = candidate({
+      item: {
+        ...candidate().item,
+        body: 'Use kubectl rollout restart deployment/api when the workload is stale.',
+      },
+      solutionSteps: ['kubectl rollout restart deployment/api'],
+    });
+    const result = validateDevopsInfraEditorial({
+      title: 'Khởi động lại workload',
+      problem: 'The pod enters CrashLoopBackOff.',
+      solutionSteps: ['kubectl rollout restart deployment/api'],
+      caution: 'Hãy kiểm tra trước.',
+    }, source);
+
     expect(result.solutionSteps).toContain('kubectl rollout restart deployment/api');
+  });
+
+  it('drops an invented IP address absent from the source', () => {
+    const result = validateDevopsInfraEditorial({
+      title: 'Pod Kubernetes bị lỗi',
+      problem: 'The pod enters CrashLoopBackOff.',
+      solutionSteps: ['Run `kubectl logs pod/api` on 10.0.0.5'],
+      caution: 'Hãy kiểm tra trước.',
+    }, candidate());
+
+    expect(result.solutionSteps).toEqual([
+      'Run `kubectl logs pod/api`.',
+      'Fix the missing env.',
+    ]);
+    expect(JSON.stringify(result)).not.toContain('10.0.0.5');
   });
 
   it('omits an invented root cause', () => {
@@ -113,6 +147,51 @@ describe('validateDevopsInfraEditorial', () => {
     }, candidate());
 
     expect(result).not.toHaveProperty('rootCause');
+  });
+
+  it('keeps a Vietnamese root-cause rewrite that names no English tokens', () => {
+    const source = candidate({
+      rootCause: 'The container exits on startup.',
+    });
+    const result = validateDevopsInfraEditorial({
+      title: 'Pod Kubernetes bị lỗi',
+      problem: 'Pod gặp CrashLoopBackOff.',
+      rootCause: 'Tiến trình thoát lúc khởi động.',
+      solutionSteps: ['Run `kubectl logs pod/api`.'],
+      caution: 'Hãy kiểm tra trước.',
+    }, source);
+
+    expect(result.rootCause).toBe('Tiến trình thoát lúc khởi động.');
+  });
+
+  it('keeps a Vietnamese root-cause rewrite that names one source token', () => {
+    const source = candidate({
+      rootCause: 'The container exits on startup because of OOMKilled.',
+    });
+    const result = validateDevopsInfraEditorial({
+      title: 'Pod Kubernetes bị lỗi',
+      problem: 'Pod gặp CrashLoopBackOff.',
+      rootCause: 'Nguyên nhân là OOMKilled.',
+      solutionSteps: ['Run `kubectl logs pod/api`.'],
+      caution: 'Hãy kiểm tra trước.',
+    }, source);
+
+    expect(result.rootCause).toBe('Nguyên nhân là OOMKilled.');
+  });
+
+  it('keeps a Vietnamese root-cause rewrite that keeps two source tokens', () => {
+    const source = candidate({
+      rootCause: 'The container exits on startup.',
+    });
+    const result = validateDevopsInfraEditorial({
+      title: 'Pod Kubernetes bị lỗi',
+      problem: 'Pod gặp CrashLoopBackOff.',
+      rootCause: 'Container thoát lúc startup.',
+      solutionSteps: ['Run `kubectl logs pod/api`.'],
+      caution: 'Hãy kiểm tra trước.',
+    }, source);
+
+    expect(result.rootCause).toBe('Container thoát lúc startup.');
   });
 
   it('restores fields that lose source technical tokens', () => {
@@ -142,10 +221,11 @@ describe('validateDevopsInfraEditorial', () => {
     expect(result.problem).toContain('nginx');
   });
 
-  it('appends a full-corpus technical token omitted by generated fields', () => {
+  it('does not dump body-only tokens onto a Vietnamese problem', () => {
     const source = candidate({
       item: {
         ...candidate().item,
+        title: 'Proxy returns an error',
         body: 'nginx returns a generic failure.',
       },
       problem: 'The proxy returns an error.',
@@ -158,7 +238,8 @@ describe('validateDevopsInfraEditorial', () => {
       caution: 'Hãy kiểm tra trước.',
     }, source);
 
-    expect(result.problem).toContain('nginx');
+    expect(result.problem).toBe('Máy chủ proxy gặp lỗi.');
+    expect(result.problem).not.toContain('nginx');
   });
 
   it('preserves the host identifier worker-3 while translating ordinary words', () => {
@@ -266,7 +347,9 @@ describe('validateDevopsInfraEditorial', () => {
     }, source);
 
     expect(result.problem).toContain('CrashLoopBackOff');
-    expect(result.solutionSteps).toEqual(['Inspect /etc/nginx/nginx.conf.']);
+    expect(result.solutionSteps).toEqual([
+      'Kiểm tra tệp cấu hình. /etc/nginx/nginx.conf',
+    ]);
   });
 
   it('preserves HTML characters but rejects javascript schemes', () => {

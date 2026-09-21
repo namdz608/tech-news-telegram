@@ -25,6 +25,7 @@ function question(overrides: Record<string, unknown> = {}) {
     answer_count: 2,
     owner: { display_name: "operator" },
     accepted_answer_id: 456,
+    tags: ["kubernetes"],
     ...overrides,
   };
 }
@@ -109,6 +110,8 @@ describe("DevopsInfraStackExchangeAdapter", () => {
             Math.floor(NOW.getTime() / 1000) -
             env.DEVOPS_INFRA_MAX_AGE_HOURS * 3600,
           filter: "withbody",
+          answers: 1,
+          pagesize: 100,
         },
       }),
     );
@@ -191,6 +194,7 @@ describe("DevopsInfraStackExchangeAdapter", () => {
         communityKey: "stackexchange:serverfault",
         sourceQuotaKey: "stackexchange:serverfault",
         sourceTextStatus: "full",
+        topicTags: ["kubernetes"],
         answers: [
           {
             body: "Inspect previous container logs.",
@@ -201,6 +205,24 @@ describe("DevopsInfraStackExchangeAdapter", () => {
         engagement: { score: 8 },
       },
     ]);
+  });
+
+  it("keeps the first public content image from the question HTML", async () => {
+    env.STACKEXCHANGE_KEY = "";
+    const http = createHttp(
+      serverfault(
+        [
+          question({
+            body: '<p>The pod enters CrashLoopBackOff.</p><img src="https://i.sstatic.net/pod.png" alt="pod">',
+          }),
+        ],
+        [acceptedAnswer],
+      ),
+    );
+
+    const result = await new DevopsInfraStackExchangeAdapter(http, () => NOW).collect();
+
+    expect(result.items[0]?.imageUrl).toBe("https://i.sstatic.net/pod.png");
   });
 
   it("requests every answered question id in one vectorized call", async () => {
@@ -319,6 +341,7 @@ describe("DevopsInfraStackExchangeAdapter", () => {
   });
 
   it("isolates a failed unix request and keeps serverfault items", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const http = createHttp(async (params, url) => {
       if (params.site === "unix") {
         throw Object.assign(new Error("400"), { response: { status: 400 } });
@@ -334,14 +357,23 @@ describe("DevopsInfraStackExchangeAdapter", () => {
       () => NOW,
     ).collect();
 
-    expect(result.items).toHaveLength(1);
-    expect(result.successfulSourceCount).toBe(
-      DEVOPS_INFRA_STACKEXCHANGE_SITES.length - 1,
+    expect(warn).toHaveBeenCalledWith(
+      "devops-infra stackexchange failed",
+      "stackexchange:unix",
+      400,
+      "Error",
     );
+    warn.mockRestore();
+    expect(result.items).toHaveLength(1);
+    const jobCount = DEVOPS_INFRA_STACKEXCHANGE_SITES.reduce(
+      (count, { tags }) => count + (tags?.length ?? 1),
+      0,
+    );
+    expect(result.successfulSourceCount).toBe(jobCount - 1);
     expect(result.failedSources).toEqual(["stackexchange:unix"]);
   });
 
-  it("joins Stack Overflow tags with semicolons", async () => {
+  it("requests each Stack Overflow tag separately instead of AND-joining them", async () => {
     const http = createHttp(async () => response());
 
     await new DevopsInfraStackExchangeAdapter(http, () => NOW).collect();
@@ -349,14 +381,12 @@ describe("DevopsInfraStackExchangeAdapter", () => {
     const stackOverflow = DEVOPS_INFRA_STACKEXCHANGE_SITES.find(
       ({ site }) => site === "stackoverflow",
     );
-    expect(http.get).toHaveBeenCalledWith(
-      QUESTIONS_URL,
-      expect.objectContaining({
-        params: expect.objectContaining({
-          site: "stackoverflow",
-          tagged: stackOverflow?.tags?.join(";"),
-        }),
-      }),
-    );
+    const taggedCalls = http.get.mock.calls
+      .filter(([url, config]) =>
+        url === QUESTIONS_URL && config.params.site === "stackoverflow")
+      .map(([, config]) => config.params.tagged);
+
+    expect(taggedCalls).toEqual(stackOverflow?.tags);
+    expect(taggedCalls.every((tag) => !String(tag).includes(";"))).toBe(true);
   });
 });

@@ -126,21 +126,32 @@ describe('DevopsInfraFlowService', () => {
       eligibleCount: 0,
       skippedSeenCount: 2,
     }));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-    await expect(new DevopsInfraFlowService(deps).run()).resolves.toEqual({
-      sent: false,
-      reason: 'no_new_articles',
-      channel: 'telegram-devops-infra',
-      messageCount: 0,
-      collectedCount: 2,
-      eligibleCount: 0,
-      skippedSeenCount: 2,
-      partial: false,
-      failedSources: [],
-      language: 'vi',
-    });
-    expect(deps.messages.buildMessages).not.toHaveBeenCalled();
-    expect(deps.delivery.send).not.toHaveBeenCalled();
+    try {
+      await expect(new DevopsInfraFlowService(deps).run()).resolves.toEqual({
+        sent: false,
+        reason: 'no_new_articles',
+        channel: 'telegram-devops-infra',
+        messageCount: 0,
+        collectedCount: 2,
+        eligibleCount: 0,
+        skippedSeenCount: 2,
+        partial: false,
+        failedSources: [],
+        language: 'vi',
+      });
+      expect(deps.messages.buildMessages).not.toHaveBeenCalled();
+      expect(deps.delivery.send).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        'devops-infra skip send',
+        'no_new_articles',
+        2,
+        2,
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('rethrows AllDevopsInfraSourcesFailedError from history.seenUrls without wrapping', async () => {

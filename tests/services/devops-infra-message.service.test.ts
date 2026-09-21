@@ -46,6 +46,18 @@ const editorial = {
   caution: 'Một thread diễn đàn không phải runbook chính thức.',
 };
 
+const shortEditorial = {
+  title: 'Pod lỗi',
+  problem: 'Pod CrashLoopBackOff.',
+  solutionSteps: ['Chạy kubectl logs.'],
+  caution: 'Không phải runbook.',
+};
+
+const longEditorial = {
+  ...editorial,
+  problem: `${editorial.problem} ${'Chi tiết vận hành. '.repeat(80)}`,
+};
+
 describe('DevopsInfraMessageService', () => {
   it('renders problem-solution blocks in order with escaped HTML and Vietnamese time', async () => {
     const editor = { edit: vi.fn().mockResolvedValue(editorial) };
@@ -151,12 +163,48 @@ describe('DevopsInfraMessageService', () => {
     'https://user:secret@example.com/a.png',
     'ftp://cdn.example.com/a.png',
     'not-a-url',
-  ])('omits unsafe image URL %s', async (imageUrl) => {
-    const editor = { edit: vi.fn().mockResolvedValue(editorial) };
+  ])('omits an unsafe source image and a long placeholder caption %s', async (imageUrl) => {
+    const editor = { edit: vi.fn().mockResolvedValue(longEditorial) };
     const [message] = await new DevopsInfraMessageService(editor).buildMessages([
       candidate({ item: { ...candidate().item, imageUrl } }),
     ]);
 
     expect(message.imageUrl).toBeUndefined();
+  });
+
+  it('falls back to the category image when the caption is short and there is no photo', async () => {
+    const editor = { edit: vi.fn().mockResolvedValue(shortEditorial) };
+    const [message] = await new DevopsInfraMessageService(editor).buildMessages([
+      candidate({ item: { ...candidate().item, imageUrl: undefined } }),
+    ]);
+
+    expect(message.imageUrl).toBe(
+      'https://placehold.co/1200x630/075985/ffffff.png?text=Kubernetes',
+    );
+  });
+
+  it('edits candidates one at a time', async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const editor = {
+      edit: vi.fn(async () => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((resolve) => {
+          setTimeout(resolve, 20);
+        });
+        inFlight -= 1;
+        return editorial;
+      }),
+    };
+
+    const messages = await new DevopsInfraMessageService(editor).buildMessages([
+      candidate({ fingerprint: 'a', item: { ...candidate().item, id: 'a', url: 'https://example.com/a' } }),
+      candidate({ fingerprint: 'b', item: { ...candidate().item, id: 'b', url: 'https://example.com/b' } }),
+    ]);
+
+    expect(messages).toHaveLength(2);
+    expect(maxInFlight).toBe(1);
+    expect(editor.edit).toHaveBeenCalledTimes(2);
   });
 });

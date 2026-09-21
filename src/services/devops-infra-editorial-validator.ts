@@ -1,5 +1,6 @@
 import type { DevopsInfraCandidate } from '../types/devops-infra';
 import { compactText } from '../utils/text';
+import { hasVietnameseText } from './article-editorial.service';
 import type { DevopsInfraEditorial } from './devops-infra-editorial.types';
 
 const TITLE_BOUND = 240;
@@ -23,6 +24,9 @@ const FLAGGED_COMMAND =
   /(?:^|[;&]\s*)([^.!?;\r\n]*\s--?[A-Za-z0-9][A-Za-z0-9_-]*(?:[=\s][^;&\r\n]+)?)/gu;
 const PATH_LIKE =
   /(?:^|[\s("'`])((?:\.\/|~\/|\/)[^\s`'"]+|(?:[A-Za-z0-9_.-]+\/)*(?:bin|usr|etc|var|opt|home|tmp)\/[A-Za-z0-9_./-]+|[A-Za-z0-9_./-]+\.(?:yaml|yml|json|conf|sh|service|toml)\b)/giu;
+const RESOURCE_NAME = /\b[A-Za-z][A-Za-z0-9_.-]*\/[A-Za-z0-9_.-]+\b/gu;
+const IPV4 = /\b(?:\d{1,3}\.){3}\d{1,3}\b/gu;
+const LATIN_TOKEN = /\b[A-Za-z][A-Za-z0-9_-]{1,}\b/gu;
 const COMMAND_WORD = /^[A-Za-z][A-Za-z0-9_.-]*$/u;
 // Only technical identifiers must survive the English → Vietnamese rewrite:
 // error ids (CrashLoopBackOff, OOMKilled), CVE ids, backtick spans, paths,
@@ -115,11 +119,36 @@ function hasInventedCommand(step: string, corpus: string): boolean {
     ...(knownCommands.length === 0
       ? [...step.matchAll(PATH_LIKE)].map((match) => match[1] ?? '')
       : []),
+    ...[...step.matchAll(RESOURCE_NAME)].map((match) => match[0]),
+    ...[...step.matchAll(IPV4)].map((match) => match[0]),
   ];
   return commands.some((command) => {
     const normalized = normalizeCommand(command);
     return normalized.length > 0 && !normalizedCorpus.includes(normalized);
   });
+}
+
+function latinTokens(value: string): string[] {
+  return [...value.matchAll(LATIN_TOKEN)]
+    .map((match) => match[0].toLowerCase())
+    .filter((token) => !TECH_TOKEN_STOPWORDS.has(token));
+}
+
+function isGroundedRootCause(
+  generated: string,
+  sourceRootCause: string,
+  corpus: string,
+): boolean {
+  if (hasInventedCommand(generated, corpus)) return false;
+  const generatedTokens = latinTokens(generated);
+  const sourceTokens = new Set(latinTokens(sourceRootCause));
+  const sourceText = sourceRootCause.toLowerCase();
+  const overlap = generatedTokens.filter((token) =>
+    sourceTokens.has(token) || sourceText.includes(token));
+  if (hasVietnameseText(generated)) {
+    return true;
+  }
+  return overlap.length >= 2;
 }
 
 function normalizeTechToken(token: string): string {
@@ -167,15 +196,15 @@ function missingTokens(generated: string, source: string): Set<string> {
   );
 }
 
-function containsAnyToken(value: string, tokens: Set<string>): boolean {
-  return [...tokens].some((token) => value.includes(token));
-}
-
-function appendMissingTokens(problem: string, missing: Set<string>): string {
-  if (missing.size === 0) return problem;
+function appendMissingTokens(
+  value: string,
+  missing: Set<string>,
+  max = PROBLEM_BOUND,
+): string {
+  if (missing.size === 0) return value;
   const suffix = ` ${[...missing].join(' ')}`;
-  const baseBound = Math.max(0, PROBLEM_BOUND - suffix.length);
-  return `${truncateUtf16(problem, baseBound)}${truncateUtf16(suffix, PROBLEM_BOUND)}`;
+  const baseBound = Math.max(0, max - suffix.length);
+  return `${truncateUtf16(value, baseBound)}${truncateUtf16(suffix, max)}`;
 }
 
 export function deterministicDevopsInfraEditorial(
@@ -217,25 +246,29 @@ export function validateDevopsInfraEditorial(
   let solutionSteps = generatedSteps.length > 0
     ? generatedSteps
     : fallback.solutionSteps;
-  let missing = missingTokens(`${problem}\n${solutionSteps.join('\n')}`, corpus);
-  // Steps carry commands, so fall back to the source steps when the rewrite
-  // dropped one. The problem statement only gets the dropped tokens appended so
-  // a Vietnamese rewrite is never replaced by the English source.
-  if (containsAnyToken(fallback.solutionSteps.join('\n'), missing)) {
-    solutionSteps = fallback.solutionSteps;
-    missing = missingTokens(`${problem}\n${solutionSteps.join('\n')}`, corpus);
+  const problemSource = `${candidate.item.title}\n${candidate.problem}`;
+  const stepSource = candidate.solutionSteps.join('\n');
+  if (generatedSteps.length > 0) {
+    const missingFromSteps = missingTokens(solutionSteps.join('\n'), stepSource);
+    if (missingFromSteps.size > 0) {
+      const last = solutionSteps[solutionSteps.length - 1] ?? '';
+      solutionSteps = [
+        ...solutionSteps.slice(0, -1),
+        appendMissingTokens(last, missingFromSteps, STEP_BOUND),
+      ];
+    }
   }
-  problem = appendMissingTokens(problem, missing);
+  const missingFromProblem = missingTokens(problem, problemSource);
+  problem = appendMissingTokens(problem, missingFromProblem);
   const caution = safe(editorial.caution) ? compactText(editorial.caution) : fallback.caution;
 
   return {
     title: truncateUtf16(title, TITLE_BOUND),
     problem: truncateUtf16(problem, PROBLEM_BOUND),
     ...(candidate.rootCause && safe(editorial.rootCause)
+      && isGroundedRootCause(editorial.rootCause, candidate.rootCause, corpus)
       ? { rootCause: truncateUtf16(compactText(editorial.rootCause), PROBLEM_BOUND) }
-      : candidate.rootCause
-        ? { rootCause: fallback.rootCause as string }
-        : {}),
+      : {}),
     solutionSteps: solutionSteps.map((step) => truncateUtf16(step, STEP_BOUND)),
     caution: truncateUtf16(caution, CAUTION_BOUND),
   };
