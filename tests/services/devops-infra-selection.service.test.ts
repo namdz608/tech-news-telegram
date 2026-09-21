@@ -67,8 +67,17 @@ function candidate(
   };
 }
 
-function service(maxArticles = 12, maxIncidents = 3): DevopsInfraSelectionService {
-  return new DevopsInfraSelectionService(maxArticles, maxIncidents, () => NOW);
+function service(
+  maxArticles = 12,
+  maxIncidents = 3,
+  maxAgeHours = 72,
+): DevopsInfraSelectionService {
+  return new DevopsInfraSelectionService(
+    maxArticles,
+    maxIncidents,
+    maxAgeHours,
+    () => NOW,
+  );
 }
 
 describe("DevopsInfraSelectionService", () => {
@@ -177,6 +186,15 @@ describe("DevopsInfraSelectionService", () => {
 
     expect(result.eligibleCount).toBe(1);
     expect(result.skippedSeenCount).toBe(1);
+  });
+
+  it("applies the configured max age instead of a hard-coded 72 hours", () => {
+    const item = candidate("recent", {
+      item: { publishedAt: "2026-09-20T00:00:00.000Z" },
+    });
+
+    expect(service(12, 3, 72).select([item], new Set()).selected).toHaveLength(1);
+    expect(service(12, 3, 24).select([item], new Set()).selected).toEqual([]);
   });
 
   it("When both cloud and on-prem exist in eligible set, selected set contains ≥1 each even if a high-scoring third environment would otherwise fill slots (anchor first, then score).", () => {

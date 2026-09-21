@@ -170,7 +170,11 @@ export function createDevopsInfraFlowService(): DevopsInfraFlowService {
     () => new Date(),
     { failurePolicy: 'fail-closed' },
   );
-  const selection = new DevopsInfraSelectionService();
+  const selection = new DevopsInfraSelectionService(
+    env.DEVOPS_INFRA_MAX_ARTICLES,
+    env.DEVOPS_INFRA_MAX_INCIDENTS,
+    env.DEVOPS_INFRA_MAX_AGE_HOURS,
+  );
   const messages = new DevopsInfraMessageService(createDevopsInfraEditorialService());
   const telegram = createTelegramService(
     env.DEVOPS_INFRA_TELEGRAM_BOT_TOKEN,

@@ -12,7 +12,7 @@ import { classifyDevopsInfraItem } from "./devops-infra-classification.service";
 import { dedupeDevopsInfraCandidates } from "./devops-infra-dedupe.service";
 
 const HOUR_MS = 36e5;
-const MAX_AGE_HOURS = 72;
+const FRESHNESS_WINDOW_HOURS = 72;
 const MAX_PER_CATEGORY = 2;
 const MAX_CLOUD_FAMILY = 4;
 const MAX_PER_SOURCE = 2;
@@ -47,6 +47,7 @@ function canonicalUrl(url: string): string {
 function validCandidate(
   candidate: DevopsInfraCandidate,
   now: Date,
+  maxAgeHours: number,
 ): boolean {
   const publishedAt = Date.parse(candidate.item.publishedAt);
   if (!Number.isFinite(publishedAt)) return false;
@@ -58,7 +59,7 @@ function validCandidate(
     return false;
   }
 
-  return now.getTime() - publishedAt <= MAX_AGE_HOURS * HOUR_MS;
+  return now.getTime() - publishedAt <= maxAgeHours * HOUR_MS;
 }
 
 function includesKeyword(text: string, keyword: string): boolean {
@@ -86,7 +87,7 @@ function scoreCandidate(
 ): DevopsInfraCandidate {
   const publishedAt = Date.parse(candidate.item.publishedAt);
   const ageHours = Math.max(0, (now.getTime() - publishedAt) / HOUR_MS);
-  const freshness = Math.max(0, 72 - Math.floor(ageHours));
+  const freshness = Math.max(0, FRESHNESS_WINDOW_HOURS - Math.floor(ageHours));
   const relevance = categoryKeywordHits(candidate);
   const solution = SOLUTION_POINTS[candidate.solutionConfidence];
   const completeness =
@@ -128,6 +129,7 @@ export class DevopsInfraSelectionService {
   constructor(
     private readonly maxArticles = env.DEVOPS_INFRA_MAX_ARTICLES,
     private readonly maxIncidents = env.DEVOPS_INFRA_MAX_INCIDENTS,
+    private readonly maxAgeHours = env.DEVOPS_INFRA_MAX_AGE_HOURS,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -144,7 +146,8 @@ export class DevopsInfraSelectionService {
       )
       .filter(
         (candidate): candidate is DevopsInfraCandidate =>
-          candidate !== undefined && validCandidate(candidate, now),
+          candidate !== undefined
+          && validCandidate(candidate, now, this.maxAgeHours),
       );
 
     // 2. Drop seen URLs; count skips.

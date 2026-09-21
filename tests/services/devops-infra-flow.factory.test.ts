@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => {
       DEVOPS_INFRA_HISTORY_PATH: 'data/dummy-devops-history.json',
       DEVOPS_INFRA_HISTORY_RETENTION_DAYS: 7,
       DEVOPS_INFRA_EDITORIAL_PROVIDER: 'codex',
+      DEVOPS_INFRA_MAX_ARTICLES: 12,
+      DEVOPS_INFRA_MAX_INCIDENTS: 3,
+      DEVOPS_INFRA_MAX_AGE_HOURS: 48,
     },
     Reddit: ctor('reddit'),
     StackExchange: ctor('stackexchange'),
@@ -126,6 +129,11 @@ describe('createDevopsInfraFlowService', () => {
     expect(mocks.Editorial).toHaveBeenCalledWith(
       mocks.Codex.mock.results[0].value,
       mocks.Google.mock.results[0].value,
+    );
+    expect(mocks.Selection).toHaveBeenCalledWith(
+      mocks.env.DEVOPS_INFRA_MAX_ARTICLES,
+      mocks.env.DEVOPS_INFRA_MAX_INCIDENTS,
+      mocks.env.DEVOPS_INFRA_MAX_AGE_HOURS,
     );
     expect(mocks.Message).toHaveBeenCalledWith(mocks.Editorial.mock.results[0].value);
     expect(mocks.telegram).toHaveBeenCalledWith(VALID_TOKEN, VALID_CHAT);
