@@ -1,5 +1,3 @@
-import type { PoliticsSearchQuery } from '../types/gold-politics';
-
 export interface WebSearchResult {
   title: string;
   url: string;
@@ -11,5 +9,5 @@ export interface WebSearchResult {
 export interface WebSearchProvider {
   readonly key: string;
   isEnabled(): boolean;
-  search(query: PoliticsSearchQuery): Promise<WebSearchResult[]>;
+  search(query: { key: string; text: string }): Promise<WebSearchResult[]>;
 }
