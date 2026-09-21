@@ -6,6 +6,8 @@ import { DevopsInfraStackExchangeAdapter } from "../../src/services/devops-infra
 const NOW = new Date("2026-09-21T03:00:00.000Z");
 const CREATION_DATE = 1_757_905_200;
 const JSON_HEADERS = { "content-type": "application/json" };
+const QUESTIONS_URL = "https://api.stackexchange.com/2.3/questions";
+const ANSWERS_URL = `${QUESTIONS_URL}/123/answers`;
 const originalKey = env.STACKEXCHANGE_KEY;
 
 function response(items: unknown[] = []) {
@@ -23,39 +25,54 @@ function question(overrides: Record<string, unknown> = {}) {
     answer_count: 2,
     owner: { display_name: "operator" },
     accepted_answer_id: 456,
-    answers: [
-      {
-        answer_id: 789,
-        body: "<p>Increase the memory limit.</p>",
-        score: 10,
-        is_accepted: false,
-      },
-      {
-        answer_id: 456,
-        body: "<p>Inspect previous container logs.</p>",
-        score: 3,
-        is_accepted: true,
-      },
-    ],
     ...overrides,
   };
 }
 
+function answer(overrides: Record<string, unknown> = {}) {
+  return {
+    question_id: 123,
+    answer_id: 789,
+    body: "<p>Increase the memory limit.</p>",
+    score: 10,
+    is_accepted: false,
+    ...overrides,
+  };
+}
+
+const acceptedAnswer = answer({
+  answer_id: 456,
+  body: "<p>Inspect previous container logs.</p>",
+  score: 3,
+  is_accepted: true,
+});
+
+/**
+ * Serves the two documented hops: /questions then /questions/{ids}/answers.
+ */
 function createHttp(
   handle: (
     params: Record<string, string | number>,
+    url: string,
   ) => Promise<{ data: unknown; headers?: Record<string, string> }>,
 ) {
   return {
     get: vi.fn(
       async (
-        _url: string,
+        url: string,
         config: {
           headers: Record<string, string>;
           params: Record<string, string | number>;
         },
-      ) => handle(config.params),
+      ) => handle(config.params, url),
     ),
+  };
+}
+
+function serverfault(questions: unknown[], answers: unknown[] = []) {
+  return async (params: Record<string, string | number>, url: string) => {
+    if (params.site !== "serverfault") return response();
+    return url === QUESTIONS_URL ? response(questions) : response(answers);
   };
 }
 
@@ -82,7 +99,7 @@ describe("DevopsInfraStackExchangeAdapter", () => {
     await new DevopsInfraStackExchangeAdapter(http, () => NOW).collect();
 
     expect(http.get).toHaveBeenCalledWith(
-      "https://api.stackexchange.com/2.3/questions",
+      QUESTIONS_URL,
       expect.objectContaining({
         params: {
           order: "desc",
@@ -92,15 +109,14 @@ describe("DevopsInfraStackExchangeAdapter", () => {
             Math.floor(NOW.getTime() / 1000) -
             env.DEVOPS_INFRA_MAX_AGE_HOURS * 3600,
           filter: "withbody",
-          answers: 1,
         },
       }),
     );
   });
 
-  it("sends a configured API key without logging it", async () => {
+  it("sends a configured API key on both hops without logging it", async () => {
     env.STACKEXCHANGE_KEY = "secret-stackexchange-key";
-    const http = createHttp(async () => response());
+    const http = createHttp(serverfault([question()], [acceptedAnswer]));
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const error = vi
@@ -110,7 +126,16 @@ describe("DevopsInfraStackExchangeAdapter", () => {
     await new DevopsInfraStackExchangeAdapter(http, () => NOW).collect();
 
     expect(http.get).toHaveBeenCalledWith(
-      "https://api.stackexchange.com/2.3/questions",
+      QUESTIONS_URL,
+      expect.objectContaining({
+        params: expect.objectContaining({
+          site: "serverfault",
+          key: env.STACKEXCHANGE_KEY,
+        }),
+      }),
+    );
+    expect(http.get).toHaveBeenCalledWith(
+      ANSWERS_URL,
       expect.objectContaining({
         params: expect.objectContaining({
           site: "serverfault",
@@ -127,9 +152,9 @@ describe("DevopsInfraStackExchangeAdapter", () => {
     ).not.toContain(env.STACKEXCHANGE_KEY);
   });
 
-  it("maps a question with its accepted answer", async () => {
-    const http = createHttp(async (params) =>
-      params.site === "serverfault" ? response([question()]) : response(),
+  it("fetches answer bodies from /questions/{ids}/answers and strips HTML", async () => {
+    const http = createHttp(
+      serverfault([question()], [answer(), acceptedAnswer]),
     );
 
     const result = await new DevopsInfraStackExchangeAdapter(
@@ -137,6 +162,18 @@ describe("DevopsInfraStackExchangeAdapter", () => {
       () => NOW,
     ).collect();
 
+    expect(http.get).toHaveBeenCalledWith(
+      ANSWERS_URL,
+      expect.objectContaining({
+        params: expect.objectContaining({
+          order: "desc",
+          sort: "votes",
+          site: "serverfault",
+          filter: "withbody",
+          pagesize: 100,
+        }),
+      }),
+    );
     expect(result.items).toEqual([
       {
         id: "https://serverfault.com/questions/123/pod-restarting",
@@ -144,8 +181,8 @@ describe("DevopsInfraStackExchangeAdapter", () => {
         sourceName: "serverfault",
         title: "Why does my Kubernetes pod keep restarting?",
         url: "https://serverfault.com/questions/123/pod-restarting",
-        summary: "<p>The pod enters CrashLoopBackOff.</p>",
-        body: "<p>The pod enters CrashLoopBackOff.</p>",
+        summary: "The pod enters CrashLoopBackOff.",
+        body: "The pod enters CrashLoopBackOff.",
         author: "operator",
         publishedAt: new Date(CREATION_DATE * 1000).toISOString(),
         collectedAt: NOW.toISOString(),
@@ -156,7 +193,7 @@ describe("DevopsInfraStackExchangeAdapter", () => {
         sourceTextStatus: "full",
         answers: [
           {
-            body: "<p>Inspect previous container logs.</p>",
+            body: "Inspect previous container logs.",
             score: 3,
             accepted: true,
           },
@@ -166,88 +203,63 @@ describe("DevopsInfraStackExchangeAdapter", () => {
     ]);
   });
 
-  it("maps a single embedded answer when answers=1 returns the accepted answer", async () => {
-    const singleAccepted = question({
-      answer_count: 3,
-      answers: [
-        {
-          answer_id: 456,
-          body: "<p>Inspect previous container logs.</p>",
-          score: 3,
-          is_accepted: true,
-        },
-      ],
+  it("requests every answered question id in one vectorized call", async () => {
+    const second = question({
+      question_id: 321,
+      link: "https://serverfault.com/questions/321/dns-timeout",
+      accepted_answer_id: undefined,
     });
-    const http = createHttp(async (params) =>
-      params.site === "serverfault" ? response([singleAccepted]) : response(),
-    );
+    const http = createHttp(async (params, url) => {
+      if (params.site !== "serverfault") return response();
+      return url === QUESTIONS_URL
+        ? response([question(), second])
+        : response([
+            acceptedAnswer,
+            answer({ question_id: 321, answer_id: 654, score: 2 }),
+          ]);
+    });
 
     const result = await new DevopsInfraStackExchangeAdapter(
       http,
       () => NOW,
     ).collect();
 
-    expect(result.items[0]?.answers).toEqual([
-      {
-        body: "<p>Inspect previous container logs.</p>",
-        score: 3,
-        accepted: true,
-      },
-    ]);
-    expect(result.items[0]?.engagement).toEqual({ score: 8 });
+    expect(http.get).toHaveBeenCalledWith(
+      `${QUESTIONS_URL}/123;321/answers`,
+      expect.anything(),
+    );
+    expect(result.items).toHaveLength(2);
+    expect(result.items[1]?.answers[0]?.body).toBe("Increase the memory limit.");
   });
 
-  it("maps a single embedded answer when answers=1 returns the top-scoring answer", async () => {
-    const singleTopScored = question({
-      answer_count: 5,
-      accepted_answer_id: undefined,
+  it("keeps embedded answers without a second request when present", async () => {
+    const embedded = question({
       answers: [
-        {
-          answer_id: 789,
-          body: "<p>Increase the memory limit.</p>",
-          score: 10,
-          is_accepted: false,
-        },
+        { answer_id: 456, body: "<p>Rotate the node.</p>", is_accepted: true },
       ],
     });
-    const http = createHttp(async (params) =>
-      params.site === "serverfault" ? response([singleTopScored]) : response(),
-    );
+    const http = createHttp(serverfault([embedded]));
 
     const result = await new DevopsInfraStackExchangeAdapter(
       http,
       () => NOW,
     ).collect();
 
+    expect(
+      http.get.mock.calls.filter(([url]) => url !== QUESTIONS_URL),
+    ).toEqual([]);
     expect(result.items[0]?.answers).toEqual([
-      {
-        body: "<p>Increase the memory limit.</p>",
-        score: 10,
-        accepted: false,
-      },
+      { body: "Rotate the node.", accepted: true },
     ]);
   });
 
   it("uses the highest-scoring answer when none is accepted", async () => {
-    const withoutAccepted = question({
-      accepted_answer_id: undefined,
-      answers: [
-        {
-          answer_id: 789,
-          body: "<p>Increase the memory limit.</p>",
-          score: 10,
-          is_accepted: false,
-        },
-        {
-          answer_id: 456,
-          body: "<p>Inspect previous container logs.</p>",
-          score: 3,
-          is_accepted: false,
-        },
-      ],
-    });
-    const http = createHttp(async (params) =>
-      params.site === "serverfault" ? response([withoutAccepted]) : response(),
+    const withoutAccepted = question({ accepted_answer_id: undefined });
+    const http = createHttp(
+      serverfault(
+        [withoutAccepted],
+        [answer({ ...acceptedAnswer, is_accepted: false }), answer()],
+      ),
     );
 
     const result = await new DevopsInfraStackExchangeAdapter(
@@ -257,19 +269,15 @@ describe("DevopsInfraStackExchangeAdapter", () => {
 
     expect(result.items[0]?.answers).toEqual([
       {
-        body: "<p>Increase the memory limit.</p>",
+        body: "Increase the memory limit.",
         score: 10,
         accepted: false,
       },
     ]);
   });
 
-  it("skips questions with zero answers", async () => {
-    const http = createHttp(async (params) =>
-      params.site === "serverfault"
-        ? response([question({ answer_count: 0, answers: [] })])
-        : response(),
-    );
+  it("drops a question whose answers never arrive", async () => {
+    const http = createHttp(serverfault([question()]));
 
     const result = await new DevopsInfraStackExchangeAdapter(
       http,
@@ -277,16 +285,48 @@ describe("DevopsInfraStackExchangeAdapter", () => {
     ).collect();
 
     expect(result.items).toEqual([]);
+    expect(result.failedSources).toEqual([]);
+  });
+
+  it("fails the site when the answers request fails", async () => {
+    const http = createHttp(async (params, url) => {
+      if (params.site !== "serverfault") return response();
+      if (url !== QUESTIONS_URL) throw new Error("500");
+      return response([question()]);
+    });
+
+    const result = await new DevopsInfraStackExchangeAdapter(
+      http,
+      () => NOW,
+    ).collect();
+
+    expect(result.items).toEqual([]);
+    expect(result.failedSources).toEqual(["stackexchange:serverfault"]);
+  });
+
+  it("skips questions with zero answers without asking for answers", async () => {
+    const http = createHttp(serverfault([question({ answer_count: 0 })]));
+
+    const result = await new DevopsInfraStackExchangeAdapter(
+      http,
+      () => NOW,
+    ).collect();
+
+    expect(result.items).toEqual([]);
+    expect(
+      http.get.mock.calls.filter(([url]) => url !== QUESTIONS_URL),
+    ).toEqual([]);
   });
 
   it("isolates a failed unix request and keeps serverfault items", async () => {
-    const http = createHttp(async (params) => {
+    const http = createHttp(async (params, url) => {
       if (params.site === "unix") {
         throw Object.assign(new Error("400"), { response: { status: 400 } });
       }
-      return params.site === "serverfault"
+      if (params.site !== "serverfault") return response();
+      return url === QUESTIONS_URL
         ? response([question()])
-        : response();
+        : response([acceptedAnswer]);
     });
 
     const result = await new DevopsInfraStackExchangeAdapter(
@@ -310,7 +350,7 @@ describe("DevopsInfraStackExchangeAdapter", () => {
       ({ site }) => site === "stackoverflow",
     );
     expect(http.get).toHaveBeenCalledWith(
-      "https://api.stackexchange.com/2.3/questions",
+      QUESTIONS_URL,
       expect.objectContaining({
         params: expect.objectContaining({
           site: "stackoverflow",
