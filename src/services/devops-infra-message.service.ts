@@ -84,7 +84,7 @@ export class DevopsInfraMessageService {
       : editorial.solutionSteps.map((step, index) => `${index + 1}. ${safeText(step)}`);
     const lines = [
       `${category}${environment}`,
-      'Bài toán',
+      candidate.kind === 'incident' ? 'Sự cố' : 'Bài toán',
       ...(candidate.kind === 'incident' && candidate.verification === 'unverified'
         ? ['🔴 CHƯA KIỂM CHỨNG']
         : []),

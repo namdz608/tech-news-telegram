@@ -114,6 +114,8 @@ describe('DevopsInfraMessageService', () => {
       }),
     ]);
 
+    expect(message.text).toContain('AWS · Cloud\nSự cố\n🔴 CHƯA KIỂM CHỨNG');
+    expect(message.text).not.toContain('Bài toán\n');
     expect(message.text.indexOf('🔴 CHƯA KIỂM CHỨNG'))
       .toBeLessThan(message.text.indexOf('<b>Pod &lt;script&gt;'));
     expect(message.text).toContain(
