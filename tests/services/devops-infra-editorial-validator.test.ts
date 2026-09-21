@@ -161,6 +161,26 @@ describe('validateDevopsInfraEditorial', () => {
     expect(result.problem).toContain('nginx');
   });
 
+  it('preserves infra tokens deployment and node when model omits them', () => {
+    const source = candidate({
+      item: {
+        ...candidate().item,
+        body: 'The deployment fails on node worker-3.',
+      },
+      problem: 'The deployment fails on node worker-3.',
+      solutionSteps: ['Restart the service.'],
+    });
+    const result = validateDevopsInfraEditorial({
+      title: 'Triển khai lỗi',
+      problem: 'Quá trình triển khai gặp sự cố trên máy chủ.',
+      solutionSteps: ['Khởi động lại dịch vụ.'],
+      caution: 'Hãy kiểm tra trước.',
+    }, source);
+
+    expect(result.problem).toContain('deployment');
+    expect(result.problem).toContain('node');
+  });
+
   it('preserves HTML characters but rejects javascript schemes', () => {
     const safe = validateDevopsInfraEditorial({
       title: 'A < B & C > D',

@@ -26,10 +26,15 @@ const PATH_LIKE = /(?:^|\s)((?:\.\/|~\/|\/)[^\s`'"]+|[A-Za-z0-9_.-]+\/[A-Za-z0-9
 const COMMAND_WORD = /^[A-Za-z][A-Za-z0-9_.-]*$/u;
 const TECH_TOKEN_STOPWORDS = new Set([
   'the', 'and', 'for', 'with', 'this', 'that', 'from', 'into', 'when', 'then',
-  'still', 'after', 'before', 'using', 'apply', 'restart', 'service',
-  'deployment', 'pod', 'node', 'error', 'issue', 'fix', 'run', 'logs', 'log',
-  'inspect', 'missing', 'returns', 'return', 'enters', 'restarts',
-  'continuously', 'proxy', 'deploy', 'cách', 'bài', 'toán',
+  'still', 'after', 'before', 'using', 'onto', 'over', 'under', 'than', 'also',
+  'just', 'only', 'have', 'has', 'had', 'was', 'were', 'are', 'been', 'being',
+  'will', 'would', 'could', 'should', 'can', 'may', 'might', 'not', 'but', 'or',
+  'if', 'so', 'as', 'at', 'by', 'on', 'in', 'of', 'to', 'a', 'an', 'it', 'its',
+  'they', 'them', 'their', 'you', 'your', 'we', 'our', 'is', 'be', 'do', 'did',
+  'does', 'get', 'got', 'make', 'made', 'more', 'most', 'some', 'any', 'all',
+  'each', 'other', 'such', 'no', 'nor', 'too', 'very',
+  'cách', 'bài', 'toán', 'và', 'của', 'các', 'một', 'không', 'được', 'trong',
+  'trên', 'với', 'như', 'khi', 'thì', 'để', 'về', 'đã', 'đang',
 ]);
 
 export function truncateUtf16(value: string, max: number): string {
@@ -102,16 +107,24 @@ function hasInventedCommand(step: string, corpus: string): boolean {
   });
 }
 
+function normalizeTechToken(token: string): string {
+  return token
+    .replace(/^[_.-]+|[_.-]+$/gu, '')
+    .replace(/[.,:;!?]+$/gu, '');
+}
+
 function technicalTokens(value: string): Set<string> {
   const tokens = new Set<string>();
   for (const span of value.matchAll(BACKTICK_SPAN)) {
-    if (span[1] && !TECH_TOKEN_STOPWORDS.has(span[1].toLowerCase())) {
-      tokens.add(span[1]);
+    const normalized = span[1] ? normalizeTechToken(span[1]) : '';
+    if (normalized && !TECH_TOKEN_STOPWORDS.has(normalized.toLowerCase())) {
+      tokens.add(normalized);
     }
   }
   for (const token of value.match(TOKEN) ?? []) {
-    const stopwordForm = token.toLowerCase().replace(/^[_.-]+|[_.-]+$/gu, '');
-    if (!TECH_TOKEN_STOPWORDS.has(stopwordForm)) tokens.add(token);
+    const normalized = normalizeTechToken(token);
+    if (!normalized) continue;
+    if (!TECH_TOKEN_STOPWORDS.has(normalized.toLowerCase())) tokens.add(normalized);
   }
   return tokens;
 }
