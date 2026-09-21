@@ -93,6 +93,31 @@ describe("classifyDevopsInfraItem", () => {
     expect(rumor?.verification).toBe("unverified");
   });
 
+  it("confirms incidents only from body evidence", () => {
+    const officialAdvisory = classifyDevopsInfraItem(
+      item({
+        title: "Kubernetes outage incident",
+        body: "An official advisory confirms the control-plane outage.",
+      }),
+    );
+    const cve = classifyDevopsInfraItem(
+      item({
+        title: "Kubernetes security incident",
+        body: "The incident is tracked as CVE-2026-12345.",
+      }),
+    );
+    const titleOnly = classifyDevopsInfraItem(
+      item({
+        title: "Official advisory for Kubernetes outage",
+        body: "Users report unavailable pods.",
+      }),
+    );
+
+    expect(officialAdvisory?.verification).toBe("confirmed");
+    expect(cve?.verification).toBe("confirmed");
+    expect(titleOnly?.verification).toBe("reported");
+  });
+
   it("detects onprem, cloud, hybrid, and unknown environments", () => {
     const classifyEnvironment = (text: string) =>
       classifyDevopsInfraItem(
@@ -174,6 +199,23 @@ describe("classifyDevopsInfraItem", () => {
     expect(guessed?.rootCause).toBeUndefined();
   });
 
+  it("does not extract a root cause across body and answer boundaries", () => {
+    const result = classifyDevopsInfraItem(
+      item({
+        title: "Kubernetes outage incident",
+        body: "still investigating the root cause",
+        answers: [
+          {
+            body: "Run kubectl rollout restart deployment/api.",
+            accepted: true,
+          },
+        ],
+      }),
+    );
+
+    expect(result?.rootCause).toBeUndefined();
+  });
+
   it("builds a compact fingerprint and rejects one shorter than eight chars", () => {
     const result = classifyDevopsInfraItem(
       item({
@@ -182,8 +224,9 @@ describe("classifyDevopsInfraItem", () => {
       }),
     );
 
-    expect(result?.fingerprint).toMatch(/^[a-z0-9]+$/);
-    expect(result?.fingerprint.length).toBeGreaterThanOrEqual(8);
+    expect(result?.fingerprint).toBe(
+      "awsoutageaffectingproductionservicestodayawsoutageaffectingproductionservicestoday",
+    );
     expect(
       classifyDevopsInfraItem(item({ title: "S3", body: "CVE", summary: "" })),
     ).toBeUndefined();
@@ -214,6 +257,12 @@ describe("classifyDevopsInfraItem", () => {
         { body: "Try a restart.", score: 2 },
       ]),
     ).toBe("highly-voted");
+    expect(
+      confidence([
+        { body: "Run `kubectl logs`.", score: 3 },
+        { body: "Try a restart.", score: 3 },
+      ]),
+    ).not.toBe("highly-voted");
     expect(confidence([{ body: "Set `replicas: 2` in the config." }])).toBe(
       "anecdotal",
     );

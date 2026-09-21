@@ -124,29 +124,30 @@ function solutionStepsFor(
 }
 
 function rootCauseFor(
-  body: string,
+  bodies: readonly string[],
   answers: readonly DevopsInfraAnswer[],
 ): string | undefined {
-  const source = [body, ...answers.map((answer) => answer.body)].join(" ");
-  const match =
-    /\b(?:caused by|root cause(?:\s+(?:was|is))?\s*:?\s*|nguyên nhân(?:\s+là)?\s*:?\s*)([^.!?\n;]+)/i.exec(
-      source,
-    );
-  return match?.[1]?.trim() || undefined;
+  for (const source of [...bodies, ...answers.map((answer) => answer.body)]) {
+    const match =
+      /\b(?:caused by|root cause(?:\s+(?:was|is))?\s*:?\s*|nguyên nhân(?:\s+là)?\s*:?\s*)([^.!?\n;]+)/i.exec(
+        source,
+      );
+    if (match?.[1]?.trim()) return match[1].trim();
+  }
+  return undefined;
 }
 
-function verificationFor(
-  item: DevopsInfraSourceItem,
-  text: string,
-): IncidentVerification {
+function verificationFor(item: DevopsInfraSourceItem): IncidentVerification {
   if (
-    /status\.aws\.amazon\.com|official advisory|\bCVE-\d{4}-\d+/i.test(text)
+    /status\.aws\.amazon\.com|official advisory|\bCVE-\d{4}-\d+/i.test(item.body)
   ) {
     return "confirmed";
   }
   if (
     ["x", "facebook", "discord", "telegram"].includes(item.discoveryChannel) &&
-    /\b(?:rumou?r|unconfirmed|chatter|allegedly)\b/i.test(text)
+    /\b(?:rumou?r|unconfirmed|chatter|allegedly)\b/i.test(
+      `${item.summary} ${item.body}`,
+    )
   ) {
     return "unverified";
   }
@@ -188,7 +189,10 @@ export function classifyDevopsInfraItem(
   const fingerprint = fingerprintFor(item.title, problem);
   if (fingerprint.length < 8) return undefined;
 
-  const rootCause = rootCauseFor(sourceBody, item.answers);
+  const rootCause = rootCauseFor(
+    [item.summary, item.body].filter(Boolean),
+    item.answers,
+  );
   const environment = environmentFor(fullText);
   const kind = incident ? "incident" : "problem-solution";
 
@@ -201,7 +205,7 @@ export function classifyDevopsInfraItem(
     ...(rootCause ? { rootCause } : {}),
     solutionSteps: solutionStepsFor(item.answers, sourceBody),
     solutionConfidence: confidence,
-    ...(incident ? { verification: verificationFor(item, fullText) } : {}),
+    ...(incident ? { verification: verificationFor(item) } : {}),
     fingerprint,
     score: 0,
     scoreReasons: [
