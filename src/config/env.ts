@@ -102,6 +102,21 @@ const envSchema = z.object({
   MAIL_TO: z.string().default(''),
   // Font PDF (mặc định DejaVu bundled) để hiện tiếng Việt.
   JOBS_PDF_FONT_PATH: z.string().default(''),
+  // Credential, giới hạn và lịch sử riêng cho luồng DevOps / hạ tầng.
+  DEVOPS_INFRA_TELEGRAM_BOT_TOKEN: z.string().default('test-devops-infra-token'),
+  DEVOPS_INFRA_TELEGRAM_CHAT_ID: z.string().default('test-devops-infra-chat-id'),
+  DEVOPS_INFRA_MAX_ARTICLES: z.coerce.number().int().min(1).max(50).default(12),
+  DEVOPS_INFRA_MAX_INCIDENTS: z.coerce.number().int().min(0).max(3).default(3),
+  DEVOPS_INFRA_MAX_AGE_HOURS: z.coerce.number().int().positive().default(72),
+  DEVOPS_INFRA_HISTORY_RETENTION_DAYS: z.coerce.number().int().positive().default(7),
+  DEVOPS_INFRA_HISTORY_PATH: z.string().min(1).default('data/devops-infra-sent-history.json'),
+  DEVOPS_INFRA_WEB_SEARCH_MAX_QUERIES: z.coerce.number().int().min(0).max(20).default(8),
+  DEVOPS_INFRA_EDITORIAL_PROVIDER: z.enum(['openai', 'codex', 'google', 'none']).default('codex'),
+  STACKEXCHANGE_KEY: z.string().default(''),
+  DISCORD_BOT_TOKEN: z.string().default(''),
+  DISCORD_CHANNEL_ALLOWLIST: z.string().default(''),
+  FACEBOOK_ACCESS_TOKEN: z.string().default(''),
+  FACEBOOK_PAGE_ALLOWLIST: z.string().default(''),
 });
 
 /**
@@ -118,5 +133,9 @@ export const env = {
   GOLD_POLITICS_MAX_GOLD_NEWS: Math.min(
     parsedEnv.GOLD_POLITICS_MAX_GOLD_NEWS,
     parsedEnv.GOLD_POLITICS_MAX_ARTICLES,
+  ),
+  DEVOPS_INFRA_MAX_INCIDENTS: Math.min(
+    parsedEnv.DEVOPS_INFRA_MAX_INCIDENTS,
+    parsedEnv.DEVOPS_INFRA_MAX_ARTICLES,
   ),
 };

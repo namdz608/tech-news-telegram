@@ -257,4 +257,112 @@ describe('env config', () => {
   ])('rejects unsafe gold spot URL %s', (value) => {
     expect(runEnv({ GOLD_SPOT_API_URL: value }).status).not.toBe(0);
   });
+
+  it('provides isolated devops-infra defaults', () => {
+    expect(
+      readEnvValues([
+        'DEVOPS_INFRA_TELEGRAM_BOT_TOKEN',
+        'DEVOPS_INFRA_TELEGRAM_CHAT_ID',
+        'DEVOPS_INFRA_MAX_ARTICLES',
+        'DEVOPS_INFRA_MAX_INCIDENTS',
+        'DEVOPS_INFRA_MAX_AGE_HOURS',
+        'DEVOPS_INFRA_HISTORY_RETENTION_DAYS',
+        'DEVOPS_INFRA_HISTORY_PATH',
+        'DEVOPS_INFRA_WEB_SEARCH_MAX_QUERIES',
+        'DEVOPS_INFRA_EDITORIAL_PROVIDER',
+        'STACKEXCHANGE_KEY',
+        'DISCORD_BOT_TOKEN',
+        'DISCORD_CHANNEL_ALLOWLIST',
+        'FACEBOOK_ACCESS_TOKEN',
+        'FACEBOOK_PAGE_ALLOWLIST',
+      ]),
+    ).toEqual({
+      DEVOPS_INFRA_TELEGRAM_BOT_TOKEN: 'test-devops-infra-token',
+      DEVOPS_INFRA_TELEGRAM_CHAT_ID: 'test-devops-infra-chat-id',
+      DEVOPS_INFRA_MAX_ARTICLES: 12,
+      DEVOPS_INFRA_MAX_INCIDENTS: 3,
+      DEVOPS_INFRA_MAX_AGE_HOURS: 72,
+      DEVOPS_INFRA_HISTORY_RETENTION_DAYS: 7,
+      DEVOPS_INFRA_HISTORY_PATH: 'data/devops-infra-sent-history.json',
+      DEVOPS_INFRA_WEB_SEARCH_MAX_QUERIES: 8,
+      DEVOPS_INFRA_EDITORIAL_PROVIDER: 'codex',
+      STACKEXCHANGE_KEY: '',
+      DISCORD_BOT_TOKEN: '',
+      DISCORD_CHANNEL_ALLOWLIST: '',
+      FACEBOOK_ACCESS_TOKEN: '',
+      FACEBOOK_PAGE_ALLOWLIST: '',
+    });
+  });
+
+  it('coerces devops-infra numeric strings and caps incidents by total articles', () => {
+    const keys = [
+      'DEVOPS_INFRA_MAX_ARTICLES',
+      'DEVOPS_INFRA_MAX_INCIDENTS',
+      'DEVOPS_INFRA_MAX_AGE_HOURS',
+      'DEVOPS_INFRA_HISTORY_RETENTION_DAYS',
+      'DEVOPS_INFRA_WEB_SEARCH_MAX_QUERIES',
+    ];
+    const result = runEnv(
+      {
+        DEVOPS_INFRA_MAX_ARTICLES: '2',
+        DEVOPS_INFRA_MAX_INCIDENTS: '3',
+        DEVOPS_INFRA_MAX_AGE_HOURS: '24',
+        DEVOPS_INFRA_HISTORY_RETENTION_DAYS: '9',
+        DEVOPS_INFRA_WEB_SEARCH_MAX_QUERIES: '0',
+      },
+      keys,
+    );
+
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      DEVOPS_INFRA_MAX_ARTICLES: 2,
+      DEVOPS_INFRA_MAX_INCIDENTS: 2,
+      DEVOPS_INFRA_MAX_AGE_HOURS: 24,
+      DEVOPS_INFRA_HISTORY_RETENTION_DAYS: 9,
+      DEVOPS_INFRA_WEB_SEARCH_MAX_QUERIES: 0,
+    });
+  });
+
+  it.each(['0', '51'])('rejects devops-infra article count %s', (value) => {
+    expect(runEnv({ DEVOPS_INFRA_MAX_ARTICLES: value }).status).not.toBe(0);
+  });
+
+  it.each(['-1', '4'])('rejects devops-infra incident count %s', (value) => {
+    expect(runEnv({ DEVOPS_INFRA_MAX_INCIDENTS: value }).status).not.toBe(0);
+  });
+
+  it('accepts devops-infra web search query count 0', () => {
+    const result = runEnv(
+      { DEVOPS_INFRA_WEB_SEARCH_MAX_QUERIES: '0' },
+      ['DEVOPS_INFRA_WEB_SEARCH_MAX_QUERIES'],
+    );
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({ DEVOPS_INFRA_WEB_SEARCH_MAX_QUERIES: 0 });
+  });
+
+  it('rejects devops-infra web search query count 21', () => {
+    expect(runEnv({ DEVOPS_INFRA_WEB_SEARCH_MAX_QUERIES: '21' }).status).not.toBe(0);
+  });
+
+  it('rejects an empty DEVOPS_INFRA_HISTORY_PATH', () => {
+    expect(runEnv({ DEVOPS_INFRA_HISTORY_PATH: '' }).status).not.toBe(0);
+  });
+
+  it.each(['openai', 'codex', 'google', 'none'] as const)(
+    'accepts devops-infra editorial provider %s',
+    (value) => {
+      const result = runEnv(
+        { DEVOPS_INFRA_EDITORIAL_PROVIDER: value },
+        ['DEVOPS_INFRA_EDITORIAL_PROVIDER'],
+      );
+      expect(result.status).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual({
+        DEVOPS_INFRA_EDITORIAL_PROVIDER: value,
+      });
+    },
+  );
+
+  it('rejects devops-infra editorial provider gpt', () => {
+    expect(runEnv({ DEVOPS_INFRA_EDITORIAL_PROVIDER: 'gpt' }).status).not.toBe(0);
+  });
 });
