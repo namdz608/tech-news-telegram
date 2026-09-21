@@ -5,7 +5,7 @@ import type {
   DevopsInfraAnswer,
   DevopsInfraSourceItem,
 } from "../types/devops-infra";
-import { compactText } from "../utils/text";
+import { htmlToCompactText } from "../utils/html-text";
 import type {
   DevopsInfraSourceAdapter,
   DevopsInfraSourceAdapterResult,
@@ -13,6 +13,13 @@ import type {
 
 const QUESTIONS_URL = "https://api.stackexchange.com/2.3/questions";
 const MAX_BODY_BYTES = 512 * 1024;
+// `filter=withbody` only adds `question.body`; it never embeds the answer list,
+// so answers come from the documented second hop /questions/{ids}/answers,
+// where `withbody` adds `answer.body`. Both hops stay on public filters.
+const BODY_FILTER = "withbody";
+// Stack Exchange caps a vectorized id list at 100 and a page at 100 items.
+const MAX_VECTOR_IDS = 100;
+const MAX_PAGE_SIZE = 100;
 
 interface HttpResponse {
   data: unknown;
@@ -64,8 +71,7 @@ export class DevopsInfraStackExchangeAdapter implements DevopsInfraSourceAdapter
             fromdate:
               Math.floor(collectedAt.getTime() / 1000) -
               env.DEVOPS_INFRA_MAX_AGE_HOURS * 3600,
-            filter: "withbody",
-            answers: 1,
+            filter: BODY_FILTER,
           };
           if (tags?.length) {
             params.tagged = tags.join(";");
@@ -82,16 +88,22 @@ export class DevopsInfraStackExchangeAdapter implements DevopsInfraSourceAdapter
             params,
           });
           assertJsonContentType(response.headers);
-          const items = parseItems(readJsonBody(response.data)).flatMap(
-            (question) => {
-              const item = mapQuestion(
-                question,
-                site,
-                collectedAt.toISOString(),
-              );
-              return item ? [item] : [];
+          const questions = parseItems(readJsonBody(response.data)).flatMap(
+            (value) => {
+              const question = asRecord(value);
+              return question ? [question] : [];
             },
           );
+          const answers = await this.collectAnswers(site, questions);
+          const items = questions.flatMap((question) => {
+            const item = mapQuestion(
+              question,
+              site,
+              collectedAt.toISOString(),
+              answers,
+            );
+            return item ? [item] : [];
+          });
           return { ok: true as const, items };
         } catch {
           return { ok: false as const, sourceKey };
@@ -113,29 +125,90 @@ export class DevopsInfraStackExchangeAdapter implements DevopsInfraSourceAdapter
 
     return { items, successfulSourceCount, failedSources };
   }
+
+  /**
+   * Second hop of the documented questions → answers fetch. A throw here fails
+   * the site instead of quietly reporting a run with zero items.
+   */
+  private async collectAnswers(
+    site: string,
+    questions: readonly Record<string, unknown>[],
+  ): Promise<Map<number, Record<string, unknown>[]>> {
+    const pending = questions.flatMap((question) => {
+      const questionId = finiteNumber(question.question_id);
+      const answered = finiteNumber(question.answer_count) !== 0;
+      return questionId !== undefined && answered && !hasAnswerBody(question)
+        ? [questionId]
+        : [];
+    });
+    const answers = new Map<number, Record<string, unknown>[]>();
+    for (let index = 0; index < pending.length; index += MAX_VECTOR_IDS) {
+      const ids = pending.slice(index, index + MAX_VECTOR_IDS);
+      const params: Record<string, string | number> = {
+        order: "desc",
+        sort: "votes",
+        site,
+        filter: BODY_FILTER,
+        pagesize: MAX_PAGE_SIZE,
+      };
+      if (env.STACKEXCHANGE_KEY) {
+        params.key = env.STACKEXCHANGE_KEY;
+      }
+      const response = await this.http.get(
+        `${QUESTIONS_URL}/${ids.join(";")}/answers`,
+        {
+          headers: {
+            Accept: "application/json",
+            "User-Agent": env.USER_AGENT,
+          },
+          params,
+        },
+      );
+      assertJsonContentType(response.headers);
+      for (const value of parseItems(readJsonBody(response.data))) {
+        const answer = asRecord(value);
+        const questionId = finiteNumber(answer?.question_id);
+        if (!answer || questionId === undefined) continue;
+        answers.set(questionId, [...(answers.get(questionId) ?? []), answer]);
+      }
+    }
+    return answers;
+  }
+}
+
+function hasAnswerBody(question: Record<string, unknown>): boolean {
+  return (
+    Array.isArray(question.answers) &&
+    question.answers.some((value) => readHtmlText(asRecord(value)?.body) !== "")
+  );
 }
 
 function mapQuestion(
-  value: unknown,
+  question: Record<string, unknown>,
   site: string,
   discoveredAt: string,
+  fetchedAnswers: ReadonlyMap<number, Record<string, unknown>[]>,
 ): DevopsInfraSourceItem | undefined {
-  const question = asRecord(value);
-  if (!question || finiteNumber(question.answer_count) === 0) {
+  if (finiteNumber(question.answer_count) === 0) {
     return undefined;
   }
 
-  const title = readText(question.title);
+  const title = readHtmlText(question.title);
   const url = readPublicHttpUrl(question.link);
-  const body = readText(question.body);
+  const body = readHtmlText(question.body);
   const publishedAt = unixSecondsToIso(question.creation_date);
-  const selectedAnswer = selectAnswer(question);
+  const questionId = finiteNumber(question.question_id);
+  const rawAnswers = [
+    ...(Array.isArray(question.answers) ? question.answers : []),
+    ...(questionId === undefined ? [] : (fetchedAnswers.get(questionId) ?? [])),
+  ];
+  const selectedAnswer = selectAnswer(question, rawAnswers);
   if (!title || !url || !body || !publishedAt || !selectedAnswer) {
     return undefined;
   }
 
   const communityKey = `stackexchange:${site}`;
-  const author = readText(asRecord(question.owner)?.display_name) || undefined;
+  const author = readHtmlText(asRecord(question.owner)?.display_name) || undefined;
   const score = finiteNumber(question.score);
 
   return {
@@ -161,14 +234,12 @@ function mapQuestion(
 
 function selectAnswer(
   question: Record<string, unknown>,
+  rawAnswers: readonly unknown[],
 ): DevopsInfraAnswer | undefined {
-  if (!Array.isArray(question.answers)) {
-    return undefined;
-  }
   const acceptedAnswerId = finiteNumber(question.accepted_answer_id);
-  const candidates = question.answers.flatMap((value) => {
+  const candidates = rawAnswers.flatMap((value) => {
     const answer = asRecord(value);
-    const body = readText(answer?.body);
+    const body = readHtmlText(answer?.body);
     if (!answer || !body) {
       return [];
     }
@@ -214,8 +285,8 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-function readText(value: unknown): string {
-  return typeof value === "string" ? compactText(value) : "";
+function readHtmlText(value: unknown): string {
+  return typeof value === "string" ? htmlToCompactText(value) : "";
 }
 
 function finiteNumber(value: unknown): number | undefined {

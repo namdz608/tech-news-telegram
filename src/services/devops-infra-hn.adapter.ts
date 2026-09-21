@@ -2,6 +2,7 @@ import axios from "axios";
 import { devopsInfraHnQueries } from "../config/devops-infra-sources";
 import { env } from "../config/env";
 import type { DevopsInfraSourceItem } from "../types/devops-infra";
+import { htmlToCompactText } from "../utils/html-text";
 import { compactText } from "../utils/text";
 import type {
   DevopsInfraSourceAdapter,
@@ -137,7 +138,8 @@ function mapHit(
     return undefined;
   }
 
-  const body = readText(hit.comment_text) || readText(hit.story_text);
+  // Algolia returns comment/story text as an HTML fragment.
+  const body = readHtmlText(hit.comment_text) || readHtmlText(hit.story_text);
   const author = readText(hit.author);
   const score = finiteNumber(hit.points);
   const comments = finiteNumber(hit.num_comments);
@@ -186,6 +188,10 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 
 function readText(value: unknown): string {
   return typeof value === "string" ? compactText(value) : "";
+}
+
+function readHtmlText(value: unknown): string {
+  return typeof value === "string" ? htmlToCompactText(value) : "";
 }
 
 function finiteNumber(value: unknown): number | undefined {

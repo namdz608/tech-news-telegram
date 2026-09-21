@@ -16,7 +16,7 @@ function hit(overrides: Record<string, unknown> = {}) {
     objectID: "456",
     title: "Kubernetes pod outage postmortem",
     story_url: "https://example.com/kubernetes-postmortem",
-    story_text: "Pods restarted because memory limits were too low.",
+    story_text: "<p>Pods restarted because memory limits were too low.</p>",
     author: "operator",
     created_at_i: RECENT_UNIX,
     points: 42,
@@ -115,7 +115,9 @@ describe("DevopsInfraHnAdapter", () => {
               story_title: "Ask HN: Terraform state lock failure",
               story_url: undefined,
               story_text: undefined,
-              comment_text: "Remove the stale lock after checking active runs.",
+              comment_text:
+                "<p>Remove the stale lock after checking active runs.</p>"
+                + "<p>Then run <code>terraform force-unlock</code>.</p>",
             }),
           ])
         : response(),
@@ -127,8 +129,12 @@ describe("DevopsInfraHnAdapter", () => {
       id: "789",
       title: "Ask HN: Terraform state lock failure",
       url: "https://news.ycombinator.com/item?id=789",
-      summary: "Remove the stale lock after checking active runs.",
-      body: "Remove the stale lock after checking active runs.",
+      summary:
+        "Remove the stale lock after checking active runs. "
+        + "Then run terraform force-unlock.",
+      body:
+        "Remove the stale lock after checking active runs. "
+        + "Then run terraform force-unlock.",
       sourceTextStatus: "full",
     });
   });
