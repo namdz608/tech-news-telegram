@@ -99,7 +99,8 @@ export class DevopsInfraFlowService {
     let seenUrls: Set<string>;
     try {
       seenUrls = await history.seenUrls();
-    } catch {
+    } catch (error) {
+      if (isAllDevopsInfraSourcesFailedError(error)) throw error;
       throw new DevopsInfraFlowError('sent-history-read-failed');
     }
 

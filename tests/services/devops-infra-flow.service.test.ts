@@ -143,6 +143,18 @@ describe('DevopsInfraFlowService', () => {
     expect(deps.delivery.send).not.toHaveBeenCalled();
   });
 
+  it('rethrows AllDevopsInfraSourcesFailedError from history.seenUrls without wrapping', async () => {
+    const deps = dependencies();
+    deps.history.seenUrls.mockRejectedValue(new AllDevopsInfraSourcesFailedError());
+
+    const error = await new DevopsInfraFlowService(deps).run().catch((value) => value);
+    expect(error).toBeInstanceOf(AllDevopsInfraSourcesFailedError);
+    expect(isAllDevopsInfraSourcesFailedError(error)).toBe(true);
+    expect(error).not.toBeInstanceOf(DevopsInfraFlowError);
+    expect(deps.selection.select).not.toHaveBeenCalled();
+    expect(deps.delivery.send).not.toHaveBeenCalled();
+  });
+
   it('maps history read failures to a safe flow error before selection and send', async () => {
     const deps = dependencies();
     deps.history.seenUrls.mockRejectedValue(new Error('dummy-sensitive-history-value'));
