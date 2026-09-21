@@ -72,6 +72,67 @@ function service(maxArticles = 12, maxIncidents = 3): DevopsInfraSelectionServic
 }
 
 describe("DevopsInfraSelectionService", () => {
+  it("applies the scoring formula and scoreReasons for a constructed candidate with fixed now", () => {
+    const input = candidate("scored", {
+      category: "networking",
+      environment: "cloud",
+      rootCause: "misconfig",
+      solutionSteps: ["a", "b", "c"],
+      solutionConfidence: "accepted",
+      item: {
+        publishedAt: "2026-09-20T03:00:00.000Z",
+        title: "Fix",
+        body: "network timeout during deploy",
+        engagement: { score: 1023 },
+      },
+    });
+
+    const scored = service().select([input], new Set()).selected[0];
+
+    expect(scored?.score).toBe(118);
+    expect(scored?.scoreReasons).toEqual([
+      "freshness:48",
+      "relevance:1",
+      "solution:accepted",
+      "completeness:19",
+      "engagement:10",
+    ]);
+  });
+
+  it("treats non-finite engagement scores as zero for scoring", () => {
+    const baseline = candidate("finite-engagement", {
+      category: "networking",
+      environment: "hybrid",
+      solutionConfidence: "none",
+      solutionSteps: [],
+      item: {
+        publishedAt: "2026-09-21T01:00:00.000Z",
+        title: "Fix",
+        body: "network issue",
+      },
+    });
+    const invalid = candidate("invalid-engagement", {
+      category: "networking",
+      environment: "hybrid",
+      solutionConfidence: "none",
+      solutionSteps: [],
+      item: {
+        publishedAt: "2026-09-21T01:00:00.000Z",
+        title: "Fix",
+        body: "network issue",
+        engagement: { score: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    const baselineScore = service().select([baseline], new Set()).selected[0]?.score;
+    const invalidScored = service().select([invalid], new Set()).selected[0];
+
+    expect(invalidScored?.score).toBe(baselineScore);
+    expect(invalidScored?.scoreReasons).not.toContain(
+      expect.stringMatching(/^engagement:/),
+    );
+  });
+
   it("URLs in seenUrls increment skippedSeenCount and are not selected.", () => {
     const seen = candidate("seen");
     const result = service().select(
@@ -261,6 +322,42 @@ describe("DevopsInfraSelectionService", () => {
 
     expect(result.selected.map((entry) => entry.item.url)).toContain(
       "https://example.com/accepted",
+    );
+    expect(result.selected.map((entry) => entry.item.url)).not.toContain(
+      "https://example.com/anecdotal",
+    );
+  });
+
+  it("Prefer highly-voted over anecdotal when filling remaining slots (after anchors and caps).", () => {
+    const input = [
+      candidate("cloud-anchor", {
+        category: "cloud-aws",
+        environment: "cloud",
+        solutionConfidence: "none",
+        solutionSteps: [],
+      }),
+      candidate("onprem-anchor", {
+        category: "onprem-selfhosted",
+        environment: "onprem",
+        solutionConfidence: "none",
+        solutionSteps: [],
+      }),
+      candidate("anecdotal", {
+        category: "networking",
+        environment: "hybrid",
+        solutionConfidence: "anecdotal",
+      }),
+      candidate("highly-voted", {
+        category: "db-storage",
+        environment: "hybrid",
+        solutionConfidence: "highly-voted",
+      }),
+    ];
+
+    const result = service(3).select(input, new Set());
+
+    expect(result.selected.map((entry) => entry.item.url)).toContain(
+      "https://example.com/highly-voted",
     );
     expect(result.selected.map((entry) => entry.item.url)).not.toContain(
       "https://example.com/anecdotal",
