@@ -190,7 +190,7 @@ export function classifyDevopsInfraItem(
   if (fingerprint.length < 8) return undefined;
 
   const rootCause = rootCauseFor(
-    [item.summary, item.body].filter(Boolean),
+    item.body ? [item.body] : [],
     item.answers,
   );
   const environment = environmentFor(fullText);

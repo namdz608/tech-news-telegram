@@ -199,6 +199,18 @@ describe("classifyDevopsInfraItem", () => {
     expect(guessed?.rootCause).toBeUndefined();
   });
 
+  it("does not extract root cause from summary when body and answers omit it", () => {
+    const result = classifyDevopsInfraItem(
+      item({
+        title: "Kubernetes outage incident",
+        summary: "Root cause: misconfigured ingress controller.",
+        body: "Users report unavailable pods during the incident.",
+      }),
+    );
+
+    expect(result?.rootCause).toBeUndefined();
+  });
+
   it("does not extract a root cause across body and answer boundaries", () => {
     const result = classifyDevopsInfraItem(
       item({
