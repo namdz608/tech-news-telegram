@@ -74,7 +74,8 @@ describe('DevopsInfraEditorialService', () => {
 
     const result = await new DevopsInfraEditorialService(generator).edit(candidate);
 
-    expect(result.problem).toBe(candidate.problem);
+    expect(result.problem).toContain(candidate.problem);
+    expect(result.problem).toContain('Kubernetes');
     expect(result.solutionSteps).toEqual(candidate.solutionSteps);
   });
 

@@ -70,6 +70,39 @@ describe('validateDevopsInfraEditorial', () => {
     expect(JSON.stringify(result)).not.toContain('evil.example');
   });
 
+  it('drops an invented sudo reboot command absent from the source', () => {
+    const result = validateDevopsInfraEditorial({
+      title: 'Pod Kubernetes bị lỗi',
+      problem: 'The pod enters CrashLoopBackOff.',
+      solutionSteps: ['sudo reboot now'],
+      caution: 'Hãy kiểm tra trước.',
+    }, candidate());
+
+    expect(result.solutionSteps).toEqual([
+      'Run `kubectl logs pod/api`.',
+      'Fix the missing env.',
+    ]);
+    expect(JSON.stringify(result)).not.toContain('sudo reboot now');
+  });
+
+  it('keeps a command whose command tokens repeat a corpus command', () => {
+    const source = candidate({
+      item: {
+        ...candidate().item,
+        body: 'Use kubectl rollout restart when the workload is stale.',
+      },
+      solutionSteps: ['kubectl rollout restart'],
+    });
+    const result = validateDevopsInfraEditorial({
+      title: 'Khởi động lại workload',
+      problem: 'The pod enters CrashLoopBackOff.',
+      solutionSteps: ['kubectl rollout restart deployment/api'],
+      caution: 'Hãy kiểm tra trước.',
+    }, source);
+
+    expect(result.solutionSteps).toContain('kubectl rollout restart deployment/api');
+  });
+
   it('omits an invented root cause', () => {
     const result = validateDevopsInfraEditorial({
       title: 'Pod Kubernetes bị lỗi',
@@ -106,7 +139,26 @@ describe('validateDevopsInfraEditorial', () => {
       caution: 'Hãy kiểm tra trước.',
     }, source);
 
-    expect(result.problem).toBe('The nginx proxy returns an error.');
+    expect(result.problem).toContain('nginx');
+  });
+
+  it('appends a full-corpus technical token omitted by generated fields', () => {
+    const source = candidate({
+      item: {
+        ...candidate().item,
+        body: 'nginx returns a generic failure.',
+      },
+      problem: 'The proxy returns an error.',
+      solutionSteps: ['Inspect the proxy logs.'],
+    });
+    const result = validateDevopsInfraEditorial({
+      title: 'Proxy gặp lỗi',
+      problem: 'Máy chủ proxy gặp lỗi.',
+      solutionSteps: ['Inspect the proxy logs.'],
+      caution: 'Hãy kiểm tra trước.',
+    }, source);
+
+    expect(result.problem).toContain('nginx');
   });
 
   it('preserves HTML characters but rejects javascript schemes', () => {

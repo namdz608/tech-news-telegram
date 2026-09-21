@@ -14,13 +14,23 @@ const DESTRUCTIVE_COMMAND =
 const JAVASCRIPT_SCHEME = /javascript\s*:/iu;
 const BACKTICK_SPAN = /`([^`\r\n]+)`/gu;
 const COMMAND_SUBSTITUTION = /\$\(([^)\r\n]+)\)/gu;
+const VARIABLE_SUBSTITUTION = /\$\{([^}\r\n]+)\}/gu;
 const TOKEN = /[A-Za-z][A-Za-z0-9_.-]{2,}/gu;
-const COMMAND =
-  /\b(?:kubectl|terraform|systemctl|helm|docker|podman|ansible|gcloud|aws|az|rm|mkfs)\b[^.!?;\r\n]*/giu;
+const KNOWN_BINARY =
+  /\b(?:kubectl|terraform|systemctl|helm|docker|podman|ansible|gcloud|aws|az|rm|mkfs|curl|wget|sudo|reboot|bash|sh|zsh|apt|yum|dnf|chmod|chown|kill|pkill|nsenter|iptables|ip|ssh|scp|rsync|python|python3|node|npm|go|make|cargo|git)\b/giu;
 const SHELL_COMMAND =
   /\b(?:curl|wget)\b[^;\r\n]*|\b[A-Za-z][A-Za-z0-9_./-]{1,}(?:\s+[^|;\r\n]+)?\s*\|\s*(?:bash|sh)\b[^;\r\n]*/gu;
 const FLAGGED_COMMAND =
-  /(?:^|[;&]\s*)([A-Za-z][A-Za-z0-9_./-]{1,}(?:\s+--?[A-Za-z0-9][A-Za-z0-9_-]*(?:[=\s][^;&\r\n]+)?)?)/gu;
+  /(?:^|[;&]\s*)([^.!?;\r\n]*\s--?[A-Za-z0-9][A-Za-z0-9_-]*(?:[=\s][^;&\r\n]+)?)/gu;
+const PATH_LIKE = /(?:^|\s)((?:\.\/|~\/|\/)[^\s`'"]+|[A-Za-z0-9_.-]+\/[A-Za-z0-9_./-]+)/gu;
+const COMMAND_WORD = /^[A-Za-z][A-Za-z0-9_.-]*$/u;
+const TECH_TOKEN_STOPWORDS = new Set([
+  'the', 'and', 'for', 'with', 'this', 'that', 'from', 'into', 'when', 'then',
+  'still', 'after', 'before', 'using', 'apply', 'restart', 'service',
+  'deployment', 'pod', 'node', 'error', 'issue', 'fix', 'run', 'logs', 'log',
+  'inspect', 'missing', 'returns', 'return', 'enters', 'restarts',
+  'continuously', 'proxy', 'deploy', 'cách', 'bài', 'toán',
+]);
 
 export function truncateUtf16(value: string, max: number): string {
   if (max <= 0) return '';
@@ -52,16 +62,39 @@ function normalizeCommand(value: string): string {
     .replace(/^[`'"]+|[`'",:]+$/gu, '');
 }
 
+function knownCommandPhrases(step: string): string[] {
+  const phrases: string[] = [];
+  for (const match of step.matchAll(KNOWN_BINARY)) {
+    const binary = match[0];
+    const start = match.index ?? 0;
+    const tail = step.slice(start).split(/\s+/u);
+    const words = [binary];
+    const wordLimit = 3;
+    for (const part of tail.slice(1)) {
+      const word = part.replace(/[.,:!?]+$/gu, '');
+      if (!COMMAND_WORD.test(word) || words.length >= wordLimit) break;
+      words.push(word);
+    }
+    phrases.push(words.join(' '));
+  }
+  return phrases;
+}
+
 function hasInventedCommand(step: string, corpus: string): boolean {
   const normalizedCorpus = normalizeCommand(corpus);
+  const knownCommands = knownCommandPhrases(step);
   const commands = [
     ...[...step.matchAll(BACKTICK_SPAN)].map((match) => match[1] ?? ''),
     ...[...step.matchAll(COMMAND_SUBSTITUTION)].map((match) => match[1] ?? ''),
-    ...(step.match(COMMAND) ?? []),
+    ...[...step.matchAll(VARIABLE_SUBSTITUTION)].map((match) => match[1] ?? ''),
     ...(step.match(SHELL_COMMAND) ?? []),
+    ...knownCommands,
     ...[...step.matchAll(FLAGGED_COMMAND)]
       .map((match) => match[1] ?? '')
       .filter((command) => /(?:^|\s)--?[A-Za-z0-9]/u.test(command)),
+    ...(knownCommands.length === 0
+      ? [...step.matchAll(PATH_LIKE)].map((match) => match[1] ?? '')
+      : []),
   ];
   return commands.some((command) => {
     const normalized = normalizeCommand(command);
@@ -72,10 +105,13 @@ function hasInventedCommand(step: string, corpus: string): boolean {
 function technicalTokens(value: string): Set<string> {
   const tokens = new Set<string>();
   for (const span of value.matchAll(BACKTICK_SPAN)) {
-    if (span[1]) tokens.add(span[1]);
+    if (span[1] && !TECH_TOKEN_STOPWORDS.has(span[1].toLowerCase())) {
+      tokens.add(span[1]);
+    }
   }
   for (const token of value.match(TOKEN) ?? []) {
-    tokens.add(token);
+    const stopwordForm = token.toLowerCase().replace(/^[_.-]+|[_.-]+$/gu, '');
+    if (!TECH_TOKEN_STOPWORDS.has(stopwordForm)) tokens.add(token);
   }
   return tokens;
 }
@@ -88,6 +124,13 @@ function missingTokens(generated: string, source: string): Set<string> {
 
 function containsAnyToken(value: string, tokens: Set<string>): boolean {
   return [...tokens].some((token) => value.includes(token));
+}
+
+function appendMissingTokens(problem: string, missing: Set<string>): string {
+  if (missing.size === 0) return problem;
+  const suffix = ` ${[...missing].join(' ')}`;
+  const baseBound = Math.max(0, PROBLEM_BOUND - suffix.length);
+  return `${truncateUtf16(problem, baseBound)}${truncateUtf16(suffix, PROBLEM_BOUND)}`;
 }
 
 export function deterministicDevopsInfraEditorial(
@@ -129,13 +172,16 @@ export function validateDevopsInfraEditorial(
   let solutionSteps = generatedSteps.length > 0
     ? generatedSteps
     : fallback.solutionSteps;
-  const missing = missingTokens(`${problem}\n${solutionSteps.join('\n')}`, corpus);
+  let missing = missingTokens(`${problem}\n${solutionSteps.join('\n')}`, corpus);
   if (containsAnyToken(fallback.problem, missing)) {
     problem = fallback.problem;
+    missing = missingTokens(`${problem}\n${solutionSteps.join('\n')}`, corpus);
   }
   if (containsAnyToken(fallback.solutionSteps.join('\n'), missing)) {
     solutionSteps = fallback.solutionSteps;
+    missing = missingTokens(`${problem}\n${solutionSteps.join('\n')}`, corpus);
   }
+  problem = appendMissingTokens(problem, missing);
   const caution = safe(editorial.caution) ? compactText(editorial.caution) : fallback.caution;
 
   return {
