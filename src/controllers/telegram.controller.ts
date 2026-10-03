@@ -24,6 +24,14 @@ import {
   isAllDevopsInfraSourcesFailedError,
 } from '../services/devops-infra-flow.service';
 import {
+  releaseDevopsJobsDigestLock,
+  tryAcquireDevopsJobsDigestLock,
+} from '../services/devops-jobs-digest-lock';
+import {
+  createDevopsJobsFlowService,
+  isAllDevopsJobsSourcesFailedError,
+} from '../services/devops-jobs-flow.service';
+import {
   createHealthFlowService,
   isAllHealthSourcesFailedError,
 } from '../services/health-flow.service';
@@ -45,6 +53,7 @@ let healthDigestRunning = false;
 let goldPoliticsFlowService: ReturnType<typeof createGoldPoliticsFlowService> | undefined;
 let goldPoliticsDigestRunning = false;
 let devopsInfraFlowService: ReturnType<typeof createDevopsInfraFlowService> | undefined;
+let devopsJobsFlowService: ReturnType<typeof createDevopsJobsFlowService> | undefined;
 
 /**
  * Thu thập, biên tập và gửi một đợt message Telegram (tech digest).
@@ -147,6 +156,26 @@ export async function sendDevopsInfra(_req: Request, res: Response) {
     throw error;
   } finally {
     releaseDevopsInfraDigestLock();
+  }
+}
+
+/** Thu thập job remote DevOps và gửi bằng bot/chat riêng. */
+export async function sendDevopsJobs(_req: Request, res: Response) {
+  if (!tryAcquireDevopsJobsDigestLock()) {
+    res.status(409).json({ error: 'DevOps jobs digest is already running' });
+    return;
+  }
+  try {
+    devopsJobsFlowService ??= createDevopsJobsFlowService();
+    res.json(await devopsJobsFlowService.run());
+  } catch (error) {
+    if (isAllDevopsJobsSourcesFailedError(error)) {
+      res.status(503).json({ error: 'All devops-jobs sources failed' });
+      return;
+    }
+    throw error;
+  } finally {
+    releaseDevopsJobsDigestLock();
   }
 }
 

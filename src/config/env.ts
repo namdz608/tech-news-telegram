@@ -117,6 +117,13 @@ const envSchema = z.object({
   DISCORD_CHANNEL_ALLOWLIST: z.string().default(''),
   FACEBOOK_ACCESS_TOKEN: z.string().default(''),
   FACEBOOK_PAGE_ALLOWLIST: z.string().default(''),
+  DEVOPS_JOBS_TELEGRAM_BOT_TOKEN: z.string().default('test-devops-jobs-token'),
+  DEVOPS_JOBS_TELEGRAM_CHAT_ID: z.string().default('test-devops-jobs-chat-id'),
+  DEVOPS_JOBS_MAX_JOBS: z.coerce.number().int().min(1).max(50).default(8),
+  DEVOPS_JOBS_MAX_PER_SOURCE: z.coerce.number().int().min(1).max(10).default(2),
+  DEVOPS_JOBS_MAX_AGE_HOURS: z.coerce.number().int().positive().default(72),
+  DEVOPS_JOBS_HISTORY_RETENTION_DAYS: z.coerce.number().int().positive().default(7),
+  DEVOPS_JOBS_HISTORY_PATH: z.string().min(1).default('data/devops-jobs-sent-history.json'),
 });
 
 /**
