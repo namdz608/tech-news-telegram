@@ -7,6 +7,7 @@
 import { Router } from 'express';
 import {
   sendDevopsInfra,
+  sendDevopsJobs,
   sendDigest,
   sendGadgets,
   sendGoldPolitics,
@@ -27,5 +28,6 @@ telegramRoutes.post('/telegram/send-gadgets', sendGadgets);
 telegramRoutes.post('/telegram/send-health', sendHealth);
 telegramRoutes.post('/telegram/send-gold-politics', sendGoldPolitics);
 telegramRoutes.post('/telegram/send-devops-infra', sendDevopsInfra);
+telegramRoutes.post('/telegram/send-devops-jobs', sendDevopsJobs);
 // Endpoint riêng cho tin tuyển dụng VN; không trộn vào digest tech.
 telegramRoutes.post('/telegram/send-jobs', sendJobs);

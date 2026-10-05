@@ -99,11 +99,25 @@ interface TelegramPhotoUpload {
  * - `src/services/telegram.service.ts`
  */
 // Mở khai báo `interface TelegramClientLike` để compiler kiểm tra contract cho mọi consumer.
+interface TelegramDocumentUpload {
+  source: Buffer;
+  filename: string;
+}
+
+interface SendDocumentOptions {
+  caption?: string;
+}
+
 interface TelegramClientLike {
   // Gán field `telegram` từ `{` để object khớp contract.
   telegram: {
     sendMessage(chatId: string, message: string, options: SendMessageOptions): Promise<unknown>;
     sendPhoto?(chatId: string, photo: string | TelegramPhotoUpload, options: SendPhotoOptions): Promise<unknown>;
+    sendDocument?(
+      chatId: string,
+      document: TelegramDocumentUpload,
+      options?: SendDocumentOptions,
+    ): Promise<unknown>;
   };
 }
 
@@ -214,6 +228,18 @@ export class TelegramService {
    * - `src/controllers/telegram.controller.ts`
    */
   // Mở method `sendMessages` để gửi dữ liệu ra Telegram theo đúng thứ tự.
+  async sendDocument(filename: string, content: Buffer, caption?: string): Promise<void> {
+    if (!this.bot.telegram.sendDocument) {
+      throw new Error('Telegram sendDocument is not available');
+    }
+    const trimmed = caption?.trim();
+    await this.bot.telegram.sendDocument(
+      this.chatId,
+      { source: content, filename },
+      trimmed ? { caption: trimmed.slice(0, 1024) } : {},
+    );
+  }
+
   async sendMessages(
     messages: TelegramMessage[],
     onSent?: (message: TelegramMessage) => void | Promise<void>,

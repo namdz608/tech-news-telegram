@@ -348,6 +348,26 @@ describe('env config', () => {
     expect(runEnv({ DEVOPS_INFRA_HISTORY_PATH: '' }).status).not.toBe(0);
   });
 
+  it('provides isolated devops-jobs defaults', () => {
+    expect(readEnvValues([
+      'DEVOPS_JOBS_TELEGRAM_BOT_TOKEN',
+      'DEVOPS_JOBS_TELEGRAM_CHAT_ID',
+      'DEVOPS_JOBS_MAX_JOBS',
+      'DEVOPS_JOBS_MAX_PER_SOURCE',
+      'DEVOPS_JOBS_MAX_AGE_HOURS',
+      'DEVOPS_JOBS_HISTORY_RETENTION_DAYS',
+      'DEVOPS_JOBS_HISTORY_PATH',
+    ])).toEqual({
+      DEVOPS_JOBS_TELEGRAM_BOT_TOKEN: 'test-devops-jobs-token',
+      DEVOPS_JOBS_TELEGRAM_CHAT_ID: 'test-devops-jobs-chat-id',
+      DEVOPS_JOBS_MAX_JOBS: 8,
+      DEVOPS_JOBS_MAX_PER_SOURCE: 2,
+      DEVOPS_JOBS_MAX_AGE_HOURS: 72,
+      DEVOPS_JOBS_HISTORY_RETENTION_DAYS: 7,
+      DEVOPS_JOBS_HISTORY_PATH: 'data/devops-jobs-sent-history.json',
+    });
+  });
+
   it.each(['openai', 'codex', 'google', 'none'] as const)(
     'accepts devops-infra editorial provider %s',
     (value) => {

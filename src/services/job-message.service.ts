@@ -2,7 +2,6 @@
  * Dựng message Telegram riêng cho tin tuyển dụng VN.
  */
 import { topics } from '../config/topics';
-import { topicImageUrls } from '../config/topic-images';
 import type { Article } from '../types/article';
 import type { TopicKey } from '../types/topic';
 import { compactText, escapeHtml } from '../utils/text';
@@ -23,7 +22,7 @@ export function buildJobDigestMessages(articles: Article[]): DigestMessage[] {
     return {
       text: renderJobMessage(article, topic),
       url: article.url,
-      imageUrl: topicImageUrls[topic],
+      ...(article.imageUrl ? { imageUrl: article.imageUrl } : {}),
       article,
       topic,
     };
