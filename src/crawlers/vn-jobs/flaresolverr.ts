@@ -27,11 +27,18 @@ export async function fetchHtmlViaFlareSolverr(targetUrl: string): Promise<{ dat
     validateStatus: () => true,
   });
 
-  const response = await client.post<FlareSolverrResponse>(endpoint, {
-    cmd: 'request.get',
-    url: targetUrl,
-    maxTimeout: 60000,
-  });
+  let response;
+  try {
+    response = await client.post<FlareSolverrResponse>(endpoint, {
+      cmd: 'request.get',
+      url: targetUrl,
+      maxTimeout: 60000,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'request failed';
+    console.warn(`FlareSolverr request failed for ${targetUrl}: ${message}`);
+    return null;
+  }
 
   if (response.status >= 400) {
     console.warn(`FlareSolverr HTTP ${response.status} for ${targetUrl}`);

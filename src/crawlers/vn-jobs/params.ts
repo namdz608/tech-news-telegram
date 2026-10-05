@@ -6,6 +6,7 @@ import type { ExperienceYears, JobRole } from './types';
 
 const JOB_ROLES = new Set<JobRole>(['english-teacher', 'devops']);
 const EXPERIENCE_YEARS = new Set<ExperienceYears>(['0', '1-2', '2-5', '3-5', '5+']);
+const JOB_CHANNELS = new Set<JobDeliveryChannel>(['email', 'telegram', 'both']);
 const MAX_LIMIT = 100;
 /** Mặc định số tin khi không truyền `limit` — teacher lấy nhiều hơn devops. */
 const DEFAULT_LIMIT_BY_ROLE: Record<JobRole, number> = {
@@ -13,11 +14,15 @@ const DEFAULT_LIMIT_BY_ROLE: Record<JobRole, number> = {
   devops: env.MAX_JOBS_PER_DIGEST,
 };
 
+export type JobDeliveryChannel = 'email' | 'telegram' | 'both';
+
 export interface ParsedJobSendParams {
   role: JobRole;
   experienceYears?: ExperienceYears;
   /** Số tin gửi; mặc định theo role (teacher 50, devops = MAX_JOBS_PER_DIGEST), tối đa 100. */
   limit: number;
+  /** `email` giữ hành vi cũ. `telegram` gửi PDF lên bot job. `both` gửi cả hai. */
+  channel: JobDeliveryChannel;
 }
 
 function firstString(value: unknown): string | undefined {
@@ -62,7 +67,17 @@ export function parseJobSendParams(query: Record<string, unknown>): ParsedJobSen
     role: roleRaw as JobRole,
     experienceYears,
     limit: parseLimit(query.limit, roleRaw as JobRole),
+    channel: parseChannel(query.channel),
   };
+}
+
+function parseChannel(value: unknown): JobDeliveryChannel {
+  const raw = firstString(value)?.trim();
+  if (!raw) return 'email';
+  if (!JOB_CHANNELS.has(raw as JobDeliveryChannel)) {
+    throw new Error('Invalid channel: must be email, telegram, or both');
+  }
+  return raw as JobDeliveryChannel;
 }
 
 function parseLimit(value: unknown, role: JobRole): number {

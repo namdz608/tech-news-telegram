@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { crawlMock, sendMessagesMock, sendJobsPdfEmailMock, assertConfiguredMock, buildJobsPdfMock } = vi.hoisted(
+const { crawlMock, sendMessagesMock, jobsSendMessagesMock, sendJobsPdfEmailMock, assertConfiguredMock, buildJobsPdfMock } = vi.hoisted(
   () => ({
     crawlMock: vi.fn(),
     sendMessagesMock: vi.fn(),
+    jobsSendMessagesMock: vi.fn(),
     sendJobsPdfEmailMock: vi.fn(),
     assertConfiguredMock: vi.fn(),
     buildJobsPdfMock: vi.fn(),
@@ -20,6 +21,9 @@ vi.mock('../../src/services/telegram.service', () => ({
   TelegramService: class {
     sendMessages = sendMessagesMock;
   },
+  createTelegramService: () => ({
+    sendMessages: jobsSendMessagesMock,
+  }),
 }));
 
 vi.mock('../../src/services/email.service', () => ({
@@ -40,6 +44,8 @@ describe('POST /telegram/send-jobs', () => {
   beforeEach(() => {
     crawlMock.mockReset();
     sendMessagesMock.mockReset();
+    jobsSendMessagesMock.mockReset();
+    jobsSendMessagesMock.mockResolvedValue(undefined);
     sendJobsPdfEmailMock.mockReset();
     assertConfiguredMock.mockReset();
     buildJobsPdfMock.mockReset();
@@ -217,5 +223,99 @@ describe('POST /telegram/send-jobs', () => {
       pdfFileName: 'vn-jobs-devops-test.pdf',
       boardCounts: { topcv: 0, itviec: 3, vietnamworks: 5 },
     });
+    expect(jobsSendMessagesMock).not.toHaveBeenCalled();
+  });
+
+  it('sends one Telegram card per job with the company logo and skips the PDF', async () => {
+    crawlMock.mockResolvedValueOnce({
+      articles: [
+        {
+          id: 'https://example.com/job',
+          sourceId: 'itviec',
+          sourceName: 'ITviec',
+          title: 'DevOps Engineer',
+          url: 'https://example.com/job',
+          author: 'Acme',
+          imageUrl: 'https://cdn.example.com/acme.jpg',
+          collectedAt: '2026-08-03T00:00:00.000Z',
+          topics: ['devops'],
+          jobDetails: {
+            description: 'Build CI/CD pipelines',
+            skills: ['Docker'],
+            salary: 'Thương lượng',
+            location: 'Hà Nội',
+          },
+        },
+      ],
+      boardCounts: { topcv: 0, itviec: 1, vietnamworks: 0 },
+      crawledCounts: { topcv: 0, itviec: 1, vietnamworks: 0 },
+      matchedCount: 1,
+    });
+
+    const response = await request(createApp()).post('/telegram/send-jobs').query({
+      role: 'devops',
+      channel: 'telegram',
+    });
+
+    expect(response.status).toBe(200);
+    expect(buildJobsPdfMock).not.toHaveBeenCalled();
+    expect(sendJobsPdfEmailMock).not.toHaveBeenCalled();
+    const messages = jobsSendMessagesMock.mock.calls[0]?.[0];
+    expect(messages).toHaveLength(1);
+    expect(messages[0].imageUrl).toBe('https://cdn.example.com/acme.jpg');
+    expect(response.body).toMatchObject({
+      sent: true,
+      channel: 'telegram',
+      telegramSent: true,
+      messageCount: 1,
+    });
+    expect(response.body.mailTo).toBeUndefined();
+    expect(response.body.pdfFileName).toBeUndefined();
+  });
+
+  it('sends Telegram when email fails and channel=both', async () => {
+    crawlMock.mockResolvedValueOnce({
+      articles: [
+        {
+          id: 'https://example.com/job',
+          sourceId: 'itviec',
+          sourceName: 'ITviec',
+          title: 'DevOps Engineer',
+          url: 'https://example.com/job',
+          collectedAt: '2026-08-03T00:00:00.000Z',
+          topics: ['devops'],
+        },
+      ],
+      boardCounts: { topcv: 0, itviec: 1, vietnamworks: 0 },
+      crawledCounts: { topcv: 0, itviec: 1, vietnamworks: 0 },
+      matchedCount: 1,
+    });
+    sendJobsPdfEmailMock.mockRejectedValueOnce(new Error('Daily user sending limit exceeded'));
+
+    const response = await request(createApp()).post('/telegram/send-jobs').query({
+      role: 'devops',
+      channel: 'both',
+    });
+
+    expect(response.status).toBe(200);
+    expect(jobsSendMessagesMock).toHaveBeenCalledTimes(1);
+    expect(response.body).toMatchObject({
+      sent: true,
+      channel: 'both',
+      emailSent: false,
+      telegramSent: true,
+    });
+    expect(response.body.emailError).toMatch(/Daily user sending limit exceeded/);
+  });
+
+  it('returns 400 for an unknown channel', async () => {
+    const response = await request(createApp()).post('/telegram/send-jobs').query({
+      role: 'devops',
+      channel: 'slack',
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toMatch(/Invalid channel/);
+    expect(crawlMock).not.toHaveBeenCalled();
   });
 });

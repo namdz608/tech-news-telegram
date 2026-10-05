@@ -362,15 +362,42 @@ gold-politics). HTTP **409** khi một lượt devops-infra đang chạy; **503*
 nguồn **đang bật** đều lỗi. Endpoint không có auth/rate limit ở tầng app — chỉ expose
 trong mạng riêng hoặc reverse proxy có xác thực.
 
+## Luồng DevOps jobs
+
+`POST /telegram/send-devops-jobs` gửi card tiếng Việt cố định cho job remote toàn cầu
+về DevOps, SRE, platform, infrastructure, Kubernetes và cloud engineer. Tiêu đề, mức lương và đoạn mô tả được dịch sang tiếng Việt. Google Translate
+được gọi trước; nếu bị chặn thì dùng MyMemory. Cả hai đều lỗi thì giữ nguyên
+câu gốc. Luồng này không gọi model biên tập và không phải endpoint PDF
+email việc làm Việt Nam.
+
+**Nguồn:** Remote OK, Remotive, We Work Remotely, Himalayas, thread HN “Who is hiring?”
+của tháng hiện tại, cộng trang công khai LinkedIn và Indeed. LinkedIn hoặc Indeed bị
+chặn thì bỏ qua nguồn đó; các nguồn còn lại vẫn gửi.
+
+Bot và chat riêng: `DEVOPS_JOBS_TELEGRAM_BOT_TOKEN`, `DEVOPS_JOBS_TELEGRAM_CHAT_ID`.
+Mỗi lượt tối đa **8** tin, tối đa **2** tin mỗi nguồn, cửa sổ **72** giờ, trừ comment
+của thread HN tháng hiện tại. URL đã gửi lưu **7** ngày tại
+`data/devops-jobs-sent-history.json`.
+
+Chart Helm gọi endpoint lúc **08:50** `Asia/Ho_Chi_Minh` (`50 8 * * *`). HTTP **409**
+khi một lượt đang chạy; **503** khi mọi nguồn đều lỗi.
+
+```bash
+curl -X POST http://localhost:3000/telegram/send-devops-jobs
+```
+
 Gửi tin tuyển dụng Việt Nam (TopCV, ITviec, VietnamWorks) — **gom 1 PDF gửi email** (không Telegram):
 
 ```bash
 curl -X POST 'http://localhost:3000/telegram/send-jobs?role=devops'
 curl -X POST 'http://localhost:3000/telegram/send-jobs?role=devops&experienceYears=2-5&limit=25'
+curl -X POST 'http://localhost:3000/telegram/send-jobs?role=devops&experienceYears=2-5&limit=25&channel=telegram'
+curl -X POST 'http://localhost:3000/telegram/send-jobs?role=devops&channel=both'
 curl -X POST 'http://localhost:3000/telegram/send-jobs?role=english-teacher&experienceYears=1-2'
 ```
 
 - `role` (bắt buộc): `english-teacher` | `devops`
+- `channel` (tuỳ chọn): `email` | `telegram` | `both`. Mặc định `email`. `email` gửi một file PDF. `telegram` gửi từng tin lên bot `DEVOPS_JOBS_TELEGRAM_*`, ảnh là logo công ty. `both` gửi cả PDF qua mail và từng tin lên Telegram.
 - `experienceYears` (tuỳ chọn): `0` | `1-2` | `2-5` | `3-5` | `5+`
 - `limit` (tuỳ chọn): số tin trong PDF (1–100). Mặc định = `50` với `english-teacher`, `MAX_JOBS_PER_DIGEST` với `devops`
 - Response:
