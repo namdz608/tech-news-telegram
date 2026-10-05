@@ -59,12 +59,14 @@ describe('job message service', () => {
         url: 'https://example.com/2',
         collectedAt: '2026-08-03T00:00:00.000Z',
         topics: ['devops'],
+        imageUrl: 'https://cdn.example.com/acme-logo.jpg',
         jobDetails: { description: 'B', skills: [], salary: '20tr', location: 'Hà Nội' },
       },
     ]);
 
     expect(messages).toHaveLength(2);
     expect(messages[0].text).toContain('Mô tả công việc');
-    expect(messages[1].imageUrl).toContain('placehold.co');
+    expect(messages[0].imageUrl).toBeUndefined();
+    expect(messages[1].imageUrl).toBe('https://cdn.example.com/acme-logo.jpg');
   });
 });

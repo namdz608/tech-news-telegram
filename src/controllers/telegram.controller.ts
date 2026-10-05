@@ -2,6 +2,7 @@
  * Điều phối use case thu thập tin và gửi ra ngoài (Telegram digest / email jobs).
  */
 import type { Request, Response } from 'express';
+import { env } from '../config/env';
 import { VnJobsCrawler } from '../crawlers/vn-jobs.crawler';
 import { parseJobSendParams } from '../crawlers/vn-jobs/params';
 import { DigestService } from '../services/digest.service';
@@ -35,10 +36,11 @@ import {
   createHealthFlowService,
   isAllHealthSourcesFailedError,
 } from '../services/health-flow.service';
+import { buildJobDigestMessages } from '../services/job-message.service';
 import { buildJobsPdf } from '../services/jobs-pdf.service';
 import { SourceService } from '../services/source.service';
 import { createTechArticleEditorialService } from '../services/tech-editorial.factory';
-import { TelegramService } from '../services/telegram.service';
+import { createTelegramService, TelegramService } from '../services/telegram.service';
 
 const sourceService = new SourceService();
 const digestService = new DigestService();
@@ -180,7 +182,8 @@ export async function sendDevopsJobs(_req: Request, res: Response) {
 }
 
 /**
- * Crawl tin tuyển dụng VN → PDF → email SMTP (không gửi Telegram).
+ * Crawl tin tuyển dụng VN. `channel=email` gửi PDF qua SMTP, `telegram` gửi
+ * từng tin kèm logo công ty, `both` gửi cả hai.
  */
 export async function sendJobs(req: Request, res: Response) {
   let params;
@@ -194,68 +197,126 @@ export async function sendJobs(req: Request, res: Response) {
     return;
   }
 
+  const channel = params.channel;
+  const wantsEmail = channel === 'email' || channel === 'both';
+  const wantsTelegram = channel === 'telegram' || channel === 'both';
   const { articles, boardCounts, crawledCounts, matchedCount } = await vnJobsCrawler.crawl({
     role: params.role,
     experienceYears: params.experienceYears,
     maxResults: params.limit,
   });
-
-  if (articles.length === 0) {
-    res.json({
-      sent: false,
-      channel: 'email',
-      articleCount: 0,
-      role: params.role,
-      experienceYears: params.experienceYears ?? null,
-      limit: params.limit,
-      matchedCount,
-      crawledCounts,
-      boardCounts,
-      language: 'vi',
-    });
-    return;
-  }
-
-  try {
-    emailService.assertConfigured();
-  } catch (error) {
-    res.status(503).json({
-      error: error instanceof Error ? error.message : 'Email not configured',
-      channel: 'email',
-      articleCount: articles.length,
-      matchedCount,
-      crawledCounts,
-      boardCounts,
-    });
-    return;
-  }
-
-  const pdf = await buildJobsPdf(articles, {
-    role: params.role,
-    experienceYears: params.experienceYears,
-    limit: params.limit,
-  });
-
-  const mail = await emailService.sendJobsPdfEmail({
-    role: params.role,
-    experienceYears: params.experienceYears,
-    articleCount: articles.length,
-    pdfBuffer: pdf.buffer,
-    pdfFileName: pdf.fileName,
-  });
-
-  res.json({
-    sent: true,
-    channel: 'email',
-    articleCount: articles.length,
+  const counts = {
     role: params.role,
     experienceYears: params.experienceYears ?? null,
     limit: params.limit,
     matchedCount,
     crawledCounts,
     boardCounts,
-    mailTo: mail.mailTo,
-    pdfFileName: pdf.fileName,
-    language: 'vi',
+    language: 'vi' as const,
+  };
+
+  if (articles.length === 0) {
+    res.json({
+      sent: false,
+      channel,
+      articleCount: 0,
+      ...counts,
+    });
+    return;
+  }
+
+  if (wantsEmail && !wantsTelegram) {
+    try {
+      emailService.assertConfigured();
+    } catch (error) {
+      res.status(503).json({
+        error: error instanceof Error ? error.message : 'Email not configured',
+        channel,
+        articleCount: articles.length,
+        matchedCount,
+        crawledCounts,
+        boardCounts,
+      });
+      return;
+    }
+  }
+
+  let pdfFileName: string | undefined;
+  let mailTo: string | undefined;
+  let emailSent = false;
+  let emailError: string | undefined;
+  if (wantsEmail) {
+    const pdf = await buildJobsPdf(articles, {
+      role: params.role,
+      experienceYears: params.experienceYears,
+      limit: params.limit,
+    });
+    pdfFileName = pdf.fileName;
+    try {
+      emailService.assertConfigured();
+      const mail = await emailService.sendJobsPdfEmail({
+        role: params.role,
+        experienceYears: params.experienceYears,
+        articleCount: articles.length,
+        pdfBuffer: pdf.buffer,
+        pdfFileName: pdf.fileName,
+      });
+      mailTo = mail.mailTo;
+      emailSent = true;
+    } catch (error) {
+      emailError = error instanceof Error ? error.message : 'Email send failed';
+      if (!wantsTelegram) {
+        const status = emailError.startsWith('Email not configured') ? 503 : 502;
+        res.status(status).json({
+          error: emailError,
+          channel,
+          articleCount: articles.length,
+          matchedCount,
+          crawledCounts,
+          boardCounts,
+        });
+        return;
+      }
+    }
+  }
+
+  let telegramSent = false;
+  let telegramError: string | undefined;
+  if (wantsTelegram) {
+    try {
+      const jobsTelegram = createTelegramService(
+        env.DEVOPS_JOBS_TELEGRAM_BOT_TOKEN,
+        env.DEVOPS_JOBS_TELEGRAM_CHAT_ID,
+      );
+      await jobsTelegram.sendMessages(buildJobDigestMessages(articles));
+      telegramSent = true;
+    } catch (error) {
+      telegramError = error instanceof Error ? error.message : 'Telegram send failed';
+      if (!emailSent) {
+        res.status(502).json({
+          error: telegramError,
+          channel,
+          articleCount: articles.length,
+          ...(emailError ? { emailError } : {}),
+          matchedCount,
+          crawledCounts,
+          boardCounts,
+        });
+        return;
+      }
+    }
+  }
+
+  res.json({
+    sent: emailSent || telegramSent,
+    channel,
+    articleCount: articles.length,
+    ...counts,
+    ...(mailTo ? { mailTo } : {}),
+    ...(wantsEmail && wantsTelegram ? { emailSent } : {}),
+    ...(emailError ? { emailError } : {}),
+    ...(wantsTelegram ? { telegramSent, messageCount: articles.length } : {}),
+    ...(telegramError ? { telegramError } : {}),
+    ...(pdfFileName ? { pdfFileName } : {}),
   });
 }
