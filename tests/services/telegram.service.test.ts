@@ -442,6 +442,63 @@ describe('TelegramService', () => {
     }
   });
 
+  it('closes and reopens bold markup when a long title crosses a chunk boundary', async () => {
+    const sendMessage = vi.fn().mockResolvedValue({});
+    const service = new TelegramService({ telegram: { sendMessage } }, 'chat-id', 3900, '');
+    const content = 'A'.repeat(4000);
+
+    await service.sendDigest(`<b>${content}</b>`, 'https://example.com/article');
+
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    const chunks = sendMessage.mock.calls.map((call) => call[1] as string);
+    for (const chunk of chunks) {
+      expect(chunk.length).toBeLessThanOrEqual(3900);
+      expect(chunk).toMatch(/^<b>A+<\/b>$/);
+    }
+    expect(chunks.map((chunk) => chunk.slice(3, -4)).join('')).toBe(content);
+    expect(sendMessage.mock.calls[0][2].reply_markup).toBeUndefined();
+    expect(sendMessage.mock.calls[1][2].reply_markup).toBeDefined();
+  });
+
+  it('keeps nested links, HTML entities and emoji intact across chunks', async () => {
+    const sendMessage = vi.fn().mockResolvedValue({});
+    const service = new TelegramService({ telegram: { sendMessage } }, 'chat-id', 80, '');
+    const content = '😀&amp;&lt;'.repeat(20);
+    const opening = '<a href="https://example.com"><b>';
+    const closing = '</b></a>';
+
+    await service.sendDigest(`${opening}${content}${closing}`);
+
+    const chunks = sendMessage.mock.calls.map((call) => call[1] as string);
+    expect(chunks.length).toBeGreaterThan(1);
+    const reconstructed = chunks.map((chunk) => {
+      expect(chunk.length).toBeLessThanOrEqual(80);
+      expect(chunk.startsWith(opening)).toBe(true);
+      expect(chunk.endsWith(closing)).toBe(true);
+      const inner = chunk.slice(opening.length, -closing.length);
+      expect(inner.replace(/😀|&amp;|&lt;/gu, '')).toBe('');
+      return inner;
+    }).join('');
+    expect(reconstructed).toBe(content);
+  });
+
+  it('balances links with a quoted greater-than character in an attribute', async () => {
+    const sendMessage = vi.fn().mockResolvedValue({});
+    const service = new TelegramService({ telegram: { sendMessage } }, 'chat-id', 80, '');
+    const opening = '<a href="https://example.com/?q=>">';
+    const content = 'x'.repeat(100);
+
+    await service.sendDigest(`${opening}${content}</a>`);
+
+    const chunks = sendMessage.mock.calls.map((call) => call[1] as string);
+    for (const chunk of chunks) {
+      expect(chunk.length).toBeLessThanOrEqual(80);
+      expect(chunk.startsWith(opening)).toBe(true);
+      expect(chunk.endsWith('</a>')).toBe(true);
+    }
+    expect(chunks.map((chunk) => chunk.slice(opening.length, -4)).join('')).toBe(content);
+  });
+
   it('still uses the default article button when sendDigest is called with three arguments', async () => {
     const sendMessage = vi.fn().mockResolvedValue({});
     const sendPhoto = vi.fn().mockResolvedValue({});

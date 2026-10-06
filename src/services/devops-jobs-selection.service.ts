@@ -1,6 +1,7 @@
 import type { DevopsJob, DevopsJobsSelectionResult } from '../types/devops-jobs';
 import { normalizeUrl } from '../utils/normalize-url';
 import { isEligibleDevopsJob } from './devops-jobs-filter';
+import { dedupeDevopsJobs } from './devops-jobs-record';
 
 const SOURCE_ORDER = [
   'remoteok',
@@ -25,7 +26,9 @@ export class DevopsJobsSelectionService {
     jobs: readonly DevopsJob[],
     seenUrls: ReadonlySet<string>,
   ): DevopsJobsSelectionResult {
-    const fresh = jobs.filter((job) => this.freshEnough(job));
+    const fresh = dedupeDevopsJobs(
+      jobs.filter((job) => this.freshEnough(job)).sort((left, right) => this.compare(left, right)),
+    );
     const seen = new Set([...seenUrls].map((url) => normalizeUrl(url)));
     let skippedSeenCount = 0;
     const unseen = fresh.filter((job) => {

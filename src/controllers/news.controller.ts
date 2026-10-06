@@ -31,8 +31,12 @@ const articleEditorialService = createTechArticleEditorialService();
  * - Gián tiếp bởi `tests/routes/news.routes.test.ts`.
  */
 export function listSources(_req: Request, res: Response) {
-  // Trả cấu hình tĩnh; endpoint này không gọi mạng và không crawl.
-  res.json({ sources });
+  // Chỉ công khai metadata; credential vẫn nằm trong cấu hình crawler nội bộ.
+  res.json({
+    sources: sources.map(({ id, name, kind, enabled, homepageUrl }) => ({
+      id, name, kind, enabled, homepageUrl,
+    })),
+  });
 }
 
 /**

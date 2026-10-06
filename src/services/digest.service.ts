@@ -120,7 +120,10 @@ const summaryMaxLength = 1000;
  */
 // Mở khai báo `export class DigestService` để compiler kiểm tra contract cho mọi consumer.
 export class DigestService {
-  constructor(private readonly maxArticlesPerTopic = env.MAX_ARTICLES_PER_TOPIC) {}
+  constructor(
+    private readonly maxArticlesPerTopic = env.MAX_ARTICLES_PER_TOPIC,
+    private readonly maxArticlesPerDigest = env.MAX_ARTICLES_PER_DIGEST,
+  ) {}
 
   /**
    * Hàm `buildDigest` tạo cấu trúc đầu ra từ cấu hình/dữ liệu đầu vào; kết quả được trả cho caller theo kiểu khai báo.
@@ -132,7 +135,9 @@ export class DigestService {
   // Mở method `buildDigest` để tạo cấu trúc đầu ra từ cấu hình/dữ liệu đầu vào.
   buildDigest(articles: Article[]): string {
     // Tính `selectedEntries` từ `selectBalancedEntries(articles, this.maxArticlesPerTopic);` và giữ bất biến trong phạm vi hiện tại.
-    const selectedEntries = selectBalancedEntries(articles, this.maxArticlesPerTopic);
+    const selectedEntries = selectBalancedEntries(
+      articles, this.maxArticlesPerTopic, this.maxArticlesPerDigest,
+    );
     // Tính `selectedArticles` từ `selectedEntries.map((entry) => entry.article);` và giữ bất biến trong phạm vi hiện tại.
     const selectedArticles = selectedEntries.map((entry) => entry.article);
 
@@ -216,7 +221,9 @@ export class DigestService {
   // Mở method `buildDigestMessages` để tạo cấu trúc đầu ra từ cấu hình/dữ liệu đầu vào.
   buildDigestMessages(articles: Article[]): DigestMessage[] {
     // Tính `selectedEntries` từ `selectBalancedEntries(articles, this.maxArticlesPerTopic);` và giữ bất biến trong phạm vi hiện tại.
-    const selectedEntries = selectBalancedEntries(articles, this.maxArticlesPerTopic);
+    const selectedEntries = selectBalancedEntries(
+      articles, this.maxArticlesPerTopic, this.maxArticlesPerDigest,
+    );
 
     // Nếu `selectedEntries.length === 0` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
     if (selectedEntries.length === 0) {
@@ -265,7 +272,9 @@ export class DigestService {
  * - `src/services/digest.service.ts`
  */
 // Mở thân hàm `selectBalancedEntries` với input/output được TypeScript kiểm tra.
-function selectBalancedEntries(articles: Article[], maxArticlesPerTopic: number): DigestEntry[] {
+function selectBalancedEntries(
+  articles: Article[], maxArticlesPerTopic: number, maxArticlesPerDigest: number,
+): DigestEntry[] {
   // Tính `selectedByUrl` từ `new Set<string>();` và giữ bất biến trong phạm vi hiện tại.
   const selectedByUrl = new Set<string>();
   // Khởi tạo biến cục bộ `result` kiểu `DigestEntry[]` từ `[];`.
@@ -305,8 +314,19 @@ function selectBalancedEntries(articles: Article[], maxArticlesPerTopic: number)
     }
   }
 
-  // Trả `result;` cho caller và kết thúc nhánh hiện tại.
-  return result;
+  if (result.length <= maxArticlesPerDigest) return result;
+
+  // Cấp một lượt cho mỗi topic trước khi lấy bài thứ hai của cùng topic.
+  const grouped = groupEntriesByAssignedTopic(result);
+  const capped: DigestEntry[] = [];
+  for (let round = 0; capped.length < maxArticlesPerDigest; round += 1) {
+    for (const topic of topics) {
+      const entry = grouped.get(topic.key)?.[round];
+      if (entry) capped.push(entry);
+      if (capped.length === maxArticlesPerDigest) return capped;
+    }
+  }
+  return capped;
 }
 
 /**
