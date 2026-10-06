@@ -1,7 +1,36 @@
 import { describe, expect, it } from 'vitest';
 import { DigestService } from '../../src/services/digest.service';
+import { env } from '../../src/config/env';
+import type { Article } from '../../src/types/article';
 
 describe('DigestService', () => {
+  it('caps both digest formats at the configured total while retaining topic balance', () => {
+    const previousMaximum = env.MAX_ARTICLES_PER_DIGEST;
+    env.MAX_ARTICLES_PER_DIGEST = 3;
+    try {
+      const articles: Article[] = (['ai', 'k8s', 'security', 'devops', 'cloud'] as const)
+        .flatMap((topic) => [1, 2].map((index) => ({
+          id: `${topic}-${index}`,
+          sourceId: `${topic}-${index}`,
+          sourceName: `${topic}-${index}`,
+          title: `${topic} article ${index}`,
+          url: `https://example.com/${topic}/${index}`,
+          collectedAt: '2026-10-06T00:00:00.000Z',
+          topics: [topic],
+        })));
+      const service = new DigestService(2);
+      const messages = service.buildDigestMessages(articles);
+      const digest = service.buildDigest(articles);
+
+      expect(messages).toHaveLength(3);
+      expect(new Set(messages.map((message) => message.topic)).size).toBe(3);
+      expect(digest).toContain('3 bài mới');
+      for (const message of messages) expect(digest).toContain(message.url);
+      expect(digest.match(/https:\/\/example\.com\//g)).toHaveLength(3);
+    } finally {
+      env.MAX_ARTICLES_PER_DIGEST = previousMaximum;
+    }
+  });
   it('builds a compact formatted telegram digest', () => {
     const digest = new DigestService(10).buildDigest([
       {

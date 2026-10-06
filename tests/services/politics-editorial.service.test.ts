@@ -1314,6 +1314,208 @@ describe('PoliticsEditorialService', () => {
     });
   });
 
+  it.each(
+    ['codex', 'openai'].flatMap((provider) =>
+      ['primary', 'retry'].flatMap((path) =>
+        (['title', 'summary', 'whyImportant'] as const).map((field) => ({ provider, path, field })),
+      ),
+    ),
+  )('rejects invented numbers in native $provider $path $field', async ({ provider, path, field }) => {
+    const input = candidate();
+    const native = verifiedEditorial({
+      title: 'Theo VnExpress, Pham Minh Chinh bị cáo buộc nhận hối lộ 5 tỷ đồng',
+      summary: 'Nguồn VnExpress cho rằng Pham Minh Chinh bị cáo buộc nhận hối lộ 5 tỷ đồng.',
+      whyImportant: 'Theo VnExpress, cáo buộc liên quan đến 5 tỷ đồng đang được đưa tin.',
+    });
+    const invented = { ...native, [field]: native[field].replace('5 tỷ', '999 tỷ') };
+    const editArticle = vi.fn().mockResolvedValue(invented);
+    if (path === 'retry') editArticle.mockRejectedValueOnce(new Error('First attempt failed'));
+    const translator = { translateDigestVerified: vi.fn() };
+
+    const result = await new PoliticsEditorialService(
+      { editArticle },
+      translator,
+      new PoliticsEditorialValidator(),
+      politicsEditorialServiceOptions(provider),
+    ).edit(input);
+
+    expect(result[field]).toBe(createTranslationFallbackEditorial(input)[field]);
+    for (const safeField of ['title', 'summary', 'whyImportant'] as const) {
+      if (safeField !== field) expect(result[safeField]).toBe(native[safeField]);
+    }
+    expect(`${result.title} ${result.summary} ${result.whyImportant}`).not.toContain('999');
+    expect(editArticle).toHaveBeenCalledTimes(path === 'retry' ? 2 : 1);
+    expect(translator.translateDigestVerified).not.toHaveBeenCalled();
+  });
+
+  it.each(['primary', 'retry'])('keeps localized native names, quotes and month numbers on $path', async (path) => {
+    const input = candidate({
+      title: 'Chinese officials plan a vote in November',
+      summary: 'Chinese officials said "we plan a vote" on a 5% levy in November.',
+      claimStance: 'neutral',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      evidenceAssertions: [assertion({
+        claimText: 'Chinese officials plan a vote on a 5% levy in November.',
+        modality: 'reported',
+        effect: 'mentions',
+      })],
+    });
+    const native = verifiedEditorial({
+      title: 'Theo VnExpress, quan chức Trung Quốc dự kiến bỏ phiếu vào tháng 11',
+      summary: 'Theo VnExpress, quan chức Trung Quốc nói "chúng tôi dự kiến bỏ phiếu" về mức thuế 5% vào tháng 11.',
+      whyImportant: 'Theo VnExpress, sự việc đang được đưa tin, chưa phải kết luận cuối.',
+    });
+    const editArticle = vi.fn().mockResolvedValue(native);
+    if (path === 'retry') editArticle.mockRejectedValueOnce(new Error('First attempt failed'));
+    const translator = { translateDigestVerified: vi.fn() };
+
+    const result = await new PoliticsEditorialService(
+      { editArticle },
+      translator,
+      new PoliticsEditorialValidator(),
+      politicsEditorialServiceOptions('codex'),
+    ).edit(input);
+
+    expect(result).toEqual({ title: native.title, summary: native.summary, whyImportant: native.whyImportant });
+    expect(translator.translateDigestVerified).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'Theo VnExpress, mức thuế dự kiến là 11% vào tháng 11.',
+    'Theo VnExpress, mức thuế dự kiến là 5% vào tháng 12.',
+  ])('rejects unsupported native amounts or months: %s', async (summary) => {
+    const input = candidate({
+      title: 'A vote on the levy is planned for November',
+      summary: 'Officials plan a vote on a 5% levy in November.',
+      claimStance: 'neutral',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      evidenceAssertions: [assertion({ modality: 'reported', effect: 'mentions' })],
+    });
+    const translator = { translateDigestVerified: vi.fn() };
+
+    const result = await new PoliticsEditorialService(
+      { editArticle: vi.fn().mockResolvedValue(verifiedEditorial({
+        title: 'Theo VnExpress, cuộc bỏ phiếu dự kiến vào tháng 11',
+        summary,
+        whyImportant: 'Theo VnExpress, sự việc đang được đưa tin.',
+      })) },
+      translator,
+      new PoliticsEditorialValidator(),
+      politicsEditorialServiceOptions('openai'),
+    ).edit(input);
+
+    expect(result.summary).toBe(createTranslationFallbackEditorial(input).summary);
+    expect(result.title).toContain('tháng 11');
+    expect(translator.translateDigestVerified).not.toHaveBeenCalled();
+  });
+
+  it.each(
+    ['primary', 'retry'].flatMap((path) => [
+      { path, date: 'ngày 5/11', accepted: true },
+      { path, date: 'ngày 5-11', accepted: true },
+      { path, date: 'ngày 05/11/2026', accepted: true },
+      { path, date: 'ngày 6/11', accepted: false },
+      { path, date: 'ngày 5/12', accepted: false },
+      { path, date: 'ngày 5/11/2099', accepted: false },
+      { path, date: 'ngày 5/11, mức thuế 11%', accepted: false },
+      { path, date: 'ngày 5/11', sourceDate: '5th of November, 2026', accepted: true },
+      { path, date: 'ngày 5/11', sourceDate: 'ngày 5/11/2026', accepted: true },
+      { path, date: 'ngày 5/11', sourceDate: 'ngày 5 tháng 11 năm 2026', accepted: true },
+      { path, date: 'ngày 5/5', sourceDate: 'May 5, 2026', accepted: true },
+    ].map((testCase) => ({ sourceDate: 'November 5, 2026', ...testCase }))),
+  )('grounds native $path numeric date $date from $sourceDate', async ({ path, date, sourceDate, accepted }) => {
+    const input = candidate({
+      title: `Officials plan a vote on ${sourceDate}`,
+      summary: `Officials plan a vote on ${sourceDate} about a 6% levy.`,
+      claimStance: 'neutral',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      evidenceAssertions: [],
+    });
+    const native = verifiedEditorial({
+      title: `Theo VnExpress, cuộc bỏ phiếu dự kiến vào ${date}`,
+      summary: 'Theo VnExpress, quan chức dự kiến bỏ phiếu về mức thuế 6%.',
+      whyImportant: 'Theo VnExpress, sự việc đang được đưa tin.',
+    });
+    const editArticle = vi.fn().mockResolvedValue(native);
+    if (path === 'retry') editArticle.mockRejectedValueOnce(new Error('First attempt failed'));
+    const translator = { translateDigestVerified: vi.fn() };
+
+    const result = await new PoliticsEditorialService(
+      { editArticle },
+      translator,
+      new PoliticsEditorialValidator(),
+      politicsEditorialServiceOptions('codex'),
+    ).edit(input);
+
+    expect(result.title).toBe(accepted ? native.title : createTranslationFallbackEditorial(input).title);
+    expect(result.summary).toBe(native.summary);
+    expect(translator.translateDigestVerified).not.toHaveBeenCalled();
+  });
+
+  it.each(
+    ['primary', 'retry'].flatMap((path) => [
+      { path, amount: '5,5', accepted: true },
+      { path, amount: '9,5', accepted: false },
+    ]),
+  )('grounds native $path localized decimal $amount', async ({ path, amount, accepted }) => {
+    const input = candidate({
+      title: 'Officials plan a vote on a 5.5% levy',
+      summary: 'Officials plan a vote on a 5.5% levy.',
+      claimStance: 'neutral',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      evidenceAssertions: [],
+    });
+    const native = verifiedEditorial({
+      title: 'Theo VnExpress, quan chức dự kiến bỏ phiếu về mức thuế',
+      summary: `Theo VnExpress, mức thuế dự kiến là ${amount}%.`,
+      whyImportant: 'Theo VnExpress, sự việc đang được đưa tin.',
+    });
+    const editArticle = vi.fn().mockResolvedValue(native);
+    if (path === 'retry') editArticle.mockRejectedValueOnce(new Error('First attempt failed'));
+    const translator = { translateDigestVerified: vi.fn() };
+
+    const result = await new PoliticsEditorialService(
+      { editArticle },
+      translator,
+      new PoliticsEditorialValidator(),
+      politicsEditorialServiceOptions('openai'),
+    ).edit(input);
+
+    expect(result.summary).toBe(accepted ? native.summary : createTranslationFallbackEditorial(input).summary);
+    expect(result.title).toBe(native.title);
+    expect(translator.translateDigestVerified).not.toHaveBeenCalled();
+  });
+
+  it('does not treat the English modal may as a source month for native numbers', async () => {
+    const input = candidate({
+      title: 'Officials may schedule a vote',
+      summary: 'Officials may schedule a vote on the levy.',
+      claimStance: 'neutral',
+      claimModality: 'reported',
+      evidentiaryEffect: 'mentions',
+      evidenceAssertions: [],
+    });
+    const translator = { translateDigestVerified: vi.fn() };
+
+    const result = await new PoliticsEditorialService(
+      { editArticle: vi.fn().mockResolvedValue(verifiedEditorial({
+        title: 'Theo VnExpress, cuộc bỏ phiếu dự kiến vào tháng 5',
+        summary: 'Theo VnExpress, quan chức có thể lên lịch bỏ phiếu về mức thuế.',
+        whyImportant: 'Theo VnExpress, sự việc đang được đưa tin.',
+      })) },
+      translator,
+      new PoliticsEditorialValidator(),
+      politicsEditorialServiceOptions('codex'),
+    ).edit(input);
+
+    expect(result.title).toBe(createTranslationFallbackEditorial(input).title);
+    expect(translator.translateDigestVerified).not.toHaveBeenCalled();
+  });
+
   it('treats Codex Vietnamese JSON as native and does not call Google Translate', async () => {
     const input = candidate({
       sourceName: 'The Guardian Politics',
