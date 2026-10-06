@@ -11,6 +11,7 @@ import { Telegraf } from 'telegraf';
 // Nạp { env } từ `../config/env` để dùng đúng dependency/type thay vì tự triển khai lại.
 import { env } from '../config/env';
 import { createDohFallbackHttpsAgent } from '../utils/doh-dns';
+import { splitTelegramMessage } from '../utils/telegram-html';
 // Nạp { redditHttpsAgent } từ `../utils/reddit-dns` để dùng đúng dependency/type thay vì tự triển khai lại.
 import { redditHttpsAgent } from '../utils/reddit-dns';
 export interface TelegramMessage {
@@ -429,71 +430,6 @@ export function createTelegramService(
     3900,
     options.messageEffectId ?? env.TELEGRAM_MESSAGE_EFFECT_ID,
   );
-}
-
-/**
- * Hàm `splitTelegramMessage` chia nội dung theo giới hạn của API đích; kết quả được trả cho caller theo kiểu khai báo.
- *
- * Được sử dụng tại:
- * - `src/services/telegram.service.ts`
- */
-// Mở thân hàm `splitTelegramMessage` với input/output được TypeScript kiểm tra.
-function splitTelegramMessage(message: string, maxLength: number): string[] {
-  // Nếu `message.length <= maxLength` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
-  if (message.length <= maxLength) {
-    // Trả `[message];` cho caller và kết thúc nhánh hiện tại.
-    return [message];
-  }
-
-  // Khởi tạo biến cục bộ `chunks` kiểu `string[]` từ `[];`.
-  const chunks: string[] = [];
-  // Khởi tạo trạng thái `current`; các nhánh bên dưới sẽ cập nhật nó có kiểm soát.
-  let current = '';
-
-  // Lặp theo `const line of message.split('\n')` để xử lý đủ từng phần tử/trạng thái.
-  for (const line of message.split('\n')) {
-    // Tính `candidate` từ `current ? `${current}\n${line}` : line;` và giữ bất biến trong phạm vi hiện tại.
-    const candidate = current ? `${current}\n${line}` : line;
-
-    // Nếu `candidate.length <= maxLength` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
-    if (candidate.length <= maxLength) {
-      // Cập nhật `current` bằng `candidate;` cho bước kế tiếp.
-      current = candidate;
-      // Dùng `continue;` để bỏ qua/kết thúc vòng lặp sau khi điều kiện hiện tại đã rõ.
-      continue;
-    }
-
-    // Nếu `current` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
-    if (current) {
-      // Gọi `chunks.push` với `current` để hoàn tất side effect/bước xử lý hiện tại.
-      chunks.push(current);
-      // Cập nhật `current` bằng `'';` cho bước kế tiếp.
-      current = '';
-    }
-
-    // Nếu `line.length <= maxLength` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
-    if (line.length <= maxLength) {
-      // Cập nhật `current` bằng `line;` cho bước kế tiếp.
-      current = line;
-      // Dùng `continue;` để bỏ qua/kết thúc vòng lặp sau khi điều kiện hiện tại đã rõ.
-      continue;
-    }
-
-    // Lặp theo `let index = 0; index < line.length; index += maxLength` để xử lý đủ từng phần tử/trạng thái.
-    for (let index = 0; index < line.length; index += maxLength) {
-      // Gọi `chunks.push` với `line.slice(index, index + maxLength)` để hoàn tất side effect/bước xử lý hiện tại.
-      chunks.push(line.slice(index, index + maxLength));
-    }
-  }
-
-  // Nếu `current` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
-  if (current) {
-    // Gọi `chunks.push` với `current` để hoàn tất side effect/bước xử lý hiện tại.
-    chunks.push(current);
-  }
-
-  // Trả `chunks;` cho caller và kết thúc nhánh hiện tại.
-  return chunks;
 }
 
 /**

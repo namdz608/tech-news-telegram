@@ -10,6 +10,7 @@ interface PoliticsEditorial {
 export type PoliticsEditorialValidationMode =
   | 'source-grounded'
   | 'source-facts'
+  | 'native-vietnamese'
   | 'translated';
 
 const TITLE_BOUND = 240;
@@ -26,6 +27,10 @@ const CONFLICT = /mâu thuẫn|xung đột|phủ nhận|conflicting/iu;
 const INSTRUCTION_FOLLOWED =
   /ignore previous instructions.{0,40}(?:tuân theo|followed|obeyed)|(?:tuân theo|followed).{0,40}ignore previous instructions/iu;
 const NUMBER = /\d+(?:[.,]\d+)?/gu;
+const ENGLISH_MONTHS = [
+  'january', 'february', 'march', 'april', 'may', 'june',
+  'july', 'august', 'september', 'october', 'november', 'december',
+];
 const PROPER_NAME = /\b[A-Z][a-z]+(?:\s+[A-Z][a-zA-Z]+)+\b/g;
 const ESTABLISHED_FINDING =
   /sự thật đã được xác lập|đã được xác lập|là sự thật|kết luận đã được xác lập|không còn là cáo buộc|established finding|established fact/iu;
@@ -173,9 +178,48 @@ function numbersIn(value: string): string[] {
   return value.match(NUMBER) ?? [];
 }
 
-function inventedNumbers(field: string, corpus: string): boolean {
-  const allowed = new Set(numbersIn(corpus));
-  return numbersIn(field).some((value) => !allowed.has(value));
+function hasSourceDate(corpus: string, day: number, month: number): boolean {
+  if (day < 1 || day > 31 || month < 1 || month > 12) return false;
+  const englishMonth = ENGLISH_MONTHS[month - 1];
+  const monthName = englishMonth === 'may' ? 'May' : englishMonth;
+  const ordinalDay = `0?${day}(?:st|nd|rd|th)?`;
+  const englishDate = new RegExp(
+    `\\b${monthName}\\s+${ordinalDay}\\b|\\b${ordinalDay}\\s+(?:of\\s+)?${monthName}\\b`,
+    englishMonth === 'may' ? 'u' : 'iu',
+  );
+  const vietnameseDate = new RegExp(
+    `(?:^|[^\\p{L}\\p{N}_])ngày\\s+0?${day}(?:\\s*[/-]\\s*|\\s+tháng\\s+)0?${month}(?=$|[^\\p{L}\\p{N}_])`,
+    'iu',
+  );
+  return englishDate.test(corpus) || vietnameseDate.test(corpus);
+}
+
+function inventedNumbers(field: string, corpus: string, allowLocalizedNumbers = false): boolean {
+  const normalizeNumber = (value: string) => allowLocalizedNumbers ? value.replace(',', '.') : value;
+  const allowed = new Set(numbersIn(corpus).map(normalizeNumber));
+  const localizedDates = allowLocalizedNumbers
+    ? [...field.matchAll(/(?:^|[^\p{L}\p{N}_])ngày\s+(\d{1,2})\s*[/-]\s*(\d{1,2})(?=$|[^\p{L}\p{N}_])/giu)]
+    : [];
+  if (localizedDates.some((date) => !hasSourceDate(corpus, Number(date[1]), Number(date[2])))) {
+    return true;
+  }
+  return [...field.matchAll(NUMBER)].some((match) => {
+    const value = match[0];
+    if (allowed.has(normalizeNumber(value))) return false;
+    // Only the day/month tokens inside a source-supported date gain an exemption.
+    if (localizedDates.some((date) => match.index >= date.index
+      && match.index + value.length <= date.index + date[0].length)) return false;
+    if (allowLocalizedNumbers && /^(?:0?[1-9]|1[0-2])$/u.test(value)) {
+      const before = field.slice(0, match.index);
+      const month = ENGLISH_MONTHS[Number(value) - 1];
+      // Lowercase "may" is a modal verb, so it cannot establish the month of May.
+      const sourceMonth = month === 'may' ? /\bMay\b/u : new RegExp(`\\b${month}\\b`, 'iu');
+      // Month names may become digits in Vietnamese, only in an actual month phrase.
+      if (/(?:^|[^\p{L}\p{N}_])tháng\s*$/iu.test(before)
+        && sourceMonth.test(corpus)) return false;
+    }
+    return true;
+  });
 }
 
 const NAME_STOP = new Set(['theo', 'according', 'reported', 'nguon', 'nguồn', 'tai', 'khoan']);
@@ -385,12 +429,11 @@ function isFieldSafe(
   const compact = compactText(field);
   if (!compact) return false;
   if (INSTRUCTION_FOLLOWED.test(compact)) return false;
-  if (
-    mode !== 'translated'
-    && (inventedNumbers(compact, corpus)
-      || inventedNames(compact, corpus)
-      || inventedQuotes(compact, corpus))
-  ) {
+  if (mode !== 'translated' && inventedNumbers(compact, corpus, mode === 'native-vietnamese')) {
+    return false;
+  }
+  if (mode !== 'translated' && mode !== 'native-vietnamese'
+    && (inventedNames(compact, corpus) || inventedQuotes(compact, corpus))) {
     return false;
   }
   if (mode === 'source-facts') return true;

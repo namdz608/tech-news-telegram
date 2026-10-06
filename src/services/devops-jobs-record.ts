@@ -1,4 +1,5 @@
 import type { DevopsJob } from '../types/devops-jobs';
+import { normalizeUrl } from '../utils/normalize-url';
 
 export interface DevopsJobInput {
   id: string;
@@ -47,8 +48,9 @@ export function dedupeDevopsJobs(jobs: readonly DevopsJob[]): DevopsJob[] {
   const seen = new Set<string>();
   const unique: DevopsJob[] = [];
   for (const job of jobs) {
-    if (seen.has(job.url)) continue;
-    seen.add(job.url);
+    const canonicalUrl = normalizeUrl(job.url);
+    if (seen.has(canonicalUrl)) continue;
+    seen.add(canonicalUrl);
     unique.push(job);
   }
   return unique;

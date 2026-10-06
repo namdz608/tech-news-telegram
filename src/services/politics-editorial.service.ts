@@ -170,7 +170,7 @@ export class PoliticsEditorialService {
           candidate,
           accepted,
           createTranslationFallbackEditorial(candidate),
-          'translated',
+          'native-vietnamese',
         );
       }
       return this.retryNativeVietnamese(candidate, article, topic);
@@ -237,7 +237,7 @@ export class PoliticsEditorialService {
       const generated = await this.editorial.editArticle(retryArticle, retryTopic);
       const accepted = this.acceptNativeVietnamese(generated, retryArticle.summary ?? '');
       if (accepted) {
-        return this.validator.validate(candidate, accepted, conservative, 'translated');
+        return this.validator.validate(candidate, accepted, conservative, 'native-vietnamese');
       }
     } catch {
       // Last resort: translate the original title/summary instead of posting English.

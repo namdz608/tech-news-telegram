@@ -20,6 +20,30 @@ function job(overrides: Partial<DevopsJob> = {}): DevopsJob {
 
 describe('devops job filter', () => {
   it.each([
+    'Acme | SRE | REMOTE (US)',
+    'Hiring US residents only.',
+    'US-based candidates only.',
+    'US based residents only.',
+    '<b>REMOTE</b>&nbsp;(US)',
+    'Hiring US&nbsp;residents only.',
+    'Remote (UK only)',
+    'Remote: EU',
+    'Remote within Canada',
+    'Only US-based candidates are eligible.',
+  ])('rejects geographic restrictions in descriptions: %s', (description) => {
+    expect(isEligibleDevopsJob(job({
+      sourceId: 'hn',
+      description: `Remote work.\n${description}`,
+    }))).toBe(false);
+  });
+
+  it('keeps a worldwide role mentioning US customers and cloud regions', () => {
+    expect(isEligibleDevopsJob(job({
+      sourceId: 'hn',
+      description: 'Remote worldwide. Support US customers using us-east-1.',
+    }))).toBe(true);
+  });
+  it.each([
     ['title devops', { title: 'DevOps Engineer' }],
     ['sre', { title: 'Staff SRE' }],
     ['site reliability', { title: 'Site Reliability Engineer' }],

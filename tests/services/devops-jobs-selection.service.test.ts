@@ -89,4 +89,29 @@ describe('DevopsJobsSelectionService', () => {
     expect(result.eligibleCount).toBe(0);
     expect(result.skippedSeenCount).toBe(0);
   });
+
+  it('deduplicates canonical URLs before counting jobs and consuming source quotas', () => {
+    const result = service().select([
+      job({ url: 'https://example.com/jobs/1?utm_source=devops' }),
+      job({ url: 'https://example.com/jobs/1?utm_source=sre' }),
+      job({ url: 'https://example.com/jobs/2' }),
+    ], new Set());
+
+    expect(result.eligibleCount).toBe(2);
+    expect(result.skippedSeenCount).toBe(0);
+    expect(result.selected.map((entry) => entry.url)).toEqual([
+      'https://example.com/jobs/1?utm_source=devops',
+      'https://example.com/jobs/2',
+    ]);
+  });
+
+  it('deduplicates the same URL collected from different sources', () => {
+    const result = service().select([
+      job(),
+      job({ sourceId: 'linkedin' }),
+    ], new Set());
+
+    expect(result.selected).toHaveLength(1);
+    expect(result.eligibleCount).toBe(1);
+  });
 });
