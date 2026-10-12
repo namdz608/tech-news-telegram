@@ -129,7 +129,41 @@ REQUEST_TIMEOUT_MS=12000
 USER_AGENT=TechNewsTelegramBot/1.0
 ```
 
-Nếu `X_BEARER_TOKEN` trống, nguồn X sẽ tự tắt và app vẫn chạy bình thường. Reddit không cần token vì dùng RSS public, nhưng nên giữ `USER_AGENT` có tên app rõ ràng.
+Nếu `X_BEARER_TOKEN` trống, nguồn X sẽ tự tắt và app vẫn chạy bình thường. Reddit RSS public không cần token; các adapter Reddit JSON cho politics/DevOps cần `REDDIT_ACCESS_TOKEN` khi bật Agent Reach. Nên giữ `USER_AGENT` có tên app rõ ràng.
+
+## Agent Reach cho các luồng crawl
+
+`AGENT_REACH_ENABLED=true` mặc định áp dụng cho tech, gadget, health, gold/politics,
+DevOps/infra, DevOps jobs và VN jobs. App dùng HTTP backend trực tiếp của Agent Reach,
+không cần cài CLI hay phiên trình duyệt trên host/Docker.
+
+RSS và API gốc tiếp tục lấy danh sách bài, giá vàng và trường tuyển dụng. Sau khi lọc
+và loại trùng, các luồng bài viết/tuyển dụng lấy thêm nội dung thiếu từ trang nguồn; nếu
+request trực tiếp lỗi phù hợp, Jina Reader là fallback. Các GET HTML của SJC và trang
+tuyển dụng và crawler danh sách HTML cũng có fallback HTML, rồi vẫn dùng parser giá/đơn vị/thời gian và parser
+tuyển dụng hiện có. Không chuyển văn bản Reader thành giá vàng hay JSON API.
+
+Mỗi lượt enrichment xử lý tối đa `CRAWL_ENRICH_MAX_ITEMS=12` URL duy nhất, tối đa
+`CRAWL_ENRICH_CONCURRENCY=3` request đồng thời, dùng `REQUEST_TIMEOUT_MS` và giới hạn
+body 512 KiB cho Reader/trang bài; native DevOps jobs có ngân sách body riêng 4 MiB
+cho toàn bộ bảng tuyển dụng. JD đã lấy từ API hoặc parser chi tiết được giữ nguyên.
+Nội dung enrichment đưa vào biên tập tối đa 4.000 ký tự; phần bị cắt hoặc chỉ có
+đoạn trích được đánh dấu chưa đầy đủ. URL, ngày công bố gốc và các trường cấu trúc
+được giữ nguyên. Khi nguồn không có ngày công bố hợp lệ, bản tin hiển thị “Không rõ”.
+
+`JINA_API_KEY` là tùy chọn; `JINA_READER_ENABLED=false` tắt riêng Reader. Web search
+politics/DevOps ưu tiên Brave, dùng Exa khi Brave lỗi hoặc không có kết quả và có
+`EXA_API_KEY`. Thiếu key thì provider tương ứng tự tắt; app không dùng quota MCP của
+phiên làm việc để chạy production.
+
+Reader không crawl Reddit/X/Facebook/Instagram/LinkedIn/Discord/TikTok qua proxy ẩn danh. Reddit JSON dùng
+OAuth với `REDDIT_ACCESS_TOKEN` do operator cấp; thiếu token thì adapter tắt, lỗi
+401/429 không fallback ẩn danh. Các nguồn X, Discord và Facebook tiếp tục dùng token
+chính thức/allowlist hiện có. Reddit RSS public vẫn là nguồn độc lập và có thể bị chặn.
+
+Đặt `AGENT_REACH_ENABLED=false` để trở về các backend native trước tích hợp;
+`CRAWL_ENRICH_MAX_ITEMS=0` chỉ tắt enrichment trang bài viết. Các biến mẫu nằm trong
+[`.env.example`](.env.example).
 
 Đặt `X_TRACKED_ACCOUNTS=` nếu muốn tắt riêng nguồn theo dõi tài khoản nhưng vẫn giữ
 nguồn tìm theo `X_SEARCH_QUERY`.
@@ -249,7 +283,8 @@ Missing/placeholder dedicated Telegram credentials (`replace_me`,
 provider/editorial call, hoặc history mutation.
 
 X and Brave are optional when their keys are empty (`X_BEARER_TOKEN`,
-`BRAVE_SEARCH_API_KEY`); direct RSS and Reddit remain available.
+`BRAVE_SEARCH_API_KEY`). Exa và Reddit JSON cũng tự tắt khi thiếu `EXA_API_KEY`
+hoặc `REDDIT_ACCESS_TOKEN`. RSS tiếp tục chạy độc lập.
 
 Politics editorial uses `GOLD_POLITICS_EDITORIAL_PROVIDER` (default Codex).
 Tech editorial uses the independent `TECH_EDITORIAL_PROVIDER` (default Codex); global
@@ -335,9 +370,10 @@ còn lại là `problem-solution`. Nội dung giữ nguyên thuật ngữ kỹ t
 (`CrashLoopBackOff`, `IAM`, `systemctl`, `terraform apply`, …). Luồng không tự
 bịa lệnh hay runbook ngoài thread nguồn.
 
-**Nguồn:** Reddit, Stack Exchange, Hacker News (public API/RSS-less search); tùy chọn
-Brave web search, X Recent Search (`X_BEARER_TOKEN`), Discord và Facebook Graph khi
-operator cấp token chính thức và allowlist. `BRAVE_SEARCH_API_KEY`, `X_BEARER_TOKEN`,
+**Nguồn:** Stack Exchange, Hacker News (public API/RSS-less search), Reddit OAuth
+(`REDDIT_ACCESS_TOKEN`); tùy chọn Brave/Exa web search, X Recent Search
+(`X_BEARER_TOKEN`), Discord và Facebook Graph khi operator cấp token chính thức và
+allowlist. `REDDIT_ACCESS_TOKEN`, `BRAVE_SEARCH_API_KEY`, `EXA_API_KEY`, `X_BEARER_TOKEN`,
 `DISCORD_BOT_TOKEN` / `DISCORD_CHANNEL_ALLOWLIST`, `FACEBOOK_ACCESS_TOKEN` /
 `FACEBOOK_PAGE_ALLOWLIST` **để trống → adapter tương ứng tắt**, không coi là lỗi nguồn.
 

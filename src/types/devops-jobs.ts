@@ -7,6 +7,8 @@ export interface DevopsJob {
   url: string;
   location: string;
   description: string;
+  sourceTextStatus?: 'full' | 'search-excerpt' | 'incomplete';
+  retrievalBackend?: 'direct' | 'jina';
   tags: readonly string[];
   salary?: string;
   publishedAt: string;

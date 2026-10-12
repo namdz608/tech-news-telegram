@@ -248,7 +248,7 @@ describe('DigestService', () => {
     expect(messages).toHaveLength(2);
     expect(messages[0].text).toContain('🤖  <b>AI UPDATE</b>');
     expect(messages[0].text).toContain('📰  <b>New AI model released</b>');
-    expect(messages[0].text).toContain('📅 <b>Công bố:</b> 09/06/2026');
+    expect(messages[0].text).toContain('📅 <b>Công bố:</b> Không rõ');
     expect(messages[0].text).toContain('📝 <b>Tóm tắt</b>');
     expect(messages[0].text).toContain('AI summary');
     expect(messages[0].text).toContain('🎯 <b>Vì sao đáng chú ý?</b>');
@@ -343,7 +343,7 @@ describe('DigestService', () => {
     expect(message.topic).toBe('security');
   });
 
-  it('falls back from an invalid published date to the collected date', () => {
+  it('does not present the collection date as an unknown publication date', () => {
     const [message] = new DigestService(10).buildDigestMessages([
       {
         id: 'https://example.com/ai',
@@ -357,7 +357,7 @@ describe('DigestService', () => {
       },
     ]);
 
-    expect(message.text).toContain('📅 <b>Công bố:</b> 13/07/2026');
+    expect(message.text).toContain('📅 <b>Công bố:</b> Không rõ');
   });
 
   it('shows an unknown publication date when all article dates are invalid', () => {

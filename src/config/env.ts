@@ -87,6 +87,14 @@ const envSchema = z.object({
   // Timeout/User-Agent dùng chung cho các HTTP client.
   REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(12000),
   USER_AGENT: z.string().default('TechNewsTelegramBot/1.0'),
+  // Native Agent Reach backends work in Docker without host CLIs or browser sessions.
+  AGENT_REACH_ENABLED: z.enum(['true', 'false', '1', '0']).default('true').transform((value) => value === 'true' || value === '1'),
+  JINA_READER_ENABLED: z.enum(['true', 'false', '1', '0']).default('true').transform((value) => value === 'true' || value === '1'),
+  JINA_API_KEY: z.string().default(''),
+  EXA_API_KEY: z.string().default(''),
+  REDDIT_ACCESS_TOKEN: z.string().default(''),
+  CRAWL_ENRICH_MAX_ITEMS: z.coerce.number().int().min(0).max(30).default(12),
+  CRAWL_ENRICH_CONCURRENCY: z.coerce.number().int().min(1).max(5).default(3),
   // FlareSolverr optional — dùng để vượt Cloudflare khi crawl TopCV.
   FLARESOLVERR_URL: z.string().default(''),
   // SMTP mail cho luồng gửi PDF tin tuyển dụng.

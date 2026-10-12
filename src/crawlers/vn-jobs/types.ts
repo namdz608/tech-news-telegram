@@ -20,6 +20,8 @@ export interface VnJobListing {
   salaryText?: string;
   experienceText?: string;
   description?: string;
+  sourceTextStatus?: 'full' | 'search-excerpt' | 'incomplete';
+  retrievalBackend?: 'direct' | 'jina';
   skills?: string[];
   summary?: string;
   imageUrl?: string;
@@ -37,6 +39,6 @@ export interface VnJobsCrawlOptions {
 }
 
 export interface VnJobsHttpClient {
-  get(url: string): Promise<{ data: string; status?: number }>;
+  get(url: string): Promise<{ data: string; status?: number; retrievalBackend?: 'direct' | 'jina' }>;
   post?(url: string, body: unknown): Promise<{ data: unknown; status?: number }>;
 }

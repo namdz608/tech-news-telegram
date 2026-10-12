@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { PoliticsSourceService, type PoliticsSourceLimits } from '../../src/services/politics-source.service';
 import type { PoliticsSourceAdapter, PoliticsSourceAdapterResult } from '../../src/services/politics-source.adapter';
 import type { PoliticsSourceItem } from '../../src/types/gold-politics';
+import { SourceContentEnrichmentService } from '../../src/services/source-content-enrichment.service';
 
 const NOW = new Date('2026-08-20T12:00:00.000Z');
 const MAX_AGE_HOURS = 72;
@@ -97,6 +98,14 @@ function createService(
 }
 
 describe('PoliticsSourceService', () => {
+  it('keeps custom source text limits after enrichment and marks truncation incomplete', async () => {
+    const adapter = fakeAdapter({ key: 'rss-test', result: { items: [item({ sourceTextStatus: 'search-excerpt' })], successfulSourceCount: 1, failedSources: [] } });
+    const enrichment = new SourceContentEnrichmentService({ retrieve: async (url) => ({ finalUrl: url, contentType: 'text/plain', text: 'Original confirmed article content from source. '.repeat(15) }) }, { enabled: true, maxItems: 1, concurrency: 1, maxChars: 4000 });
+    const service = new PoliticsSourceService([adapter], MAX_AGE_HOURS, MAX_FUTURE_SKEW_MS, { ...DEFAULT_LIMITS, maxSourceTextLength: 100 }, () => NOW, enrichment);
+    const result = await service.collectLatest();
+    expect(result.items[0].summary?.length).toBeLessThanOrEqual(100);
+    expect(result.items[0].sourceTextStatus).toBe('incomplete');
+  });
   it('counts enabled fulfilled sources, including empty results, as successful', async () => {
     const rss = fakeAdapter({
       key: 'rss-vnexpress',

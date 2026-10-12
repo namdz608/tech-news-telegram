@@ -18,6 +18,7 @@ import type { Article } from '../types/article';
 import type { GitHubReposSourceConfig, HtmlSourceConfig, RssSourceConfig, SourceConfig, XSearchSourceConfig } from '../types/source';
 // Nạp { dedupeArticles, isAllowedArticle } từ `./article.service` để dùng đúng dependency/type thay vì tự triển khai lại.
 import { dedupeArticles, isAllowedArticle } from './article.service';
+import { SourceContentEnrichmentService } from './source-content-enrichment.service';
 
 /**
  * Interface `SourceServiceCrawlers` giới hạn hình dạng dữ liệu/dependency mà module chấp nhận, giúp test có thể inject fake đúng contract.
@@ -51,6 +52,7 @@ export class SourceService {
     private readonly sourceConfigs: SourceConfig[] = defaultSources,
     private readonly crawlers: SourceServiceCrawlers = createCrawlers(),
     private readonly maxArticleAgeDays = env.MAX_ARTICLE_AGE_DAYS,
+    private readonly enrichment: Pick<SourceContentEnrichmentService, 'enrich'> = new SourceContentEnrichmentService(),
   ) {}
 
   /**
@@ -114,7 +116,7 @@ export class SourceService {
     });
 
     // Trả `dedupeArticles(allArticles.filter(isAllowedArticle).filter((article) => this.isFreshArt…` cho caller và kết thúc nhánh hiện tại.
-    return dedupeArticles(allArticles.filter(isAllowedArticle).filter((article) => this.isFreshArticle(article)));
+    return this.enrichment.enrich(dedupeArticles(allArticles.filter(isAllowedArticle).filter((article) => this.isFreshArticle(article))));
   }
 
   /**

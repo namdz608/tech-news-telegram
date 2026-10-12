@@ -85,7 +85,7 @@ function mapRssArticle(article: Article, discoveredAt: string): PoliticsSourceIt
     originalAuthor: article.author,
     originalUrl: url,
     sourceQuotaKey: publisherKey,
-    sourceTextStatus: summary ? 'full' : 'incomplete',
+    sourceTextStatus: article.sourceTextStatus ?? (summary ? 'full' : 'incomplete'),
     evidenceKind: 'identified-report',
     evidentiaryEffect:
       ALLEGATION_OR_PROCEEDING.test(title) || SUMMARY_ALLEGATION.test(summary)

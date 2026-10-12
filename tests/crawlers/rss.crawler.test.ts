@@ -47,6 +47,11 @@ async function withServer(
 }
 
 describe('RssCrawler', () => {
+  it('marks RSS summaries as excerpts rather than verified article text', async () => {
+    const parser = { parseURL: async () => ({ items: [{ title: 'Kubernetes update', link: 'https://kubernetes.io/blog/update', contentSnippet: 'A short feed summary' }] }) };
+    const [article] = await new RssCrawler(parser).crawl({ id: 'kubernetes', name: 'Kubernetes', kind: 'rss', enabled: true, homepageUrl: 'https://kubernetes.io', feedUrl: 'https://kubernetes.io/feed', enrichArticlePage: false });
+    expect(article.sourceTextStatus).toBe('search-excerpt');
+  });
   it('retains unmatched articles only when the RSS source opts in', async () => {
     const parser = {
       parseURL: vi.fn().mockResolvedValue({

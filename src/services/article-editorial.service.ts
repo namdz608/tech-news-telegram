@@ -315,7 +315,9 @@ function createEditorialInput(
     topic: topic.key,
     publishedAt: article.publishedAt,
     collectedAt: article.collectedAt,
-    instructions: topic.instructions,
+    instructions: article.sourceTextStatus && article.sourceTextStatus !== 'full'
+      ? [topic.instructions, 'Dữ liệu nguồn chỉ là đoạn trích hoặc chưa đầy đủ. Không suy diễn chi tiết ngoài dữ kiện đã cung cấp.'].filter(Boolean).join('\n')
+      : topic.instructions,
   };
 }
 

@@ -28,6 +28,9 @@ describe('HnHiringAdapter', () => {
       company: 'Acme',
       title: 'SRE',
       url: 'https://news.ycombinator.com/item?id=99',
+      description: 'Acme | SRE | Remote\nWorldwide platform work',
+      sourceTextStatus: 'full',
+      retrievalBackend: 'direct',
     });
   });
 

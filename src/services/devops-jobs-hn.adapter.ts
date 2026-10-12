@@ -44,6 +44,8 @@ export class HnHiringAdapter {
         company: parsed.company,
         url: `https://news.ycombinator.com/item?id=${hit.objectID}`,
         description: hit.comment_text,
+        sourceTextStatus: 'full',
+        retrievalBackend: 'direct',
         publishedAt: hit.created_at,
       });
       return job ? [job] : [];

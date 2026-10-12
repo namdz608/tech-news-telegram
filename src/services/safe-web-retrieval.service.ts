@@ -34,6 +34,7 @@ const IPV4_BLOCKED: ReadonlyArray<readonly [string, number]> = [
   ['127.0.0.0', 8],
   ['169.254.0.0', 16],
   ['172.16.0.0', 12],
+  ['192.0.0.0', 24],
   ['192.0.2.0', 24],
   ['192.168.0.0', 16],
   ['198.18.0.0', 15],
@@ -74,6 +75,7 @@ export interface SafeWebContent {
   finalUrl: string;
   contentType: string;
   text: string;
+  retrievalBackend?: 'direct' | 'jina';
 }
 
 export interface SafeWebRetrievalOptions {
@@ -81,6 +83,7 @@ export interface SafeWebRetrievalOptions {
   maxBytes: number;
   maxRedirects: number;
   userAgent: string;
+  allowUrl?: (url: URL) => boolean;
 }
 
 export function createSafeWebRetrievalDependencies(): SafeWebRetrievalDependencies {
@@ -109,6 +112,19 @@ export class SafeWebRetrievalService {
       userAgent: env.USER_AGENT,
     },
   ) {}
+
+  /** Apply the same URL/DNS policy before sending a target to an external reader. */
+  async assertPublicUrl(input: string): Promise<string> {
+    const controller = new AbortController();
+    const timer = this.dependencies.setTimer(() => controller.abort(), this.options.timeoutMs);
+    try {
+      const url = parseSafeUrl(input);
+      await this.resolvePinnedAddress(url, controller.signal);
+      return url.href;
+    } finally {
+      this.dependencies.clearTimer(timer);
+    }
+  }
 
   async retrieve(input: string): Promise<SafeWebContent> {
     const controller = new AbortController();
@@ -139,6 +155,7 @@ export class SafeWebRetrievalService {
 
     while (true) {
       throwIfAborted(signal);
+      if (this.options.allowUrl && !this.options.allowUrl(url)) throw new Error('unsafe-url');
       const address = await this.resolvePinnedAddress(url, signal);
       throwIfAborted(signal);
 
@@ -250,6 +267,19 @@ function isAddressAllowed(address: ResolvedAddress): boolean {
   if (version === 4) return isPublicIpv4(address.address);
   if (version === 6) return isPublicIpv6(address.address);
   return false;
+}
+
+/** Synchronous candidate filter; retrieval still validates and pins DNS before I/O. */
+export function isPublicHttpUrl(input: string): boolean {
+  try {
+    const url = parseSafeUrl(input);
+    const hostname = toDnsHostname(url.hostname);
+    const family = isIP(hostname);
+    if (family === 4 || family === 6) return isAddressAllowed({ address: hostname, family });
+    return hostname.includes('.') && !/(?:^|\.)(?:local|internal|localhost)$/iu.test(hostname);
+  } catch {
+    return false;
+  }
 }
 
 function requestPinned(input: SafePinnedRequest): Promise<SafeRawResponse> {
@@ -424,15 +454,20 @@ function isPublicIpv6(address: string): boolean {
   const first = groups[0] ?? 0;
   if ((first & 0xfe00) === 0xfc00) return false;
   if ((first & 0xffc0) === 0xfe80) return false;
+  if ((first & 0xffc0) === 0xfec0) return false;
   if ((first & 0xff00) === 0xff00) return false;
   if (first === 0x2001 && groups[1] === 0xdb8) return false;
+  if (first === 0x2001 && groups[1] === 2 && groups[2] === 0) return false;
+  if (first === 0x2001 && ((groups[1] ?? 0) & 0xfff0) === 0x10) return false;
+  if (first === 0x2001 && ((groups[1] ?? 0) & 0xfff0) === 0x20) return false;
+  if (first === 0x3ffe || (first === 0x3fff && ((groups[1] ?? 0) & 0xf000) === 0)) return false;
 
   const embedded = embeddedIpv4(groups);
   if (embedded !== undefined) {
     return isPublicIpv4(embedded);
   }
 
-  return true;
+  return (first & 0xe000) === 0x2000;
 }
 
 function groupsToIpv4(high: number, low: number): string {

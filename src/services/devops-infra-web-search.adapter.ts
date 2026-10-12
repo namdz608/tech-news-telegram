@@ -9,7 +9,7 @@ import type {
 } from "../types/devops-infra";
 import { registrablePublisherKey } from "../utils/publisher-key";
 import { compactText } from "../utils/text";
-import { BraveWebSearchProvider } from "./brave-web-search.provider";
+import { createCrawlWebSearch, createCrawlWebRetrieval } from './crawl-backends.factory';
 import type {
   DevopsInfraSourceAdapter,
   DevopsInfraSourceAdapterResult,
@@ -32,13 +32,11 @@ export class DevopsInfraWebSearchAdapter implements DevopsInfraSourceAdapter {
   readonly key = "web-search";
 
   constructor(
-    private readonly provider: WebSearchProvider = new BraveWebSearchProvider(
-      env.BRAVE_SEARCH_API_KEY,
-    ),
+    private readonly provider: WebSearchProvider = createCrawlWebSearch(),
     private readonly retrieval: Pick<
       SafeWebRetrievalService,
       "retrieve"
-    > = new SafeWebRetrievalService(),
+    > = createCrawlWebRetrieval(),
     private readonly now: () => Date = () => new Date(),
     private readonly maxQueries: number = env.DEVOPS_INFRA_WEB_SEARCH_MAX_QUERIES,
   ) {}

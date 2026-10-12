@@ -70,6 +70,7 @@ const topcvDetailWithoutSkillsHtml = `
 describe('parseJobDetail', () => {
   it('extracts description and skills from detail HTML', () => {
     const details = parseJobDetail(topcvDetailHtml);
+    expect(details).not.toHaveProperty('retrievalBackend');
 
     expect(details.description).toMatch(/-/);
     expect(details.description).toContain('Design cloud architecture on AWS');
@@ -105,6 +106,7 @@ describe('crawlTopcv', () => {
       experienceText: '1 năm',
       description: 'Yêu cầu kinh nghiệm: 1 năm',
       sourceId: 'topcv',
+      sourceTextStatus: 'search-excerpt',
     });
   });
 
@@ -121,6 +123,13 @@ describe('crawlTopcv', () => {
 });
 
 describe('enrichTopcvJobDetails', () => {
+  it('uses HTTP provenance when a native detail page arrives via Jina', async () => {
+    const jobs = await crawlTopcv('devops', { get: async () => ({ data: topcvSeoHtml, status: 200 }) });
+    await enrichTopcvJobDetails(jobs, { get: async () => ({ data: topcvDetailHtml, status: 200, retrievalBackend: 'jina' as const }) });
+    expect(jobs[0]).toMatchObject({ sourceTextStatus: 'full', retrievalBackend: 'jina', company: 'Công Ty TNHH LG CNS VIỆT NAM', salaryText: 'Thoả thuận' });
+    expect(jobs[0].description).toContain('Design cloud architecture on AWS');
+  });
+
   it('fills description/skills from detail page', async () => {
     const jobs: VnJobListing[] = [
       {
@@ -140,6 +149,7 @@ describe('enrichTopcvJobDetails', () => {
     });
 
     expect(jobs[0].description).toContain('Design cloud architecture on AWS');
+    expect(jobs[0]).toMatchObject({ sourceTextStatus: 'full', retrievalBackend: 'direct' });
     expect(jobs[0].skills).toEqual(['AWS', 'Kubernetes', 'Terraform', 'Linux']);
   });
 
@@ -164,5 +174,14 @@ describe('enrichTopcvJobDetails', () => {
     expect(jobs[0].skills).toEqual(
       expect.arrayContaining(['Prometheus', 'Grafana', 'CheckMK', 'OpenStack', 'CI/CD']),
     );
+  });
+
+  it('marks a truncated native detail JD incomplete and preserves company and salary', async () => {
+    const jobs = await crawlTopcv('devops', { get: async () => ({ data: topcvSeoHtml, status: 200 }) });
+    const detail = topcvDetailHtml.replace('Design cloud architecture on AWS', 'Native JD '.repeat(300));
+    await enrichTopcvJobDetails(jobs, { get: async () => ({ data: detail, status: 200 }) });
+    expect(jobs[0]).toMatchObject({ company: 'Công Ty TNHH LG CNS VIỆT NAM', salaryText: 'Thoả thuận', sourceTextStatus: 'incomplete', retrievalBackend: 'direct' });
+    expect(jobs[0].description).toContain('Native JD');
+    expect(jobs[0].description!.length).toBeLessThanOrEqual(2800);
   });
 });

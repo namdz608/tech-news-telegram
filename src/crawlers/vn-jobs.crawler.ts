@@ -4,6 +4,8 @@
 import axios from 'axios';
 import { env } from '../config/env';
 import type { Article } from '../types/article';
+import { SourceContentEnrichmentService } from '../services/source-content-enrichment.service';
+import { CrawlHtmlClient } from '../services/crawl-html-client';
 import type { TopicKey } from '../types/topic';
 import { compactText } from '../utils/text';
 import { matchesExperience } from './vn-jobs/experience';
@@ -28,10 +30,12 @@ function createDefaultHttp(): VnJobsHttpClient {
     validateStatus: () => true,
   });
 
+  const htmlClient = new CrawlHtmlClient(client);
+
   return {
     async get(url: string) {
-      const response = await client.get<string>(url);
-      return { data: typeof response.data === 'string' ? response.data : String(response.data ?? ''), status: response.status };
+      const response = await htmlClient.get(url);
+      return { data: typeof response.data === 'string' ? response.data : String(response.data ?? ''), status: response.status ?? 200, retrievalBackend: response.retrievalBackend ?? 'direct' };
     },
     async post(url: string, body: unknown) {
       const response = await client.post(url, body, {
@@ -66,7 +70,10 @@ export interface VnJobsCrawlResult {
 }
 
 export class VnJobsCrawler {
-  constructor(private readonly http: VnJobsHttpClient = createDefaultHttp()) {}
+  constructor(
+    private readonly http: VnJobsHttpClient = createDefaultHttp(),
+    private readonly enrichment: Pick<SourceContentEnrichmentService, 'enrich'> = new SourceContentEnrichmentService(),
+  ) {}
 
   async crawl(options: VnJobsCrawlOptions): Promise<VnJobsCrawlResult> {
     const [topcvJobs, itviecJobs, vietnamworksJobs] = await Promise.all([
@@ -118,7 +125,7 @@ export class VnJobsCrawler {
     ]);
 
     const collectedAt = new Date().toISOString();
-    const articles = candidates.map((job) => toArticle(job, options.role, collectedAt));
+    const articles = await this.enrichment.enrich(candidates.map((job) => toArticle(job, options.role, collectedAt)));
 
     return {
       articles,
@@ -171,6 +178,8 @@ function toArticle(job: VnJobListing, role: JobRole, collectedAt: string): Artic
     title: job.title,
     url: job.url,
     summary: description,
+    sourceTextStatus: job.sourceTextStatus ?? 'search-excerpt',
+    ...(job.retrievalBackend ? { retrievalBackend: job.retrievalBackend } : {}),
     // Logo công ty dùng cho PDF; luồng jobs gửi email nên không phụ thuộc Telegram photo.
     imageUrl: job.imageUrl,
     author: job.company,

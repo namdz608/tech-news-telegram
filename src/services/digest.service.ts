@@ -544,8 +544,8 @@ const actionPresentation = {
  */
 // Mở thân hàm `formatArticleDate` với input/output được TypeScript kiểm tra.
 function formatArticleDate(article: Article): string {
-  // Lặp theo `const value of [article.publishedAt, article.collectedAt]` để xử lý đủ từng phần tử/trạng thái.
-  for (const value of [article.publishedAt, article.collectedAt]) {
+  // Chỉ dùng ngày công bố do nguồn cung cấp; ngày crawl không phải ngày công bố.
+  for (const value of [article.publishedAt]) {
     // Nếu `!value` đúng thì thực hiện block này; nếu sai, bỏ qua block và tiếp tục luồng.
     if (!value) {
       // Dùng `continue;` để bỏ qua/kết thúc vòng lặp sau khi điều kiện hiện tại đã rõ.

@@ -74,6 +74,24 @@ function runEnv(overrides: Record<string, string>, keys: string[] = []): ReturnT
 }
 
 describe('env config', () => {
+  it('keeps Reddit OAuth optional until an access token is provided', () => {
+    expect(readEnvValues(['REDDIT_ACCESS_TOKEN'])).toEqual({ REDDIT_ACCESS_TOKEN: '' });
+    const result = runEnv({ REDDIT_ACCESS_TOKEN: 'test-reddit-oauth' }, ['REDDIT_ACCESS_TOKEN']);
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({ REDDIT_ACCESS_TOKEN: 'test-reddit-oauth' });
+  });
+  it('enables bounded Agent Reach enrichment and leaves paid search optional', () => {
+    expect(readEnvValues(['AGENT_REACH_ENABLED', 'JINA_READER_ENABLED', 'JINA_API_KEY', 'EXA_API_KEY', 'CRAWL_ENRICH_MAX_ITEMS', 'CRAWL_ENRICH_CONCURRENCY'])).toEqual({
+      AGENT_REACH_ENABLED: true, JINA_READER_ENABLED: true, JINA_API_KEY: '', EXA_API_KEY: '',
+      CRAWL_ENRICH_MAX_ITEMS: 12, CRAWL_ENRICH_CONCURRENCY: 3,
+    });
+  });
+
+  it('rejects invalid crawl switches and excessive concurrency', () => {
+    expect(runEnv({ AGENT_REACH_ENABLED: 'maybe' }).status).not.toBe(0);
+    expect(runEnv({ CRAWL_ENRICH_CONCURRENCY: '99' }).status).not.toBe(0);
+  });
+
   it('provides the default X tracked accounts including Tibo', () => {
     expect(readEnvValues(['X_TRACKED_ACCOUNTS'])).toEqual({
       X_TRACKED_ACCOUNTS:

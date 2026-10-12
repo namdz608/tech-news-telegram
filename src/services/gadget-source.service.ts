@@ -6,6 +6,7 @@ import { RssCrawler } from '../crawlers/rss.crawler';
 import type { CuratedCollectionResult } from '../types/curated';
 import type { RssSourceConfig } from '../types/source';
 import { CuratedRssSourceService } from './curated-rss-source.service';
+import type { SourceContentEnrichmentService } from './source-content-enrichment.service';
 
 export type GadgetCollectionResult = CuratedCollectionResult;
 
@@ -17,9 +18,10 @@ export class GadgetSourceService {
     crawler: NewsCrawler<RssSourceConfig> = new RssCrawler(),
     maxArticleAgeDays = env.MAX_ARTICLE_AGE_DAYS,
     now = () => new Date(),
+    enrichment?: Pick<SourceContentEnrichmentService, 'enrich'>,
   ) {
     this.source = new CuratedRssSourceService({
-      sources, crawler, maxArticleAgeDays, logLabel: 'gadget', now,
+      sources, crawler, maxArticleAgeDays, logLabel: 'gadget', now, enrichment,
     });
   }
 

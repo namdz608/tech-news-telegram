@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { env } from '../../src/config/env';
 import {
   DEVOPS_INFRA_SUBREDDITS,
   devopsInfraRedditQueries,
@@ -9,6 +10,7 @@ import { redditHttpsAgent } from '../../src/utils/reddit-dns';
 const NOW = new Date('2026-09-21T03:00:00.000Z');
 const CREATED_UTC = 1_757_905_200;
 const JSON_HEADERS = { 'content-type': 'application/json' };
+const TOKEN = 'test-reddit-access-token';
 
 function listing(posts: unknown[] = []) {
   return { data: { children: posts.map((data) => ({ kind: 't3', data })) } };
@@ -375,4 +377,156 @@ describe('DevopsInfraRedditAdapter', () => {
       'https://preview.redd.it/pod.png?auto=webp&s=abc',
     );
   });
+});
+
+describe('DevopsInfraRedditAdapter with Agent Reach OAuth', () => {
+  const originalMode = env.AGENT_REACH_ENABLED;
+  const config = env as typeof env & { REDDIT_ACCESS_TOKEN: string };
+  const originalToken = config.REDDIT_ACCESS_TOKEN;
+  beforeEach(() => {
+    env.AGENT_REACH_ENABLED = true;
+    config.REDDIT_ACCESS_TOKEN = TOKEN;
+  });
+  afterEach(() => {
+    env.AGENT_REACH_ENABLED = originalMode;
+    config.REDDIT_ACCESS_TOKEN = originalToken;
+    vi.restoreAllMocks();
+  });
+
+  it('disables collection without credentials and reports zero counters', async () => {
+    config.REDDIT_ACCESS_TOKEN = '';
+    const http = { get: vi.fn() };
+    const adapter = new DevopsInfraRedditAdapter(http);
+    expect(adapter.isEnabled()).toBe(false);
+    await expect(adapter.collect()).resolves.toEqual({
+      items: [],
+      successfulSourceCount: 0,
+      failedSources: [],
+    });
+    expect(http.get).not.toHaveBeenCalled();
+  });
+
+  it('authenticates listings, searches, and comments while retaining post dates and answers', async () => {
+    const http = createHttp(async (url) => {
+      if (url.includes('/comments/'))
+        return {
+          data: comments([{ kind: 't1', data: comment() }]),
+          headers: JSON_HEADERS,
+        };
+      if (url.includes('/r/devops/new.json'))
+        return { data: listing([post()]), headers: JSON_HEADERS };
+      return { data: listing(), headers: JSON_HEADERS };
+    });
+    const result = await new DevopsInfraRedditAdapter(
+      http,
+      () => NOW,
+    ).collect();
+    const listingCount =
+      DEVOPS_INFRA_SUBREDDITS.length + devopsInfraRedditQueries.length;
+    expect(result.successfulSourceCount).toBe(listingCount);
+    expect(http.get).toHaveBeenCalledTimes(listingCount + 1);
+    for (const [url, request] of http.get.mock.calls) {
+      expect(url.startsWith('https://oauth.reddit.com/')).toBe(true);
+      expect(request.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+    }
+    expect(result.items[0]).toMatchObject({
+      url: 'https://www.reddit.com/r/devops/comments/abc123/kubernetes_pod_keeps_restarting',
+      publishedAt: new Date(CREATED_UTC * 1000).toISOString(),
+      answers: [{ body: comment().body, score: 5, authorConfirmed: false }],
+    });
+  });
+
+  it.each([401, 429])(
+    'does not fall back or retry without authentication after HTTP %s',
+    async (status) => {
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      const http = {
+        get: vi
+          .fn()
+          .mockRejectedValue(
+            Object.assign(new Error(`private-${TOKEN}`), {
+              response: { status, data: TOKEN },
+              config: { headers: { Authorization: TOKEN } },
+            }),
+          ),
+      };
+      const sleep = vi.fn(async () => undefined);
+      const result = await new DevopsInfraRedditAdapter(
+        http,
+        () => NOW,
+        sleep,
+      ).collect();
+      expect(result.successfulSourceCount).toBe(0);
+      expect(http.get).toHaveBeenCalledTimes(
+        DEVOPS_INFRA_SUBREDDITS.length + devopsInfraRedditQueries.length,
+      );
+      expect(sleep).not.toHaveBeenCalled();
+      expect(
+        http.get.mock.calls.every(([url]) =>
+          url.startsWith('https://oauth.reddit.com/'),
+        ),
+      ).toBe(true);
+      expect(JSON.stringify(warn.mock.calls)).not.toContain(TOKEN);
+    },
+  );
+
+  it('records empty authenticated listings as real successes', async () => {
+    const http = emptyHttp();
+    const result = await new DevopsInfraRedditAdapter(http).collect();
+    expect(result.successfulSourceCount).toBe(
+      DEVOPS_INFRA_SUBREDDITS.length + devopsInfraRedditQueries.length,
+    );
+    expect(result.items).toEqual([]);
+    expect(
+      http.get.mock.calls.every(
+        ([, request]) => request.headers.Authorization === `Bearer ${TOKEN}`,
+      ),
+    ).toBe(true);
+  });
+
+  it.each([401, 429])(
+    'keeps the original post incomplete after an authenticated comment HTTP %s',
+    async (status) => {
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      const http = createHttp(async (url) => {
+        if (url.includes('/comments/'))
+          throw Object.assign(new Error(`private-${TOKEN}`), {
+            response: { status, data: TOKEN },
+          });
+        return {
+          data: url.includes('/r/devops/new.json')
+            ? listing([post()])
+            : listing(),
+          headers: JSON_HEADERS,
+        };
+      });
+      const sleep = vi.fn(async () => undefined);
+      const result = await new DevopsInfraRedditAdapter(
+        http,
+        () => NOW,
+        sleep,
+      ).collect();
+      const commentRequests = http.get.mock.calls.filter(([url]) =>
+        url.includes('/comments/'),
+      );
+      expect(commentRequests).toHaveLength(1);
+      expect(
+        commentRequests[0][0].startsWith('https://oauth.reddit.com/'),
+      ).toBe(true);
+      expect(commentRequests[0][1].headers.Authorization).toBe(
+        `Bearer ${TOKEN}`,
+      );
+      expect(sleep).not.toHaveBeenCalled();
+      expect(result.items[0]).toMatchObject({
+        url: 'https://www.reddit.com/r/devops/comments/abc123/kubernetes_pod_keeps_restarting',
+        sourceTextStatus: 'incomplete',
+        answers: [],
+      });
+      expect(JSON.stringify(warn.mock.calls)).not.toContain(TOKEN);
+    },
+  );
 });

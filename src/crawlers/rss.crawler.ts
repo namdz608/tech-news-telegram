@@ -210,6 +210,7 @@ export class RssCrawler implements NewsCrawler<RssSourceConfig> {
             title,
             url,
             summary,
+            sourceTextStatus: summary ? 'search-excerpt' as const : 'incomplete' as const,
             imageUrl: extractImageUrl(item),
             author: item.creator,
             publishedAt: item.isoDate,

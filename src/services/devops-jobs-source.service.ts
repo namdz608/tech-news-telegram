@@ -1,8 +1,12 @@
 import type { DevopsJob, DevopsJobsCollectionResult } from '../types/devops-jobs';
 import type { DevopsJobsSourceAdapter } from './devops-jobs-source.adapter';
+import { SourceContentEnrichmentService } from './source-content-enrichment.service';
 
 export class DevopsJobsSourceService {
-  constructor(private readonly adapters: readonly DevopsJobsSourceAdapter[]) {}
+  constructor(
+    private readonly adapters: readonly DevopsJobsSourceAdapter[],
+    private readonly enrichment: Pick<SourceContentEnrichmentService, 'enrich'> = new SourceContentEnrichmentService(),
+  ) {}
 
   async collectLatest(): Promise<DevopsJobsCollectionResult> {
     const settled = await Promise.allSettled(
@@ -16,7 +20,7 @@ export class DevopsJobsSourceService {
       else failedSources.push(key);
     });
     return {
-      items,
+      items: await this.enrichment.enrich(items),
       collectedCount: items.length,
       successfulSourceCount: this.adapters.length - failedSources.length,
       failedSources,

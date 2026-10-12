@@ -9,7 +9,7 @@ import type {
   PoliticsSelectionResult,
   PoliticsSourceItem,
 } from '../types/gold-politics';
-import { BraveWebSearchProvider } from './brave-web-search.provider';
+import { createCrawlWebSearch, createCrawlWebRetrieval } from './crawl-backends.factory';
 import { ArticleEditorialService } from './article-editorial.service';
 import { CodexArticleEditorialGenerator } from './codex-article-editorial.generator';
 import { GoldPoliticsDeliveryService } from './gold-politics-delivery.service';
@@ -31,7 +31,6 @@ import { PoliticsVerificationService } from './politics-verification.service';
 import { PoliticsWebSearchAdapter } from './politics-web-search.adapter';
 import { PoliticsXAdapter } from './politics-x.adapter';
 import { RedditSearchAdapter } from './reddit-search.adapter';
-import { SafeWebRetrievalService } from './safe-web-retrieval.service';
 import { SentHistoryStore } from './sent-history.store';
 import { createTelegramService } from './telegram.service';
 
@@ -171,10 +170,10 @@ export function createGoldPoliticsFlowService(): GoldPoliticsFlowService {
   const rssAdapters = goldPoliticsRssSources.map((source) => new PoliticsRssAdapter(source));
   const xAdapter = new PoliticsXAdapter();
   const redditAdapter = new RedditSearchAdapter();
-  const braveProvider = new BraveWebSearchProvider();
-  const retrieval = new SafeWebRetrievalService();
+  const webSearchProvider = createCrawlWebSearch();
+  const retrieval = createCrawlWebRetrieval();
   const webAdapter = new PoliticsWebSearchAdapter(
-    braveProvider,
+    webSearchProvider,
     retrieval,
     () => new Date(),
     env.GOLD_POLITICS_WEB_SEARCH_MAX_QUERIES,
