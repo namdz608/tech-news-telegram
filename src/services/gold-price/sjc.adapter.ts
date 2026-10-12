@@ -1,6 +1,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { env } from '../../config/env';
+import { CrawlHtmlClient } from '../crawl-html-client';
 import {
   GoldPriceAdapterError,
   normalizeGoldPriceAdapterError,
@@ -26,13 +27,13 @@ interface HttpClientLike {
 type DomesticUnit = Exclude<GoldSourceUnit, 'usd-per-troy-ounce'>;
 
 function createDefaultHttpClient(): HttpClientLike {
-  return axios.create({
+  return new CrawlHtmlClient(axios.create({
     timeout: env.REQUEST_TIMEOUT_MS,
     maxRedirects: 0,
     maxContentLength: MAX_BODY_BYTES,
     maxBodyLength: MAX_BODY_BYTES,
     headers: { 'User-Agent': env.USER_AGENT },
-  }) as HttpClientLike;
+  }) as HttpClientLike);
 }
 
 function headerValue(

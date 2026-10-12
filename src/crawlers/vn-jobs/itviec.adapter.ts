@@ -74,6 +74,7 @@ export async function crawlItviec(role: JobRole, http: VnJobsHttpClient): Promis
       location,
       salaryText,
       description: highlightItems.length > 0 ? highlightItems.join(' · ') : undefined,
+      sourceTextStatus: highlightItems.length > 0 ? 'search-excerpt' : 'incomplete',
       skills: skills.length > 0 ? [...new Set(skills)] : undefined,
       summary: highlightItems.join(' · ') || undefined,
       imageUrl: normalizeLogoUrl(imageUrl, 'https://itviec.com'),
@@ -103,10 +104,16 @@ export function needsDetailEnrichment(job: VnJobListing): boolean {
   return description.length < 120;
 }
 
-export function parseItviecJobDetail(html: string): { description?: string; skills?: string[] } {
+export function parseItviecJobDetail(html: string): {
+  description?: string;
+  skills?: string[];
+  sourceTextStatus?: VnJobListing['sourceTextStatus'];
+} {
   const $ = cheerio.load(html);
-  const moTa = extractSectionAfterHeading($, /job description/i);
-  const yeuCau = extractSectionAfterHeading($, /skills and experience|requirements/i);
+  const originalMoTa = extractSectionAfterHeading($, /job description/i, Number.MAX_SAFE_INTEGER);
+  const originalYeuCau = extractSectionAfterHeading($, /skills and experience|requirements/i, Number.MAX_SAFE_INTEGER);
+  const moTa = truncateNativeSection(originalMoTa, 1600);
+  const yeuCau = truncateNativeSection(originalYeuCau, 1600);
   const parts = [
     moTa ? `Mô tả:\n${moTa}` : undefined,
     yeuCau ? `Yêu cầu:\n${yeuCau}` : undefined,
@@ -115,6 +122,7 @@ export function parseItviecJobDetail(html: string): { description?: string; skil
   const description = parts.length > 0 ? parts.join('\n\n') : undefined;
   const truncated =
     description && description.length > 2800 ? `${description.slice(0, 2799).trimEnd()}…` : description;
+  const wasTruncated = (originalMoTa?.length ?? 0) > 1600 || (originalYeuCau?.length ?? 0) > 1600 || (description?.length ?? 0) > 2800;
 
   const skills = $('a[data-responsive-tag-list-target="tag"], .itag, .job-tags a')
     .map((_, tag) => compactText($(tag).text()))
@@ -123,6 +131,7 @@ export function parseItviecJobDetail(html: string): { description?: string; skil
 
   return {
     description: truncated,
+    sourceTextStatus: description ? (wasTruncated ? 'incomplete' : 'full') : 'incomplete',
     skills: skills.length > 0 ? [...new Set(skills)] : undefined,
   };
 }
@@ -140,6 +149,8 @@ async function enrichOneJob(job: VnJobListing, http: VnJobsHttpClient): Promise<
 
     if (details.description) {
       job.description = details.description;
+      job.sourceTextStatus = details.sourceTextStatus;
+      job.retrievalBackend = response.retrievalBackend ?? 'direct';
     }
 
     if (details.skills?.length) {
@@ -158,7 +169,7 @@ async function enrichOneJob(job: VnJobListing, http: VnJobsHttpClient): Promise<
   }
 }
 
-function extractSectionAfterHeading($: cheerio.CheerioAPI, titleRe: RegExp): string | undefined {
+function extractSectionAfterHeading($: cheerio.CheerioAPI, titleRe: RegExp, maxLength: number): string | undefined {
   const headings = $('h2').toArray();
 
   for (let index = 0; index < headings.length; index += 1) {
@@ -186,10 +197,14 @@ function extractSectionAfterHeading($: cheerio.CheerioAPI, titleRe: RegExp): str
       cursor = cursor.next();
     }
 
-    return htmlToPlainText(parts.join(''), 1600);
+    return htmlToPlainText(parts.join(''), maxLength);
   }
 
   return undefined;
+}
+
+function truncateNativeSection(value: string | undefined, maxLength: number): string | undefined {
+  return value && value.length > maxLength ? `${value.slice(0, maxLength - 1).trimEnd()}…` : value;
 }
 
 function normalizeSalary(value: string | undefined): string | undefined {

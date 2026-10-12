@@ -35,6 +35,7 @@ export class RemotiveAdapter {
       if (row.id === undefined || !row.title || !row.company_name || !row.url || !row.publication_date) {
         return [];
       }
+      const hasDescription = Boolean(row.description?.replace(/<[^>]*>/g, ' ').trim());
       const job = toDevopsJob({
         id: String(row.id),
         sourceId: this.key,
@@ -44,6 +45,8 @@ export class RemotiveAdapter {
         url: row.url,
         location: row.candidate_required_location,
         description: row.description,
+        sourceTextStatus: hasDescription ? 'full' : 'incomplete',
+        retrievalBackend: hasDescription ? 'direct' : undefined,
         tags: row.tags,
         salary: row.salary,
         publishedAt: row.publication_date,

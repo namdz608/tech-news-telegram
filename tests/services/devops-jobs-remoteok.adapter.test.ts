@@ -31,6 +31,8 @@ describe('RemoteOkAdapter', () => {
       url: 'https://remoteok.com/remote-jobs/10',
       location: 'Worldwide',
       description: '<p>Remote</p>',
+      sourceTextStatus: 'full',
+      retrievalBackend: 'direct',
       tags: ['devops'],
       salary: '100000-140000',
       publishedAt: '2026-10-02T00:00:00.000Z',
@@ -40,5 +42,13 @@ describe('RemoteOkAdapter', () => {
   it('throws when the body is not JSON', async () => {
     const adapter = new RemoteOkAdapter(async () => '<html></html>');
     await expect(adapter.collect()).rejects.toThrow();
+  });
+
+  it('does not mark an API job without a native description as full', async () => {
+    const rows = JSON.parse(body);
+    delete rows[1].description;
+    const jobs = await new RemoteOkAdapter(async () => JSON.stringify(rows)).collect();
+    expect(jobs[0]).toMatchObject({ company: 'Acme', salary: '100000-140000', description: '', sourceTextStatus: 'incomplete' });
+    expect(jobs[0].retrievalBackend).toBeUndefined();
   });
 });

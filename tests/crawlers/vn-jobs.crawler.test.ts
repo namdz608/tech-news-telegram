@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { VnJobsCrawler } from '../../src/crawlers/vn-jobs.crawler';
 import type { VnJobsHttpClient } from '../../src/crawlers/vn-jobs/types';
+import { SourceContentEnrichmentService } from '../../src/services/source-content-enrichment.service';
 
 const itviecHtml = `
 <div class="job-card">
@@ -81,6 +82,14 @@ function createHttp(overrides?: Partial<VnJobsHttpClient>): VnJobsHttpClient {
 }
 
 describe('VnJobsCrawler', () => {
+  it('enriches VN job details while preserving salary and location from the board', async () => {
+    const description = 'Operate Kubernetes production clusters and maintain the deployment pipeline. '.repeat(5).trim();
+    const reader = { retrieve: async (url: string) => ({ finalUrl: url, contentType: 'text/plain', text: description, retrievalBackend: 'jina' as const }) };
+    const enrichment = new SourceContentEnrichmentService(reader, { enabled: true, maxItems: 12, concurrency: 2, maxChars: 4000 });
+    const { articles } = await new VnJobsCrawler(createHttp(), enrichment).crawl({ role: 'devops', maxResults: 10 });
+    const topcv = articles.find((article) => article.sourceId === 'topcv');
+    expect(topcv).toMatchObject({ summary: description, sourceTextStatus: 'full', jobDetails: { description, salary: '20-30 triệu', location: 'Hà Nội' } });
+  });
   it('merges boards, maps articles, and assigns devops topic', async () => {
     const { articles, boardCounts, crawledCounts, matchedCount } = await new VnJobsCrawler(createHttp()).crawl({
       role: 'devops',

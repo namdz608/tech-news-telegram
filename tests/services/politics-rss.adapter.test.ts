@@ -36,6 +36,11 @@ function createCrawler(articles: Article[] | Error) {
 }
 
 describe('PoliticsRssAdapter', () => {
+  it('does not promote a feed excerpt to full evidence text', async () => {
+    const crawler = createCrawler([rssArticle({ sourceTextStatus: 'search-excerpt' })]);
+    const result = await new PoliticsRssAdapter(undefined, crawler, () => NOW).collect();
+    expect(result.items[0].sourceTextStatus).toBe('search-excerpt');
+  });
   it('builds every approved feed with bounded fetch and preserves per-source page enrichment', async () => {
     expect(goldPoliticsRssSources.length).toBeGreaterThan(0);
 

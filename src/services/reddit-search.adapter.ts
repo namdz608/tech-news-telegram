@@ -4,6 +4,7 @@ import { politicsSearchQueries } from '../config/gold-politics-sources';
 import type { PoliticsSearchQuery, PoliticsSourceItem } from '../types/gold-politics';
 import { compactText } from '../utils/text';
 import type { PoliticsSourceAdapter, PoliticsSourceAdapterResult } from './politics-source.adapter';
+import { RedditApiBackend } from './reddit-api.backend';
 
 const SEARCH_URL = 'https://www.reddit.com/search.json';
 const MAX_BODY_BYTES = 512 * 1024;
@@ -33,18 +34,24 @@ function createDefaultHttpClient(): HttpClientLike {
 
 export class RedditSearchAdapter implements PoliticsSourceAdapter {
   readonly key = 'reddit-search';
+  private readonly redditApi?: RedditApiBackend;
 
   constructor(
     private readonly http: HttpClientLike = createDefaultHttpClient(),
     private readonly searchUrl = SEARCH_URL,
     private readonly now: () => Date = () => new Date(),
-  ) {}
+  ) {
+    if (env.AGENT_REACH_ENABLED) {
+      this.redditApi = new RedditApiBackend(env.REDDIT_ACCESS_TOKEN, this.http);
+    }
+  }
 
   isEnabled(): boolean {
-    return true;
+    return this.redditApi ? this.redditApi.isEnabled() : true;
   }
 
   async collect(): Promise<PoliticsSourceAdapterResult> {
+    if (!this.isEnabled()) return { items: [], successfulSourceCount: 0, failedSources: [] };
     const settled = await mapLimited(REDDIT_QUERIES, QUERY_CONCURRENCY, (query) => this.collectQuery(query));
     const items: PoliticsSourceItem[] = [];
     const failedSources: string[] = [];
@@ -67,7 +74,7 @@ export class RedditSearchAdapter implements PoliticsSourceAdapter {
   ): Promise<{ ok: true; items: PoliticsSourceItem[] } | { ok: false; leafKey: string }> {
     const leafKey = `reddit:${query.key}`;
     try {
-      const response = await this.http.get(this.searchUrl, {
+      const response = await (this.redditApi ?? this.http).get(this.searchUrl, {
         headers: {
           Accept: 'application/json',
           'User-Agent': env.USER_AGENT,

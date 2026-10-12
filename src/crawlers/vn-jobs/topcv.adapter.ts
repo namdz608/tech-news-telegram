@@ -63,13 +63,13 @@ function isCloudflareBlocked(html: string, status: number): boolean {
   return !html || status === 403 || /attention required|cloudflare|you have been blocked|just a moment/i.test(html.slice(0, 4000));
 }
 
-async function fetchTopcvHtml(url: string, http: VnJobsHttpClient): Promise<{ data: string; status: number } | null> {
+async function fetchTopcvHtml(url: string, http: VnJobsHttpClient): Promise<{ data: string; status: number; retrievalBackend?: VnJobListing['retrievalBackend'] } | null> {
   const direct = await http.get(url);
   const html = typeof direct.data === 'string' ? direct.data : '';
   const status = direct.status ?? 0;
 
   if (!isCloudflareBlocked(html, status)) {
-    return { data: html, status };
+    return { data: html, status, retrievalBackend: direct.retrievalBackend ?? 'direct' };
   }
 
   const viaFlare = await fetchHtmlViaFlareSolverr(url);
@@ -157,6 +157,7 @@ function parseJobCards(html: string): VnJobListing[] {
       salaryText,
       experienceText,
       description: experienceText ? `Yêu cầu kinh nghiệm: ${experienceText}` : undefined,
+      sourceTextStatus: experienceText ? 'search-excerpt' : 'incomplete',
       imageUrl: normalizeLogoUrl(imageUrl, 'https://www.topcv.vn'),
       publishedAt: parseRelativePostedVi(posted),
       sourceId: 'topcv',
@@ -180,6 +181,8 @@ async function enrichOneJob(job: VnJobListing, http: VnJobsHttpClient): Promise<
 
     if (details.description) {
       job.description = details.description;
+      job.sourceTextStatus = details.sourceTextStatus;
+      job.retrievalBackend = response.retrievalBackend ?? 'direct';
     }
 
     if (details.skills?.length) {
@@ -241,13 +244,16 @@ function cleanCompanyName(company: string | undefined): string | undefined {
 
 export function parseJobDetail(html: string): {
   description?: string;
+  sourceTextStatus?: VnJobListing['sourceTextStatus'];
   skills?: string[];
   salaryText?: string;
   experienceText?: string;
 } {
   const $ = cheerio.load(html);
-  const moTa = extractSectionText($, 'Mô tả công việc', 1400);
-  const yeuCau = extractSectionText($, 'Yêu cầu ứng viên', 1400);
+  const originalMoTa = extractSectionText($, 'Mô tả công việc', Number.MAX_SAFE_INTEGER);
+  const originalYeuCau = extractSectionText($, 'Yêu cầu ứng viên', Number.MAX_SAFE_INTEGER);
+  const moTa = truncateNativeSection(originalMoTa, 1400);
+  const yeuCau = truncateNativeSection(originalYeuCau, 1400);
   const descriptionParts: string[] = [];
 
   if (moTa) {
@@ -287,13 +293,19 @@ export function parseJobDetail(html: string): {
 
   const truncated =
     description && description.length > 2800 ? `${description.slice(0, 2799).trimEnd()}…` : description;
+  const wasTruncated = (originalMoTa?.length ?? 0) > 1400 || (originalYeuCau?.length ?? 0) > 1400 || (description?.length ?? 0) > 2800;
 
   return {
     description: truncated,
+    sourceTextStatus: description ? (wasTruncated ? 'incomplete' : 'full') : 'incomplete',
     skills: skills.length > 0 ? [...new Set(skills)] : undefined,
     salaryText,
     experienceText,
   };
+}
+
+function truncateNativeSection(value: string | undefined, maxLength: number): string | undefined {
+  return value && value.length > maxLength ? `${value.slice(0, maxLength - 1).trimEnd()}…` : value;
 }
 
 function extractSectionText($: cheerio.CheerioAPI, title: string, maxLength: number): string | undefined {

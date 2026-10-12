@@ -3,6 +3,7 @@ import type { Article } from '../types/article';
 import type { CuratedCollectionResult } from '../types/curated';
 import type { RssSourceConfig } from '../types/source';
 import { dedupeArticles, isAllowedArticle } from './article.service';
+import { SourceContentEnrichmentService } from './source-content-enrichment.service';
 
 interface CuratedRssSourceOptions {
   sources: RssSourceConfig[];
@@ -10,13 +11,16 @@ interface CuratedRssSourceOptions {
   maxArticleAgeDays: number;
   logLabel: string;
   now?: () => Date;
+  enrichment?: Pick<SourceContentEnrichmentService, 'enrich'>;
 }
 
 export class CuratedRssSourceService {
   private readonly now: () => Date;
+  private readonly enrichment: Pick<SourceContentEnrichmentService, 'enrich'>;
 
   constructor(private readonly options: CuratedRssSourceOptions) {
     this.now = options.now ?? (() => new Date());
+    this.enrichment = options.enrichment ?? new SourceContentEnrichmentService();
   }
 
   async collectLatest(): Promise<CuratedCollectionResult> {
@@ -53,7 +57,7 @@ export class CuratedRssSourceService {
     );
 
     return {
-      articles: dedupeArticles(fresh.filter(isAllowedArticle)),
+      articles: await this.enrichment.enrich(dedupeArticles(fresh.filter(isAllowedArticle))),
       successfulSourceCount,
       failedSourceCount,
     };

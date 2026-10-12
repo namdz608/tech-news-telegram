@@ -28,6 +28,7 @@ export class RemoteOkAdapter {
       if (!row.position || row.id === undefined || !row.url || !row.date || !row.company) {
         return [];
       }
+      const hasDescription = Boolean(row.description?.replace(/<[^>]*>/g, ' ').trim());
       const job = toDevopsJob({
         id: String(row.id),
         sourceId: this.key,
@@ -37,6 +38,8 @@ export class RemoteOkAdapter {
         url: row.url,
         location: row.location,
         description: row.description,
+        sourceTextStatus: hasDescription ? 'full' : 'incomplete',
+        retrievalBackend: hasDescription ? 'direct' : undefined,
         tags: row.tags,
         salary: salaryRange(row.salary_min, row.salary_max),
         publishedAt: row.date,

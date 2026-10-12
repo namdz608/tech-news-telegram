@@ -4,6 +4,7 @@ import type {
   DevopsInfraSourceItem,
 } from '../types/devops-infra';
 import { normalizeUrl } from '../utils/normalize-url';
+import { SourceContentEnrichmentService } from './source-content-enrichment.service';
 import type {
   DevopsInfraSourceAdapter,
   DevopsInfraSourceAdapterResult,
@@ -17,6 +18,7 @@ export class DevopsInfraSourceService {
     private readonly maxAgeHours = env.DEVOPS_INFRA_MAX_AGE_HOURS,
     private readonly now = () => new Date(),
     private readonly adapterTimeoutMs = DEFAULT_ADAPTER_TIMEOUT_MS,
+    private readonly enrichment: Pick<SourceContentEnrichmentService, 'enrich'> = new SourceContentEnrichmentService(),
   ) {}
 
   async collectLatest(): Promise<DevopsInfraCollectionResult> {
@@ -39,7 +41,7 @@ export class DevopsInfraSourceService {
       failedSources.push(enabled[index].key);
     });
 
-    const items = this.normalizeFilterAndDedupe(collected);
+    const items = await this.enrichment.enrich(this.normalizeFilterAndDedupe(collected));
 
     return {
       items,

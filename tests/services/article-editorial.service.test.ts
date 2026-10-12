@@ -20,6 +20,12 @@ const article = {
 };
 
 describe('ArticleEditorialService', () => {
+  it('tells the editor when source text is only an excerpt', async () => {
+    const generator = { generate: vi.fn().mockResolvedValue('{}') };
+    await new ArticleEditorialService(generator).editArticle({ ...article, sourceTextStatus: 'search-excerpt' }, 'security');
+    expect(generator.generate.mock.calls[0][0].instructions).toContain('đoạn trích');
+    expect(generator.generate.mock.calls[0][0].instructions).toContain('Không suy diễn');
+  });
   it('selects Codex independently from the global editorial provider', () => {
     expect(createArticleEditorialGenerator('codex')).toBeInstanceOf(
       CodexArticleEditorialGenerator,

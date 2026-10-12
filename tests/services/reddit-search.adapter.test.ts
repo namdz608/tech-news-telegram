@@ -1,6 +1,6 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { env } from '../../src/config/env';
 import { politicsSearchQueries } from '../../src/config/gold-politics-sources';
 import { RedditSearchAdapter } from '../../src/services/reddit-search.adapter';
@@ -12,6 +12,7 @@ const PUBLISHED_AT = new Date(CREATED_UTC * 1000).toISOString();
 
 const redditQueryGroups = politicsSearchQueries.filter((query) => !query.discoveryHint).slice(0, 5);
 const emptyListing = { data: { children: [] } };
+const TOKEN = 'test-reddit-access-token';
 
 function listing(posts: unknown[]) {
   return {
@@ -379,5 +380,124 @@ describe('RedditSearchAdapter', () => {
       logSpy.mockRestore();
       warnSpy.mockRestore();
     }
+  });
+});
+
+describe('RedditSearchAdapter with Agent Reach OAuth', () => {
+  const originalMode = env.AGENT_REACH_ENABLED;
+  const config = env as typeof env & { REDDIT_ACCESS_TOKEN: string };
+  const originalToken = config.REDDIT_ACCESS_TOKEN;
+  beforeEach(() => {
+    env.AGENT_REACH_ENABLED = true;
+    config.REDDIT_ACCESS_TOKEN = TOKEN;
+  });
+  afterEach(() => {
+    env.AGENT_REACH_ENABLED = originalMode;
+    config.REDDIT_ACCESS_TOKEN = originalToken;
+    vi.restoreAllMocks();
+  });
+
+  it('disables Reddit and returns zero counters without credentials', async () => {
+    config.REDDIT_ACCESS_TOKEN = '';
+    const http = { get: vi.fn() };
+    const adapter = new RedditSearchAdapter(http);
+    expect(adapter.isEnabled()).toBe(false);
+    await expect(adapter.collect()).resolves.toEqual({
+      items: [],
+      successfulSourceCount: 0,
+      failedSources: [],
+    });
+    expect(http.get).not.toHaveBeenCalled();
+  });
+
+  it('authenticates all catalog searches and preserves original source attribution', async () => {
+    const http = {
+      get: vi
+        .fn()
+        .mockResolvedValue({
+          data: listing([validPost()]),
+          headers: { 'content-type': 'application/json' },
+        }),
+    };
+    const result = await new RedditSearchAdapter(
+      http,
+      undefined,
+      () => NOW,
+    ).collect();
+    expect(result.successfulSourceCount).toBe(5);
+    expect(http.get).toHaveBeenCalledTimes(5);
+    for (const [url, request] of http.get.mock.calls) {
+      expect(url).toBe('https://oauth.reddit.com/search.json');
+      expect(request.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+      expect(request.maxRedirects).toBe(0);
+    }
+    expect(result.items[0]).toMatchObject({
+      originalAuthor: 'NewsAccount',
+      publishedAt: PUBLISHED_AT,
+      originalUrl:
+        'https://www.reddit.com/r/worldnews/comments/abc123/leader_controversy',
+    });
+  });
+
+  it('does not send a token to custom search hosts', async () => {
+    const http = {
+      get: vi
+        .fn()
+        .mockResolvedValue({
+          data: emptyListing,
+          headers: { 'content-type': 'application/json' },
+        }),
+    };
+    const result = await new RedditSearchAdapter(
+      http,
+      'https://attacker.example/search',
+    ).collect();
+    expect(result.successfulSourceCount).toBe(0);
+    expect(result.failedSources).toHaveLength(5);
+    expect(http.get).not.toHaveBeenCalled();
+  });
+
+  it.each([401, 429])(
+    'does not fall back anonymously after HTTP %s',
+    async (status) => {
+      const http = {
+        get: vi
+          .fn()
+          .mockRejectedValue(
+            Object.assign(new Error('secret-token'), { response: { status } }),
+          ),
+      };
+      const result = await new RedditSearchAdapter(http).collect();
+      expect(result.successfulSourceCount).toBe(0);
+      expect(result.failedSources).toHaveLength(5);
+      expect(http.get).toHaveBeenCalledTimes(5);
+      expect(
+        http.get.mock.calls.every(([url]) =>
+          url.startsWith('https://oauth.reddit.com/'),
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it('counts an authenticated empty listing as a successful query', async () => {
+    const http = {
+      get: vi
+        .fn()
+        .mockResolvedValue({
+          data: emptyListing,
+          headers: { 'content-type': 'application/json' },
+        }),
+    };
+    const result = await new RedditSearchAdapter(http).collect();
+    expect(result).toEqual({
+      items: [],
+      successfulSourceCount: 5,
+      failedSources: [],
+    });
+    expect(
+      http.get.mock.calls.every(
+        ([, request]) => request.headers.Authorization === `Bearer ${TOKEN}`,
+      ),
+    ).toBe(true);
   });
 });

@@ -12,6 +12,8 @@ import * as cheerio from 'cheerio';
 import { env } from '../config/env';
 // Nạp { matchTopics } từ `../services/article.service` để dùng đúng dependency/type thay vì tự triển khai lại.
 import { matchTopics } from '../services/article.service';
+import { CrawlHtmlClient } from '../services/crawl-html-client';
+import type { JinaReaderService } from '../services/agent-reach-retrieval.service';
 // Nạp { Article } từ `../types/article` để dùng đúng dependency/type thay vì tự triển khai lại.
 import type { Article } from '../types/article';
 // Nạp { HtmlSourceConfig } từ `../types/source` để dùng đúng dependency/type thay vì tự triển khai lại.
@@ -31,7 +33,7 @@ import type { NewsCrawler } from './crawler.types';
  */
 // Mở khai báo `interface HttpClientLike` để compiler kiểm tra contract cho mọi consumer.
 interface HttpClientLike {
-  get(url: string): Promise<{ data: string }>;
+  get(url: string): Promise<{ data: string; status?: number; headers?: Readonly<Record<string, string | undefined>> }>;
 }
 
 /**
@@ -43,17 +45,29 @@ interface HttpClientLike {
  */
 // Mở khai báo `export class HtmlCrawler implements NewsCrawler<HtmlSourceConfig>` để compiler kiểm tra contract cho mọi consumer.
 export class HtmlCrawler implements NewsCrawler<HtmlSourceConfig> {
+  private readonly http: CrawlHtmlClient;
+
   constructor(
-    private readonly http: HttpClientLike = axios.create({
+    http: HttpClientLike = axios.create({
       // Gán field `timeout` từ `env.REQUEST_TIMEOUT_MS,` để object khớp contract.
       timeout: env.REQUEST_TIMEOUT_MS,
+      maxContentLength: 512 * 1024,
+      maxBodyLength: 512 * 1024,
+      maxRedirects: 3,
       // Gán field `headers` từ `{` để object khớp contract.
       headers: {
         // Gán field `User-Agent` từ `env.USER_AGENT,` để object khớp contract.
         'User-Agent': env.USER_AGENT,
       },
     }),
-  ) {}
+    reader?: Pick<JinaReaderService, 'retrieve'>,
+    agentReachEnabled = env.AGENT_REACH_ENABLED && env.JINA_READER_ENABLED,
+  ) {
+    this.http = new CrawlHtmlClient({ get: async (url) => {
+      const response = await http.get(url);
+      return { ...response, headers: response.headers ?? {} };
+    } }, reader, agentReachEnabled);
+  }
 
   /**
    * Hàm `crawl` tải dữ liệu nguồn và chuẩn hóa thành Article[]; kết quả được trả cho caller theo kiểu khai báo.
@@ -66,6 +80,7 @@ export class HtmlCrawler implements NewsCrawler<HtmlSourceConfig> {
   async crawl(source: HtmlSourceConfig): Promise<Article[]> {
     // Tính `response` từ `await this.http.get(source.listUrl);` và giữ bất biến trong phạm vi hiện tại.
     const response = await this.http.get(source.listUrl);
+    if (typeof response.data !== 'string') throw new Error('crawl-html');
     const $ = cheerio.load(response.data);
     // Khởi tạo biến cục bộ `articles` kiểu `Article[]` từ `[];`.
     const articles: Article[] = [];
@@ -125,6 +140,7 @@ export class HtmlCrawler implements NewsCrawler<HtmlSourceConfig> {
         url,
         // Đưa giá trị `summary` vào field cùng tên của object đang tạo.
         summary,
+        sourceTextStatus: summary ? 'search-excerpt' : 'incomplete',
         // Đưa giá trị `imageUrl` vào field cùng tên của object đang tạo.
         imageUrl,
         // Đưa giá trị `publishedAt` vào field cùng tên của object đang tạo.

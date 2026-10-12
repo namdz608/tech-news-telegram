@@ -4,6 +4,7 @@ import type { PoliticsCollectionResult, PoliticsSourceItem } from '../types/gold
 import { normalizeUrl } from '../utils/normalize-url';
 import { compactText } from '../utils/text';
 import type { PoliticsSourceAdapter } from './politics-source.adapter';
+import { SourceContentEnrichmentService } from './source-content-enrichment.service';
 
 export interface PoliticsSourceLimits {
   maxItemsPerAdapter: number;
@@ -55,6 +56,7 @@ export class PoliticsSourceService {
       maxIdentityLength: 200,
     },
     private readonly now: () => Date = () => new Date(),
+    private readonly enrichment: Pick<SourceContentEnrichmentService, 'enrich'> = new SourceContentEnrichmentService(),
   ) {
     this.limits = copyAndFreezeLimits(limits);
   }
@@ -102,8 +104,12 @@ export class PoliticsSourceService {
       }
     });
 
+    const enriched = await this.enrichment.enrich(items);
     return {
-      items,
+      items: enriched.map((item) => {
+        if (!item.summary || item.summary.length <= this.limits.maxSourceTextLength) return item;
+        return { ...item, summary: boundText(item.summary, this.limits.maxSourceTextLength), sourceTextStatus: 'incomplete' as const };
+      }),
       collectedCount: items.length,
       successfulSourceCount,
       failedSourceCount: failedSources.length,

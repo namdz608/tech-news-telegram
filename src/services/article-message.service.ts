@@ -49,7 +49,7 @@ export function getArticleMessageImageUrl(article: Article, fallbackImageUrl: st
 }
 
 export function formatArticleDate(article: Article): string {
-  for (const value of [article.publishedAt, article.collectedAt]) {
+  for (const value of [article.publishedAt]) {
     if (!value) continue;
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) continue;

@@ -132,6 +132,13 @@ async function searchOnce(http: VnJobsHttpClient, query: string, hitsPerPage: nu
         hit.jobDescription && hit.jobRequirement && requirementText
           ? [htmlToPlainText(hit.jobDescription, 1400), `Yêu cầu:\n${requirementText}`].filter(Boolean).join('\n\n')
           : description;
+      const nativeDescription = htmlToPlainText(hit.jobDescription, Number.MAX_SAFE_INTEGER);
+      const nativeRequirements = htmlToPlainText(hit.jobRequirement, Number.MAX_SAFE_INTEGER);
+      const hasNativeDescription = Boolean(mergedDescription || description);
+      const mergesRequirements = Boolean(hit.jobDescription && hit.jobRequirement && requirementText);
+      const wasTruncated = mergesRequirements
+        ? (nativeDescription?.length ?? 0) > 1400 || (nativeRequirements?.length ?? 0) > 1200
+        : (nativeDescription?.length ?? nativeRequirements?.length ?? 0) > 1600;
 
       return {
         title,
@@ -141,6 +148,8 @@ async function searchOnce(http: VnJobsHttpClient, query: string, hitsPerPage: nu
         salaryText: hit.prettySalary || undefined,
         experienceText: hit.jobLevel || undefined,
         description: mergedDescription || description,
+        sourceTextStatus: hasNativeDescription && !wasTruncated ? 'full' : 'incomplete',
+        ...(hasNativeDescription ? { retrievalBackend: 'direct' as const } : {}),
         skills: skills.length > 0 ? skills : undefined,
         imageUrl: normalizeLogoUrl(hit.companyLogo, 'https://www.vietnamworks.com'),
         sourceId: 'vietnamworks',

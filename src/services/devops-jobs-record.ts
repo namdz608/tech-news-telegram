@@ -10,6 +10,8 @@ export interface DevopsJobInput {
   url: string;
   location?: string;
   description?: string;
+  sourceTextStatus?: DevopsJob['sourceTextStatus'];
+  retrievalBackend?: DevopsJob['retrievalBackend'];
   tags?: readonly string[];
   salary?: string;
   publishedAt: string;
@@ -38,6 +40,8 @@ export function toDevopsJob(input: DevopsJobInput): DevopsJob | undefined {
     url,
     location: input.location?.trim() ?? '',
     description: input.description ?? '',
+    ...(input.sourceTextStatus ? { sourceTextStatus: input.sourceTextStatus } : {}),
+    ...(input.retrievalBackend ? { retrievalBackend: input.retrievalBackend } : {}),
     tags: input.tags ?? [],
     publishedAt: new Date(input.publishedAt).toISOString(),
     ...(salary ? { salary } : {}),

@@ -1,8 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { HtmlCrawler } from '../../src/crawlers/html.crawler';
 import type { HtmlSourceConfig } from '../../src/types/source';
 
 describe('HtmlCrawler', () => {
+  it('uses Reader HTML for discovery when the native list request fails', async () => {
+    const direct = { get: vi.fn(async () => { throw new Error('403'); }) };
+    const reader = { retrieve: vi.fn(async (url: string) => ({ finalUrl: url, contentType: 'text/html', text: '<article><a href="/ai">AI model update</a><time datetime="2026-07-12T09:00:00.000Z"></time></article>' })) };
+    const source: HtmlSourceConfig = {
+      id: 'html-fallback', name: 'HTML fallback', kind: 'html', enabled: true,
+      homepageUrl: 'https://example.com', listUrl: 'https://example.com/news',
+      selectors: { item: 'article', title: 'a', url: 'a', publishedAt: 'time' },
+    };
+    const articles = await new HtmlCrawler(direct, reader, true).crawl(source);
+    expect(reader.retrieve).toHaveBeenCalledWith(source.listUrl, 'html');
+    expect(articles).toHaveLength(1);
+    expect(articles[0]).toMatchObject({ url: 'https://example.com/ai', title: 'AI model update', publishedAt: '2026-07-12T09:00:00.000Z', sourceTextStatus: 'incomplete' });
+  });
   it('maps selected HTML cards into normalized matching articles', async () => {
     const source: HtmlSourceConfig = {
       id: 'test-html',

@@ -12,6 +12,7 @@ import type {
   DevopsInfraSourceAdapter,
   DevopsInfraSourceAdapterResult,
 } from './devops-infra-source.adapter';
+import { RedditApiBackend } from './reddit-api.backend';
 
 const FETCH_ORIGIN = 'https://old.reddit.com';
 const REDDIT_ORIGIN = 'https://www.reddit.com';
@@ -61,6 +62,7 @@ function createDefaultHttpClient(): HttpClientLike {
 
 export class DevopsInfraRedditAdapter implements DevopsInfraSourceAdapter {
   readonly key = 'reddit';
+  private readonly redditApi?: RedditApiBackend;
 
   constructor(
     private readonly http: HttpClientLike = createDefaultHttpClient(),
@@ -69,13 +71,18 @@ export class DevopsInfraRedditAdapter implements DevopsInfraSourceAdapter {
       new Promise((resolve) => {
         setTimeout(resolve, ms);
       }),
-  ) {}
+  ) {
+    if (env.AGENT_REACH_ENABLED) {
+      this.redditApi = new RedditApiBackend(env.REDDIT_ACCESS_TOKEN, this.http);
+    }
+  }
 
   isEnabled(): boolean {
-    return true;
+    return this.redditApi ? this.redditApi.isEnabled() : true;
   }
 
   async collect(): Promise<DevopsInfraSourceAdapterResult> {
+    if (!this.isEnabled()) return { items: [], successfulSourceCount: 0, failedSources: [] };
     const requests = buildSourceRequests();
     const settled = await mapLimited(requests, QUERY_CONCURRENCY, (request) =>
       this.collectSource(request),
@@ -133,7 +140,7 @@ export class DevopsInfraRedditAdapter implements DevopsInfraSourceAdapter {
     { ok: true; posts: MappedPost[] } | { ok: false; key: string }
   > {
     try {
-      const response = await this.http.get(request.url, requestConfig(request.params));
+      const response = await (this.redditApi ?? this.http).get(request.url, requestConfig(request.params));
       assertJsonContentType(response.headers);
       const discoveredAt = this.now().toISOString();
       return {
@@ -152,7 +159,7 @@ export class DevopsInfraRedditAdapter implements DevopsInfraSourceAdapter {
         failure.statusOrCode,
         failure.name,
       );
-      if (status === 429) {
+      if (status === 429 && !this.redditApi) {
         try {
           await this.sleep(retryAfterMs(error) ?? DEFAULT_RETRY_MS);
           const response = await this.http.get(request.url, requestConfig(request.params));
@@ -187,9 +194,9 @@ export class DevopsInfraRedditAdapter implements DevopsInfraSourceAdapter {
     const params = { limit: 50 };
     let response: HttpResponse;
     try {
-      response = await this.http.get(url, requestConfig(params));
+      response = await (this.redditApi ?? this.http).get(url, requestConfig(params));
     } catch (error) {
-      if (httpStatus(error) !== 429) throw error;
+      if (httpStatus(error) !== 429 || this.redditApi) throw error;
       await this.sleep(retryAfterMs(error) ?? DEFAULT_RETRY_MS);
       response = await this.http.get(url, requestConfig(params));
     }

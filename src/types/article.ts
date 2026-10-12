@@ -27,6 +27,8 @@ export interface Article {
   url: string;
   // Metadata tùy chọn vì không phải nguồn nào cũng cung cấp đủ.
   summary?: string;
+  sourceTextStatus?: 'full' | 'search-excerpt' | 'incomplete';
+  retrievalBackend?: 'direct' | 'jina';
   imageUrl?: string;
   author?: string;
   publishedAt?: string;
